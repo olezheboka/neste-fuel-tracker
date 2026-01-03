@@ -331,6 +331,14 @@ export default function App() {
           )}
         </div>
 
+        {/* Loading State */}
+        {loading && latestPrices.length === 0 && (
+          <div className="text-center py-20">
+            <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
+            <p className="text-gray-500 font-medium">{t('loading_initial') || t('loading')}</p>
+          </div>
+        )}
+
         {/* Fuel Prices */}
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.petrol')}</h2>

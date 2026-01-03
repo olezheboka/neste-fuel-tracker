@@ -16,21 +16,9 @@ const initPromise = (async () => {
     try {
         await initDb();
         dbReady = true;
-
-        // Cold start check - fire and forget
-        const db = await openDb();
-        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-
-        if (!last) {
-            console.log('No data found (cold start), triggering background scrape...');
-            // In serverless, we CANNOT await this if it takes too long, or the function times out.
-            // We start it, log it, but don't block the initPromise.
-            scrapePrices().then(() => console.log('Background scrape finished')).catch(e => console.error('Background scrape failed:', e));
-        } else {
-            console.log('Data exists, skipping initial scrape.');
-        }
+        console.log('[Server] Database initialized');
     } catch (e) {
-        console.error('Failed to initialize:', e);
+        console.error('[Server] Failed to initialize DB:', e);
     }
 })();
 
@@ -40,7 +28,7 @@ const ensureDb = async (req, res, next) => {
         try {
             await initPromise;
         } catch (e) {
-            console.error('DB init failed during request:', e);
+            console.error('[Server] DB init failed during request:', e);
             return res.status(500).json({ error: 'Database initialization failed' });
         }
     }
@@ -48,6 +36,18 @@ const ensureDb = async (req, res, next) => {
 };
 
 app.use('/api', ensureDb);
+
+// Helper: Ensure data exists, otherwise scrape (Blocking)
+async function ensureDataExists() {
+    const db = await openDb();
+    const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+    if (!last) {
+        console.log('[Server] No data found (cold start). Scraping synchronously...');
+        // Force blocking scrape so user gets data
+        await scrapePrices();
+        console.log('[Server] Cold start scrape complete.');
+    }
+}
 
 // Schedule scraping (ONLY in local development or persistent server)
 // In Vercel serverless, cron jobs should be configured via vercel.json (crons), not node-cron.
@@ -63,6 +63,9 @@ if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
 // Get latest prices
 app.get('/api/prices/latest', async (req, res) => {
     try {
+        // Ensure we have data before querying
+        await ensureDataExists();
+
         const db = await openDb();
         // Get the latest timestamp
         const latestRecord = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
@@ -98,6 +101,7 @@ app.get('/api/prices/latest', async (req, res) => {
 // Get history
 app.get('/api/prices/history', async (req, res) => {
     try {
+        await ensureDataExists();
         const { type } = req.query;
         const db = await openDb();
 
