@@ -14,20 +14,24 @@ app.use(express.json());
 
 // Initialize DB and start server logic (Serverless compatible)
 let dbReady = false;
-const initPromise = (async () => {
+// Initialize DB manually via API to debug crashes
+async function initializeDatabase() {
     try {
         console.log('[Server] Initializing DB...');
         await initDb();
         dbReady = true;
         console.log('[Server] Database initialized');
+        return { success: true };
     } catch (e) {
         console.error('[Server] Failed to initialize DB:', e);
+        return { success: false, error: e.message, stack: e.stack };
     }
-})();
+}
+// initPromise removed (Automatic start disabled for debugging)
 
 // Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
 const ensureDb = async (req, res, next) => {
-    if (req.path === '/api/debug' || req.path === '/debug') {
+    if (req.path === '/api/debug' || req.path === '/debug' || req.path === '/api/init') {
         return next();
     }
 
@@ -200,6 +204,13 @@ app.get('/api/prices/history', async (req, res) => {
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
+});
+
+// Manual Initialization Endpoint
+app.get('/api/init', async (req, res) => {
+    console.log('[Debug] Manual /api/init triggered');
+    const result = await initializeDatabase();
+    res.json(result);
 });
 
 // Manual trigger for testing
