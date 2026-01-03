@@ -30,8 +30,10 @@ async function initializeDatabase() {
 // initPromise removed (Automatic start disabled for debugging)
 
 // Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
+// Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
 const ensureDb = async (req, res, next) => {
-    if (req.path === '/api/debug' || req.path === '/debug' || req.path === '/api/init') {
+    // Check for relative paths since this middleware is mounted at /api
+    if (req.path === '/debug' || req.path === '/init') {
         return next();
     }
 
