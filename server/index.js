@@ -229,7 +229,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Catch-all info for unhandled API routes (Must be last)
-app.all('/api/(.*)', (req, res) => {
+app.use('/api', (req, res) => {
     console.log('[Warning] Unhandled API route:', req.originalUrl);
     res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
 });
