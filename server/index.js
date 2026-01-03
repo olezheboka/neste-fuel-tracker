@@ -1,8 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-// const cron = require('node-cron'); // Disable cron
+// const cron = require('node-cron'); // Disable cron for Vercel
 const { initDb, openDb } = require('./db');
-// const { scrapePrices } = require('./scraper'); // Disable scraper
+const { scrapePrices } = require('./scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -14,22 +14,29 @@ app.use(express.json());
 
 // Initialize DB and start server logic (Serverless compatible)
 let dbReady = false;
-// Initialize DB manually via API to debug crashes
-async function initializeDatabase() {
-    try {
-        console.log('[Server] Initializing DB...');
-        await initDb();
-        dbReady = true;
-        console.log('[Server] Database initialized');
-        return { success: true };
-    } catch (e) {
-        console.error('[Server] Failed to initialize DB:', e);
-        return { success: false, error: e.message, stack: e.stack };
-    }
-}
-// initPromise removed (Automatic start disabled for debugging)
+let initPromise = null;
 
-// Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
+// Initialize DB safely
+async function initializeDatabase() {
+    if (dbReady) return { success: true };
+    if (initPromise) return initPromise;
+
+    initPromise = (async () => {
+        try {
+            console.log('[Server] Initializing DB...');
+            await initDb();
+            dbReady = true;
+            console.log('[Server] Database initialized');
+            return { success: true };
+        } catch (e) {
+            console.error('[Server] Failed to initialize DB:', e);
+            initPromise = null; // Allow retry
+            throw e;
+        }
+    })();
+    return initPromise;
+}
+
 // Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
 const ensureDb = async (req, res, next) => {
     // Check for relative paths since this middleware is mounted at /api
@@ -38,8 +45,12 @@ const ensureDb = async (req, res, next) => {
     }
 
     if (!dbReady) {
-        // initPromise was removed. We now require manual init via /api/init
-        return res.status(503).json({ error: 'Database not initialized. Please call /api/init first (Debug Mode).' });
+        try {
+            await initializeDatabase();
+        } catch (e) {
+            console.error('[Server] DB init failed during request:', e);
+            return res.status(503).json({ error: 'Database initialization failed', details: e.message });
+        }
     }
     next();
 };
@@ -104,18 +115,20 @@ app.get('/api/debug', async (req, res) => {
 app.use('/api', ensureDb);
 
 // Helper: Ensure data exists, otherwise scrape (Blocking) - DISABLED FOR DIAGNOSIS
+// Helper: Ensure data exists, otherwise scrape (Blocking)
 async function ensureDataExists() {
-    /* 
-    const db = await openDb();
-    const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-    if (!last) {
-        console.log('[Server] No data found (cold start). Scraping synchronously...');
-        // Force blocking scrape so user gets data
-        await scrapePrices();
-        console.log('[Server] Cold start scrape complete.');
+    try {
+        const db = await openDb();
+        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+        if (!last) {
+            console.log('[Server] No data found (cold start). Scraping synchronously...');
+            // Force blocking scrape so user gets data
+            await scrapePrices();
+            console.log('[Server] Cold start scrape complete.');
+        }
+    } catch (e) {
+        console.error('[Server] Cold start scrape failed:', e);
     }
-    */
-    console.log('[Server] ensureDataExists skipped (Diagnosis Mode)');
 }
 
 // Schedule scraping (ONLY in local development or persistent server)
@@ -213,7 +226,6 @@ app.get('/api/init', async (req, res) => {
 
 // Manual trigger for testing
 app.post('/api/scrape', async (req, res) => {
-    /*
     try {
         console.log('Manual scrape triggered');
         const results = await scrapePrices();
@@ -222,8 +234,6 @@ app.post('/api/scrape', async (req, res) => {
         console.error('Manual scrape failed:', error);
         res.status(500).json({ error: 'Scrape failed: ' + error.message });
     }
-    */
-    res.json({ message: 'Scraper disabled in diagnosis mode' });
 });
 
 app.get('/api/health', (req, res) => {
