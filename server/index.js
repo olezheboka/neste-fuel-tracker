@@ -225,11 +225,11 @@ app.get('/api/init', async (req, res) => {
 });
 
 // Manual trigger for testing
-app.post('/api/scrape', async (req, res) => {
+app.get('/api/scrape', async (req, res) => {
     try {
         console.log('Manual scrape triggered');
         const results = await scrapePrices();
-        res.json(results);
+        res.json({ status: 'ok', count: results.length, results });
     } catch (error) {
         console.error('Manual scrape failed:', error);
         res.status(500).json({ error: 'Scrape failed: ' + error.message });
