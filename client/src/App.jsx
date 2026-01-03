@@ -144,7 +144,7 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
   const [historyData, setHistoryData] = useState([]);
-  const [selectedFuel, setSelectedFuel] = useState('Neste Futura 98');
+  const [selectedFuel, setSelectedFuel] = useState('all');
   const [loading, setLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
   const [graphInterval, setGraphInterval] = useState('days');
