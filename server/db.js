@@ -57,18 +57,34 @@ async function openDb() {
         try {
             const { createPool } = require('@vercel/postgres');
 
-            // Try Pool with explicit SSL settings to fix 404/Connection errors
+            // Try Pool with explicit SSL settings
             try {
                 const pool = createPool({
                     connectionString: process.env.POSTGRES_URL,
-                    ssl: {
-                        rejectUnauthorized: false
-                    }
+                    ssl: { rejectUnauthorized: false }
                 });
                 dbInstance = new PostgresDatabase(pool);
                 return dbInstance;
             } catch (poolErr) {
-                console.error('[DB] Pool creation error:', poolErr);
+                // Fallback for Direct Connection String (Neon/Vercel quirk)
+                const msg = poolErr.message || '';
+                if (msg.includes('direct connection') || poolErr.code === 'invalid_connection_string' || poolErr.code === 'VercelPostgresError') {
+                    console.warn('[DB] Pool creation failed (Direct Connection URL detected). Switching to single Client fallback.');
+                    try {
+                        const { createClient } = require('@vercel/postgres');
+                        const client = createClient({
+                            connectionString: process.env.POSTGRES_URL,
+                            ssl: { rejectUnauthorized: false }
+                        });
+                        await client.connect();
+                        dbInstance = new PostgresDatabase(client);
+                        return dbInstance;
+                    } catch (clientErr) {
+                        console.error('[DB] Failed to create Client fallback:', clientErr);
+                        throw clientErr;
+                    }
+                }
+                console.error('[DB] Pool creation error (Fatal):', poolErr);
                 throw poolErr;
             }
         } catch (e) {
