@@ -50,32 +50,29 @@ async function openDb() {
 
     // 1. Production / Vercel with Postgres
     if (process.env.POSTGRES_URL) {
-        console.log('[DB] Connecting to Vercel Postgres...');
-        try {
-            const { createPool, createClient } = require('@vercel/postgres');
+        // Log masked URL for debugging to verify format
+        const maskedUrl = process.env.POSTGRES_URL.replace(/:([^:@]+)@/, ':***@');
+        console.log(`[DB] Connecting to Vercel Postgres... URL: ${maskedUrl}`);
 
-            // Try Pool first
+        try {
+            const { createPool } = require('@vercel/postgres');
+
+            // Try Pool with explicit SSL settings to fix 404/Connection errors
             try {
                 const pool = createPool({
                     connectionString: process.env.POSTGRES_URL,
+                    ssl: {
+                        rejectUnauthorized: false
+                    }
                 });
                 dbInstance = new PostgresDatabase(pool);
                 return dbInstance;
             } catch (poolErr) {
-                // Fallback for Direct Connection String
-                if (poolErr.message.includes('direct connection') || poolErr.code === 'VercelPostgresError') {
-                    console.warn('[DB] Pool creation failed. Switching to Client.');
-                    const client = createClient({
-                        connectionString: process.env.POSTGRES_URL,
-                    });
-                    await client.connect();
-                    dbInstance = new PostgresDatabase(client);
-                    return dbInstance;
-                }
+                console.error('[DB] Pool creation error:', poolErr);
                 throw poolErr;
             }
         } catch (e) {
-            console.error('[DB] Failed to connect to Postgres:', e);
+            console.error('[DB] Failed to load @vercel/postgres or connect:', e);
             throw e;
         }
     }
