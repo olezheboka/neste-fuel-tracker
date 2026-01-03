@@ -143,6 +143,28 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), dbReady, env: process.env.NODE_ENV });
 });
 
+app.get('/api/debug', async (req, res) => {
+    try {
+        const db = await openDb();
+        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+        const count = await db.get('SELECT count(*) as c FROM fuel_prices');
+
+        res.json({
+            status: 'ok',
+            env: process.env.NODE_ENV,
+            vercel: process.env.VERCEL,
+            hasPostgres: !!process.env.POSTGRES_URL,
+            postgresUrlPrefix: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.substring(0, 10) + '...' : 'N/A',
+            dbReady,
+            lastRecord: last,
+            totalRows: count ? count.c : 0,
+            dbType: process.env.POSTGRES_URL ? 'Postgres' : 'SQLite (Local/Fallback)'
+        });
+    } catch (e) {
+        res.status(500).json({ error: e.message, stack: e.stack });
+    }
+});
+
 // For local development
 if (require.main === module) {
     app.listen(PORT, () => {
