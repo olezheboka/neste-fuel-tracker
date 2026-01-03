@@ -130,6 +130,10 @@ app.post('/api/scrape', async (req, res) => {
     }
 });
 
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', uptime: process.uptime(), dbReady, env: process.env.NODE_ENV });
+});
+
 // For local development
 if (require.main === module) {
     app.listen(PORT, () => {
