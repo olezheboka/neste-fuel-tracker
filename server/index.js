@@ -37,6 +37,62 @@ const ensureDb = async (req, res, next) => {
     next();
 };
 
+// Debug routes to diagnose 404s - Placed BEFORE ensureDb to always work
+app.get('/debug', (req, res) => {
+    res.json({ message: 'Root /debug hit', url: req.url, originalUrl: req.originalUrl, headers: req.headers });
+});
+
+app.get('/api/debug', async (req, res) => {
+    try {
+        console.log('[Debug] /api/debug hit');
+        let dbError = null;
+        let last = null;
+        let count = null;
+        let dbType = 'Unknown';
+
+        try {
+            // Race openDb with 2s timeout to prevent hanging
+            const dbPromise = openDb();
+            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB Connection Timeout (2s)')), 2000));
+            const db = await Promise.race([dbPromise, timeoutPromise]);
+
+            dbType = process.env.POSTGRES_URL ? 'Postgres' : 'SQLite (Local/Fallback)';
+            last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+            const cRow = await db.get('SELECT count(*) as c FROM fuel_prices');
+            count = cRow ? cRow.c : 0;
+        } catch (e) {
+            dbError = { message: e.message, stack: e.stack, code: e.code };
+            console.error('[Debug] DB Error inside /api/debug:', e);
+        }
+
+        res.json({
+            status: 'ok',
+            env: process.env.NODE_ENV,
+            vercel: process.env.VERCEL,
+            hasPostgres: !!process.env.POSTGRES_URL,
+            postgresUrlPrefix: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.substring(0, 10) + '...' : 'N/A',
+            dbReady,
+            lastRecord: last,
+            totalRows: count,
+            dbType,
+            dbError
+        });
+    } catch (e) {
+        res.status(500).json({ error: 'Critical Debug Error', details: e.message });
+    }
+});
+
+// Catch-all info for unhandled API routes
+app.all('/api/*', (req, res, next) => {
+    // If it's a known API route, let it pass to ensureDb (by calling next assuming routes are below)
+    // But wait, my other routes are below.
+    // So this catch-all should be AT THE END.
+    // Moving it here captures everything.
+    // I should NOT put the catch-all here.
+    // I will remove the catch-all from here and put it back at the end.
+    next();
+});
+
 app.use('/api', ensureDb);
 
 // Helper: Ensure data exists, otherwise scrape (Blocking)
@@ -198,5 +254,11 @@ if (require.main === module) {
         console.log(`Server running on http://localhost:${PORT}`);
     });
 }
+
+// Catch-all info for unhandled API routes (Must be last)
+app.all('/api/*', (req, res) => {
+    console.log('[Warning] Unhandled API route:', req.originalUrl);
+    res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
+});
 
 module.exports = app;
