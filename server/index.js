@@ -11,25 +11,41 @@ app.use(cors());
 app.use(express.json());
 
 // Initialize DB and start server logic (Serverless compatible)
-const initialize = async () => {
+let dbReady = false;
+const initPromise = (async () => {
     try {
         await initDb();
+        dbReady = true;
+
+        // Cold start check - fire and forget, but ideally we wait if we want data
         const db = await openDb();
         const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-
         if (!last) {
-            console.log('No data found (cold start), running initial scrape...');
+            console.log('No data found (cold start), forcing initial scrape...');
             await scrapePrices();
+            console.log('Initial scrape completed.');
         } else {
             console.log('Data exists, skipping initial scrape.');
         }
     } catch (e) {
         console.error('Failed to initialize or scrape:', e);
     }
+})();
+
+// Middleware to ensure DB is ready
+const ensureDb = async (req, res, next) => {
+    if (!dbReady) {
+        try {
+            await initPromise;
+        } catch (e) {
+            console.error('DB init failed during request:', e);
+            return res.status(500).json({ error: 'Database initialization failed' });
+        }
+    }
+    next();
 };
 
-// Start initialization immediately
-initialize();
+app.use('/api', ensureDb);
 
 // Schedule scraping (only works if process stays alive)
 cron.schedule('0 * * * *', () => {
@@ -77,7 +93,7 @@ app.get('/api/prices/latest', async (req, res) => {
 // Get history
 app.get('/api/prices/history', async (req, res) => {
     try {
-        const { type, limit = 100 } = req.query;
+        const { type } = req.query;
         const db = await openDb();
 
         let query = 'SELECT * FROM fuel_prices';
@@ -104,8 +120,14 @@ app.get('/api/prices/history', async (req, res) => {
 
 // Manual trigger for testing
 app.post('/api/scrape', async (req, res) => {
-    const results = await scrapePrices();
-    res.json(results);
+    try {
+        console.log('Manual scrape triggered');
+        const results = await scrapePrices();
+        res.json(results);
+    } catch (error) {
+        console.error('Manual scrape failed:', error);
+        res.status(500).json({ error: 'Scrape failed: ' + error.message });
+    }
 });
 
 // For local development
