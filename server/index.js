@@ -145,11 +145,29 @@ app.get('/api/health', (req, res) => {
     res.json({ status: 'ok', uptime: process.uptime(), dbReady, env: process.env.NODE_ENV });
 });
 
+// Debug routes to diagnose 404s
+app.get('/debug', (req, res) => {
+    res.json({ message: 'Root /debug hit', url: req.url, originalUrl: req.originalUrl, headers: req.headers });
+});
+
 app.get('/api/debug', async (req, res) => {
     try {
-        const db = await openDb();
-        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-        const count = await db.get('SELECT count(*) as c FROM fuel_prices');
+        console.log('[Debug] /api/debug hit');
+        let dbError = null;
+        let last = null;
+        let count = null;
+        let dbType = 'Unknown';
+
+        try {
+            const db = await openDb();
+            dbType = process.env.POSTGRES_URL ? 'Postgres' : 'SQLite (Local/Fallback)';
+            last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+            const cRow = await db.get('SELECT count(*) as c FROM fuel_prices');
+            count = cRow ? cRow.c : 0;
+        } catch (e) {
+            dbError = { message: e.message, stack: e.stack };
+            console.error('[Debug] DB Error:', e);
+        }
 
         res.json({
             status: 'ok',
@@ -159,12 +177,19 @@ app.get('/api/debug', async (req, res) => {
             postgresUrlPrefix: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.substring(0, 10) + '...' : 'N/A',
             dbReady,
             lastRecord: last,
-            totalRows: count ? count.c : 0,
-            dbType: process.env.POSTGRES_URL ? 'Postgres' : 'SQLite (Local/Fallback)'
+            totalRows: count,
+            dbType,
+            dbError
         });
     } catch (e) {
-        res.status(500).json({ error: e.message, stack: e.stack });
+        res.status(500).json({ error: 'Critical Debug Error', details: e.message });
     }
+});
+
+// Catch-all info for unhandled API routes
+app.all('/api/*', (req, res) => {
+    console.log('[Warning] Unhandled API route:', req.originalUrl);
+    res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
 });
 
 // For local development
