@@ -151,37 +151,20 @@ app.get('/api/prices/latest', async (req, res) => {
         await ensureDataExists();
 
         const db = await openDb();
-        // Get the latest timestamp
-        try {
-            const latestRecord = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
 
-            if (!latestRecord) {
-                return res.json([]);
-            }
-
-            // Get all prices with that timestamp (fuzzy match or exact)
-            // Actually, simpler: get the latest entry for each type
-            const prices = await db.all(`
-        SELECT type, price, location, timestamp 
-        FROM fuel_prices 
-        WHERE timestamp = ?
-        `, latestRecord.timestamp);
-
-            if (prices.length === 0) {
-                // Fallback: group by type
-                const fallback = await db.all(`
-            SELECT type, price, location, MAX(timestamp) as timestamp
-            FROM fuel_prices
-            GROUP BY type
+        // Get all prices from the latest timestamp using a subquery
+        // This avoids round-trip Date object precision issues
+        const prices = await db.all(`
+            SELECT type, price, location, timestamp 
+            FROM fuel_prices 
+            WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
         `);
-                return res.json(fallback);
-            }
 
-            res.json(prices);
-        } catch (e) {
-            if (e.message.includes('does not exist')) return res.json([]);
-            throw e;
+        if (prices.length === 0) {
+            return res.json([]);
         }
+
+        res.json(prices);
 
     } catch (error) {
         res.status(500).json({ error: error.message });

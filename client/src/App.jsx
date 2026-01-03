@@ -154,7 +154,7 @@ export default function App() {
       setLoading(true);
 
       if (forceScrape) {
-        await axios.post(`${API_BASE}/scrape`);
+        await axios.get(`${API_BASE}/scrape`);
       }
 
       const latestRes = await axios.get(`${API_BASE}/prices/latest`);
