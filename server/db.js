@@ -1,97 +1,110 @@
 const path = require('path');
 
-// Simple In-Memory Database for Serverless/Ephemeral environments
-class MemoryDatabase {
-  constructor() {
-    this.prices = [];
-    console.log('[MemoryDB] Initialized in-memory storage');
-  }
+// Helper to convert SQLite parameters (?) to Postgres parameters ($1, $2, ...)
+function convertQueryToPg(sql) {
+    let index = 1;
+    return sql.replace(/\?/g, () => `$${index++}`);
+}
 
-  async exec(sql) {
-    // Mock table creation - do nothing
-    return Promise.resolve();
-  }
+class PostgresDatabase {
+    constructor(pool) {
+        this.pool = pool;
+    }
 
-  async get(sql, params) {
-    // Basic Mocking for specific queries used in the app
-    if (sql.includes('ORDER BY id DESC LIMIT 1')) {
-      // Return latest timestamp
-      if (this.prices.length === 0) return undefined;
-      // Sort by timestamp desc
-      const sorted = [...this.prices].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
-      return sorted[0];
+    async exec(sql) {
+        return this.pool.query(sql);
     }
-    return undefined;
-  }
 
-  async all(sql, params) {
-    if (sql.includes('WHERE timestamp = ?')) {
-      const ts = params; // params is single val here from index.js
-      return this.prices.filter(p => p.timestamp === ts);
+    async get(sql, params = []) {
+        const pgSql = convertQueryToPg(sql);
+        const { rows } = await this.pool.query(pgSql, params);
+        return rows[0];
     }
-    if (sql.includes('GROUP BY type')) {
-      // Fallback latest
-      return []; // simplistic
-    }
-    if (sql.includes('SELECT * FROM fuel_prices')) {
-      let filtered = [...this.prices];
-      // Very basic filter support
-      if (params && params.length > 0 && sql.includes('WHERE type = ?')) {
-        filtered = filtered.filter(p => p.type === params[0]);
-      }
-      // Sort asc
-      return filtered.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-    }
-    return [];
-  }
 
-  async run(sql, params) {
-    if (sql.includes('INSERT INTO')) {
-      // params: [type, price, location, timestamp]
-      this.prices.push({
-        type: params[0],
-        price: params[1],
-        location: params[2],
-        timestamp: params[3]
-      });
+    async all(sql, params = []) {
+        const pgSql = convertQueryToPg(sql);
+        const { rows } = await this.pool.query(pgSql, params);
+        return rows;
     }
-    return Promise.resolve();
-  }
+
+    async run(sql, params = []) {
+        const pgSql = convertQueryToPg(sql);
+        await this.pool.query(pgSql, params);
+        return { changes: 1 };
+    }
 }
 
 // Global instance to persist across HMR/warm starts
-let memoryInstance = null;
+let dbInstance = null;
 
 async function openDb() {
-  // force memory db in vercel to avoid native crashes
-  if (process.env.VERCEL || process.env.NODE_ENV === 'production') {
-    if (!memoryInstance) memoryInstance = new MemoryDatabase();
-    return memoryInstance;
-  }
+    if (dbInstance) return dbInstance;
 
-  // Lazy load sqlite3 ONLY for local dev to avoid build/runtime crash in Vercel
-  const sqlite3 = require('sqlite3');
-  const { open } = require('sqlite');
+    // 1. Production / Vercel with Postgres
+    if (process.env.POSTGRES_URL) {
+        console.log('[DB] Connecting to Vercel Postgres...');
+        try {
+            const { createPool } = require('@vercel/postgres');
+            const pool = createPool({
+                connectionString: process.env.POSTGRES_URL,
+            });
+            dbInstance = new PostgresDatabase(pool);
+            return dbInstance;
+        } catch (e) {
+            console.error('[DB] Failed to connect to Postgres:', e);
+            throw e;
+        }
+    }
 
-  return open({
-    filename: './prices.db',
-    driver: sqlite3.Database
-  });
+    // 2. Local Development (SQLite) or Fallback
+    // Ensure we don't try to load sqlite3 in Vercel environment where it might fail build if not present/compatible
+    // But since we are moving away from MemoryDB, we only fallback to SQLite if NOT in Vercel OR if just running locally.
+    // If we are in Vercel with NO Postgres, we can't persist anyway.
+    
+    console.log('[DB] Using Local SQLite');
+    const sqlite3 = require('sqlite3');
+    const { open } = require('sqlite');
+
+    dbInstance = await open({
+        filename: path.join(__dirname, 'prices.db'),
+        driver: sqlite3.Database
+    });
+    
+    return dbInstance;
 }
 
 async function initDb() {
-  const db = await openDb();
-  await db.exec(`
-    CREATE TABLE IF NOT EXISTS fuel_prices (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      type TEXT NOT NULL,
-      price REAL NOT NULL,
-      location TEXT,
-      timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-    )
-  `);
-  console.log('Database initialized (Type: ' + (db instanceof MemoryDatabase ? 'Memory' : 'SQLite') + ')');
-  return db;
+    const db = await openDb();
+    
+    // Check if we are using Postgres or SQLite
+    const isPostgres = db instanceof PostgresDatabase;
+
+    if (isPostgres) {
+        // Postgres Schema
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS fuel_prices (
+                id SERIAL PRIMARY KEY,
+                type TEXT NOT NULL,
+                price REAL NOT NULL,
+                location TEXT,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+    } else {
+        // SQLite Schema
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS fuel_prices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                price REAL NOT NULL,
+                location TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+    }
+
+    console.log('Database initialized (' + (isPostgres ? 'Postgres' : 'SQLite') + ')');
+    return db;
 }
 
 module.exports = { openDb, initDb };
