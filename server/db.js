@@ -34,6 +34,14 @@ class PostgresDatabase {
     }
 }
 
+// Mock Database for when Postgres is missing (avoids sqlite3 crashes)
+class MockDatabase {
+    async exec(sql) { console.log('[MockDB] exec:', sql); }
+    async get(sql, params) { console.log('[MockDB] get:', sql, params); return null; }
+    async all(sql, params) { console.log('[MockDB] all:', sql, params); return []; }
+    async run(sql, params) { console.log('[MockDB] run:', sql, params); return {}; }
+}
+
 // Global instance to persist across HMR/warm starts
 let dbInstance = null;
 
@@ -44,61 +52,46 @@ async function openDb() {
     if (process.env.POSTGRES_URL) {
         console.log('[DB] Connecting to Vercel Postgres...');
         try {
-            const { createPool } = require('@vercel/postgres');
-            const pool = createPool({
-                connectionString: process.env.POSTGRES_URL,
-            });
-            // Verify connection works (or at least configuration is valid) - but createPool is lazy.
-            // However, the error we saw happens at creation time or first query?
-            // The stack trace said `at createPool`, so it validates immediately or eagerly.
+            const { createPool, createClient } = require('@vercel/postgres');
 
-            // Should be fine, but let's wrap execution if needed,
-            // Actually, best is to try-catch the creation itself.
-            dbInstance = new PostgresDatabase(pool);
-            return dbInstance;
-        } catch (e) {
-            // Fallback for Direct Connection String (Neon/Vercel quirk)
-            if (e.message.includes('direct connection') || e.code === 'VercelPostgresError') {
-                console.warn('[DB] Pool creation failed (Direct Connection URL?). Switching to single Client.');
-                try {
-                    const { createClient } = require('@vercel/postgres');
+            // Try Pool first
+            try {
+                const pool = createPool({
+                    connectionString: process.env.POSTGRES_URL,
+                });
+                dbInstance = new PostgresDatabase(pool);
+                return dbInstance;
+            } catch (poolErr) {
+                // Fallback for Direct Connection String
+                if (poolErr.message.includes('direct connection') || poolErr.code === 'VercelPostgresError') {
+                    console.warn('[DB] Pool creation failed. Switching to Client.');
                     const client = createClient({
                         connectionString: process.env.POSTGRES_URL,
                     });
                     await client.connect();
                     dbInstance = new PostgresDatabase(client);
                     return dbInstance;
-                } catch (clientErr) {
-                    console.error('[DB] Failed to create Client fallback:', clientErr);
-                    throw clientErr;
                 }
+                throw poolErr;
             }
+        } catch (e) {
             console.error('[DB] Failed to connect to Postgres:', e);
             throw e;
         }
     }
 
-    // 2. Local Development (SQLite) or Fallback
-    // Ensure we don't try to load sqlite3 in Vercel environment where it might fail build if not present/compatible
-    // But since we are moving away from MemoryDB, we only fallback to SQLite if NOT in Vercel OR if just running locally.
-    // If we are in Vercel with NO Postgres, we can't persist anyway.
+    // 2. Fallback (NO SQLite native dependency to avoid Vercel crashes)
+    console.warn('[DB] No POSTGRES_URL found. Using Mock In-Memory DB (Data will not save).');
+    console.warn('[DB] SQLite is disabled in this debug build to prevent invocation failures.');
 
-    console.log('[DB] Using Local SQLite');
-    const sqlite3 = require('sqlite3');
-    const { open } = require('sqlite');
-
-    dbInstance = await open({
-        filename: path.join(__dirname, 'prices.db'),
-        driver: sqlite3.Database
-    });
-
+    dbInstance = new MockDatabase();
     return dbInstance;
 }
 
 async function initDb() {
     const db = await openDb();
 
-    // Check if we are using Postgres or SQLite
+    // Check if we are using Postgres or Mock
     const isPostgres = db instanceof PostgresDatabase;
 
     if (isPostgres) {
@@ -113,19 +106,10 @@ async function initDb() {
             );
         `);
     } else {
-        // SQLite Schema
-        await db.exec(`
-            CREATE TABLE IF NOT EXISTS fuel_prices (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                type TEXT NOT NULL,
-                price REAL NOT NULL,
-                location TEXT,
-                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
-            );
-        `);
+        console.log('[DB] Mock DB initialized (No table creation needed)');
     }
 
-    console.log('Database initialized (' + (isPostgres ? 'Postgres' : 'SQLite') + ')');
+    console.log('Database initialized (' + (isPostgres ? 'Postgres' : 'Mock') + ')');
     return db;
 }
 
