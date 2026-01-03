@@ -433,6 +433,16 @@ export default function App() {
                     tickFormatter={(unixTime) => {
                       const d = new Date(unixTime);
                       if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { hour: '2-digit', minute: '2-digit' });
+                      if (graphInterval === 'weeks') {
+                        // Simple ISO week number calculation
+                        const date = new Date(d.getTime());
+                        date.setHours(0, 0, 0, 0);
+                        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+                        const week1 = new Date(date.getFullYear(), 0, 4);
+                        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+                        return `W${weekNumber}`;
+                      }
+                      if (graphInterval === 'months') return d.toLocaleDateString('lv-LV', { month: 'short', year: '2-digit' });
                       return d.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
                     }}
                   />
