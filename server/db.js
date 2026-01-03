@@ -1,9 +1,15 @@
 const sqlite3 = require('sqlite3');
 const { open } = require('sqlite');
 
+const path = require('path');
+
 async function openDb() {
+  const dbPath = process.env.VERCEL || process.env.NODE_ENV === 'production'
+    ? path.join('/tmp', 'prices.db')
+    : './prices.db';
+
   return open({
-    filename: './prices.db',
+    filename: dbPath,
     driver: sqlite3.Database
   });
 }

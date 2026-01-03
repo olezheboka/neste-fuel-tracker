@@ -10,24 +10,32 @@ const PORT = process.env.PORT || 3000;
 app.use(cors());
 app.use(express.json());
 
-// Initialize DB and start server
-(async () => {
-    await initDb();
+// Initialize DB and start server logic (Serverless compatible)
+const initialize = async () => {
+    try {
+        await initDb();
+        const db = await openDb();
+        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
 
-    // Schedule scraping every hour at minute 0
-    cron.schedule('0 * * * *', () => {
-        console.log('Running scheduled scrape...');
-        scrapePrices();
-    });
-
-    // Check data
-    const db = await openDb();
-    const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-    if (!last) {
-        console.log('No data found, running initial scrape...');
-        await scrapePrices();
+        if (!last) {
+            console.log('No data found (cold start), running initial scrape...');
+            await scrapePrices();
+        } else {
+            console.log('Data exists, skipping initial scrape.');
+        }
+    } catch (e) {
+        console.error('Failed to initialize or scrape:', e);
     }
-})();
+};
+
+// Start initialization immediately
+initialize();
+
+// Schedule scraping (only works if process stays alive)
+cron.schedule('0 * * * *', () => {
+    console.log('Running scheduled scrape...');
+    scrapePrices();
+});
 
 // API Endpoints
 
