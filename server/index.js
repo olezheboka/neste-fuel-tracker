@@ -36,12 +36,8 @@ const ensureDb = async (req, res, next) => {
     }
 
     if (!dbReady) {
-        try {
-            await initPromise;
-        } catch (e) {
-            console.error('[Server] DB init failed during request:', e);
-            return res.status(500).json({ error: 'Database initialization failed' });
-        }
+        // initPromise was removed. We now require manual init via /api/init
+        return res.status(503).json({ error: 'Database not initialized. Please call /api/init first (Debug Mode).' });
     }
     next();
 };
@@ -233,7 +229,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // Catch-all info for unhandled API routes (Must be last)
-app.all('/api/*', (req, res) => {
+app.all('/api/(.*)', (req, res) => {
     console.log('[Warning] Unhandled API route:', req.originalUrl);
     res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
 });
