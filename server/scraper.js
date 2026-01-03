@@ -28,15 +28,29 @@ async function scrapePrices() {
             },
             timeout: 8000 // 8 second timeout
         });
+
+        console.log(`[SCRAPER] Page fetched. Length: ${data.length} chars.`);
         const $ = cheerio.load(data);
         const db = await openDb();
 
         const results = [];
         const timestamp = new Date().toISOString();
 
+        // Debug: Log all tables found
+        const tableCount = $('table').length;
+        console.log(`[SCRAPER] Found ${tableCount} tables.`);
+
         // Parse the table - each row contains: Fuel Type | Price | DUS (addresses)
-        $('table tbody tr, table tr').each((i, row) => {
+        const rows = $('table tbody tr, table tr');
+        console.log(`[SCRAPER] Found ${rows.length} rows to parse.`);
+
+        rows.each((i, row) => {
             const cells = $(row).find('td');
+            // Log first row for debug
+            if (i === 0) {
+                console.log(`[SCRAPER] First row text: ${$(row).text().replace(/\s+/g, ' ').substring(0, 50)}...`);
+            }
+
             if (cells.length >= 3) {
                 // Clean up text - remove tabs, newlines, extra whitespace
                 const fuelNameRaw = $(cells[0]).text().replace(/[\t\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
@@ -64,8 +78,7 @@ async function scrapePrices() {
                             ? addresses.join(' | ')
                             : 'Rīga';
 
-                        console.log(`[SCRAPER] ${matchedFuel}: €${price.toFixed(3)}, ${addresses.length} DUS`);
-                        console.log(`[SCRAPER]   Addresses: ${addresses.slice(0, 3).join(', ')}${addresses.length > 3 ? '...' : ''}`);
+                        console.log(`[SCRAPER] Matched: ${matchedFuel}: €${price.toFixed(3)}, ${addresses.length} DUS`);
 
                         results.push({
                             type: matchedFuel,
@@ -73,6 +86,13 @@ async function scrapePrices() {
                             location,
                             timestamp
                         });
+                    } else {
+                        console.warn(`[SCRAPER] Invalid price for ${matchedFuel}: ${priceRaw}`);
+                    }
+                } else {
+                    // Debug unmatched rows that look like data
+                    if (fuelNameRaw.length > 0 && priceRaw.length > 0) {
+                        // console.log(`[SCRAPER] Unmatched row: ${fuelNameRaw}`);
                     }
                 }
             }
@@ -95,6 +115,9 @@ async function scrapePrices() {
 
     } catch (error) {
         console.error('[SCRAPER] Error:', error.message);
+        if (error.response) {
+            console.error('[SCRAPER] Response status:', error.response.status);
+        }
         return [];
     }
 }
