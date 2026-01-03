@@ -7,6 +7,8 @@ const { scrapePrices } = require('./scraper');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+console.log('[Server] Startup... Environment:', process.env.NODE_ENV);
+
 app.use(cors());
 app.use(express.json());
 
