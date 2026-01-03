@@ -1,5 +1,3 @@
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
 const path = require('path');
 
 // Simple In-Memory Database for Serverless/Ephemeral environments
@@ -70,6 +68,10 @@ async function openDb() {
     if (!memoryInstance) memoryInstance = new MemoryDatabase();
     return memoryInstance;
   }
+
+  // Lazy load sqlite3 ONLY for local dev to avoid build/runtime crash in Vercel
+  const sqlite3 = require('sqlite3');
+  const { open } = require('sqlite');
 
   return open({
     filename: './prices.db',
