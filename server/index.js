@@ -17,18 +17,20 @@ const initPromise = (async () => {
         await initDb();
         dbReady = true;
 
-        // Cold start check - fire and forget, but ideally we wait if we want data
+        // Cold start check - fire and forget
         const db = await openDb();
         const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+
         if (!last) {
-            console.log('No data found (cold start), forcing initial scrape...');
-            await scrapePrices();
-            console.log('Initial scrape completed.');
+            console.log('No data found (cold start), triggering background scrape...');
+            // In serverless, we CANNOT await this if it takes too long, or the function times out.
+            // We start it, log it, but don't block the initPromise.
+            scrapePrices().then(() => console.log('Background scrape finished')).catch(e => console.error('Background scrape failed:', e));
         } else {
             console.log('Data exists, skipping initial scrape.');
         }
     } catch (e) {
-        console.error('Failed to initialize or scrape:', e);
+        console.error('Failed to initialize:', e);
     }
 })();
 
@@ -47,11 +49,14 @@ const ensureDb = async (req, res, next) => {
 
 app.use('/api', ensureDb);
 
-// Schedule scraping (only works if process stays alive)
-cron.schedule('0 * * * *', () => {
-    console.log('Running scheduled scrape...');
-    scrapePrices();
-});
+// Schedule scraping (ONLY in local development or persistent server)
+// In Vercel serverless, cron jobs should be configured via vercel.json (crons), not node-cron.
+if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
+    cron.schedule('0 * * * *', () => {
+        console.log('Running scheduled scrape...');
+        scrapePrices();
+    });
+}
 
 // API Endpoints
 
