@@ -50,45 +50,49 @@ async function openDb() {
 
     // 1. Production / Vercel with Postgres
     if (process.env.POSTGRES_URL) {
-        // Log masked URL for debugging to verify format
+        // Log masked URL for debugging
         const maskedUrl = process.env.POSTGRES_URL.replace(/:([^:@]+)@/, ':***@');
-        console.log(`[DB] Connecting to Vercel Postgres... URL: ${maskedUrl}`);
+        console.log(`[DB] Connecting to Postgres via 'pg' native driver... URL: ${maskedUrl}`);
 
         try {
-            const { createPool } = require('@vercel/postgres');
+            // Use standard pg driver to avoid Vercel wrapper validation issues
+            const { Pool, Client } = require('pg');
 
-            // Try Pool with explicit SSL settings
+            // Try Pool first
             try {
-                const pool = createPool({
+                const pool = new Pool({
                     connectionString: process.env.POSTGRES_URL,
-                    ssl: { rejectUnauthorized: false }
+                    ssl: { rejectUnauthorized: false },
+                    max: 1 // Limit pool size for serverless to avoid exhaustion
                 });
+
+                // Validate connection immediately
+                const client = await pool.connect();
+                client.release(); // release back to pool
+
+                console.log('[DB] pg.Pool connected successfully.');
                 dbInstance = new PostgresDatabase(pool);
                 return dbInstance;
             } catch (poolErr) {
-                // Fallback for Direct Connection String (Neon/Vercel quirk)
-                const msg = poolErr.message || '';
-                if (msg.includes('direct connection') || poolErr.code === 'invalid_connection_string' || poolErr.code === 'VercelPostgresError') {
-                    console.warn('[DB] Pool creation failed (Direct Connection URL detected). Switching to single Client fallback.');
-                    try {
-                        const { createClient } = require('@vercel/postgres');
-                        const client = createClient({
-                            connectionString: process.env.POSTGRES_URL,
-                            ssl: { rejectUnauthorized: false }
-                        });
-                        await client.connect();
-                        dbInstance = new PostgresDatabase(client);
-                        return dbInstance;
-                    } catch (clientErr) {
-                        console.error('[DB] Failed to create Client fallback:', clientErr);
-                        throw clientErr;
-                    }
+                console.warn('[DB] pg.Pool failed. Switching to single pg.Client fallback.', poolErr.message);
+
+                // Fallback for direct connection strings (no pool)
+                try {
+                    const client = new Client({
+                        connectionString: process.env.POSTGRES_URL,
+                        ssl: { rejectUnauthorized: false }
+                    });
+                    await client.connect();
+                    console.log('[DB] pg.Client connected successfully.');
+                    dbInstance = new PostgresDatabase(client);
+                    return dbInstance;
+                } catch (clientErr) {
+                    console.error('[DB] Failed to connect with pg.Client:', clientErr);
+                    throw clientErr;
                 }
-                console.error('[DB] Pool creation error (Fatal):', poolErr);
-                throw poolErr;
             }
         } catch (e) {
-            console.error('[DB] Failed to load @vercel/postgres or connect:', e);
+            console.error('[DB] Failed to load pg or connect:', e);
             throw e;
         }
     }
