@@ -241,6 +241,26 @@ export default function App() {
       return timestamp; // Default fallback
     };
 
+    // Helper to get a normalized timestamp for a period key (for consistent sorting)
+    const getPeriodTimestamp = (periodKey) => {
+      if (graphInterval === 'days') {
+        // Parse YYYY-MM-DD
+        return new Date(periodKey + 'T12:00:00').getTime();
+      } else if (graphInterval === 'weeks') {
+        // Parse YYYY-WXX - use Monday of that week
+        const [year, weekStr] = periodKey.split('-W');
+        const jan4 = new Date(parseInt(year), 0, 4);
+        const weekNum = parseInt(weekStr);
+        const mondayOfWeek = new Date(jan4.getTime() + (weekNum - 1) * 7 * 24 * 60 * 60 * 1000);
+        mondayOfWeek.setDate(mondayOfWeek.getDate() - (mondayOfWeek.getDay() + 6) % 7);
+        return mondayOfWeek.getTime();
+      } else if (graphInterval === 'months') {
+        // Parse YYYY-MM
+        return new Date(periodKey + '-15T12:00:00').getTime();
+      }
+      return new Date(periodKey).getTime();
+    };
+
     // Accumulate prices by period and fuel type
     // Structure: { periodKey: { fuelType: { sum: X, count: Y }, ... } }
     const periodData = new Map();
@@ -249,9 +269,7 @@ export default function App() {
       const periodKey = getPeriodKey(item.timestamp);
 
       if (!periodData.has(periodKey)) {
-        periodData.set(periodKey, {
-          _timestamp: new Date(item.timestamp).getTime(), // For sorting
-        });
+        periodData.set(periodKey, {});
       }
 
       const period = periodData.get(periodKey);
@@ -267,16 +285,14 @@ export default function App() {
     // Convert to chart format with averages
     const result = Array.from(periodData.entries()).map(([periodKey, data]) => {
       const entry = {
-        date: data._timestamp,
+        date: getPeriodTimestamp(periodKey),
         periodKey,
-        formattedTime: periodKey, // Will be formatted by XAxis
+        formattedTime: periodKey,
       };
 
       // Calculate average for each fuel type
       Object.keys(data).forEach(key => {
-        if (key !== '_timestamp' && key !== 'periodKey') {
-          entry[key] = data[key].sum / data[key].count;
-        }
+        entry[key] = data[key].sum / data[key].count;
       });
 
       return entry;
