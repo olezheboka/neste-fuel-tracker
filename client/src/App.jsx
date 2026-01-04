@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, RefreshCw, MapPin } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { Analytics } from '@vercel/analytics/react';
 import InsightsPanel from './InsightsPanel';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
@@ -466,6 +467,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 pb-24">
+      <Analytics />
 
       {/* Header */}
       <header className="bg-white backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200">
