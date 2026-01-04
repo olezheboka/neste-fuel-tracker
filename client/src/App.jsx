@@ -331,8 +331,8 @@ export default function App() {
         const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
         return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
       } else if (graphInterval === 'months') {
-        // Group by month: YYYY-MM
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        // Group by month: MM.YYYY.
+        return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
       }
       return timestamp; // Default fallback
     };
@@ -351,8 +351,11 @@ export default function App() {
         mondayOfWeek.setDate(mondayOfWeek.getDate() - (mondayOfWeek.getDay() + 6) % 7);
         return mondayOfWeek.getTime();
       } else if (graphInterval === 'months') {
-        // Parse YYYY-MM
-        return new Date(periodKey + '-15T12:00:00').getTime();
+        // Parse MM.YYYY. - use middle of month for sorting/positioning
+        const parts = periodKey.split('.');
+        const month = parts[0];
+        const year = parts[1];
+        return new Date(`${year}-${month}-15T12:00:00`).getTime();
       }
       return new Date(periodKey).getTime();
     };
@@ -625,7 +628,10 @@ export default function App() {
                         const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
                         return `W${weekNumber}`;
                       }
-                      if (graphInterval === 'months') return d.toLocaleDateString('lv-LV', { month: 'short', year: '2-digit' });
+                      if (graphInterval === 'months') {
+                        const d = new Date(unixTime);
+                        return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
+                      }
                       return d.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
                     }}
                   />
