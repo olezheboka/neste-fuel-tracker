@@ -220,9 +220,12 @@ export default function App() {
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
 
-    // Helper to get period key based on interval
+    // Helper to get period key based on interval (using Riga timezone GMT+2)
     const getPeriodKey = (timestamp) => {
-      const d = new Date(timestamp);
+      // Adjust to Riga timezone (GMT+2)
+      const utcDate = new Date(timestamp);
+      const rigaOffset = 2 * 60 * 60 * 1000; // +2 hours in milliseconds
+      const d = new Date(utcDate.getTime() + rigaOffset);
       if (graphInterval === 'days') {
         // Group by day: YYYY-MM-DD
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -377,11 +380,12 @@ export default function App() {
           <SegmentedControl
             options={Object.keys(lngs).map(lng => ({
               value: lng,
-              label: <span className="flex items-center gap-1">{lngs[lng].flag} {lngs[lng].nativeName}</span>
+              label: <span className="text-sm">{lngs[lng].flag}</span>
             }))}
             value={i18n.language}
             onChange={(val) => i18n.changeLanguage(val)}
             layoutId="active-lang"
+            size="small"
           />
         </div>
       </header>
