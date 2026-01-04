@@ -490,6 +490,13 @@ export default function App() {
         </div>
       </header>
 
+      {/* Disclaimer */}
+      <div className="bg-blue-50 border-b border-blue-100">
+        <div className="max-w-5xl mx-auto px-6 py-2">
+          <p className="text-xs text-blue-600 text-center">{t('disclaimer')}</p>
+        </div>
+      </div>
+
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
 
         {/* Subheading with last update */}

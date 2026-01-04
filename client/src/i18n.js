@@ -20,6 +20,7 @@ const resources = {
             fuel_type: 'Fuel Type',
             all: 'All',
             data_source: 'Fuel prices from Neste',
+            disclaimer: 'Currently displaying fuel prices only from Neste gas stations',
             last_update: 'Last update',
             fuel_group: {
                 petrol: 'Petrol',
@@ -80,6 +81,7 @@ const resources = {
             fuel_type: 'Degvielas veids',
             all: 'Visi',
             data_source: 'Degvielas cenas no Neste',
+            disclaimer: 'Pašlaik rādām degvielas cenas tikai no Neste degvielas uzpildes stacijām',
             last_update: 'Pēdējā atjaunošana',
             fuel_group: {
                 petrol: 'Benzīns',
@@ -140,6 +142,7 @@ const resources = {
             fuel_type: 'Тип топлива',
             all: 'Все',
             data_source: 'Цены на топливо от Neste',
+            disclaimer: 'В настоящее время отображаются цены на топливо только с АЗС Neste',
             last_update: 'Последнее обновление',
             fuel_group: {
                 petrol: 'Бензин',
