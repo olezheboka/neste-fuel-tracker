@@ -145,16 +145,18 @@ const FuelCard = ({ type, price, location }) => {
   const isPremium = type.includes('98') || type.includes('Pro Diesel');
 
   return (
-    <Card className={`bg-white shadow-md border-l-4 ${style.border}`}>
+    <Card className={`bg-white shadow-md border-l-4 ${style.border} relative overflow-hidden`}>
+      {isPremium && (
+        <div className="absolute top-0 right-0">
+          <div className="bg-gradient-to-br from-gray-900 to-black text-[9px] text-white/90 font-black px-2.5 py-1 rounded-bl-xl uppercase tracking-[0.15em] border-l border-b border-white/10 shadow-lg animate-shimmer">
+            Premium
+          </div>
+        </div>
+      )}
       <div className="flex items-center justify-between mb-1">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
           {t(type.replace('Neste ', ''))}
         </p>
-        {isPremium && (
-          <span className="bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-black text-[10px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider border border-amber-600/20 shadow-[0_1px_3px_rgba(0,0,0,0.1)] flex items-center gap-1">
-            <span className="opacity-80">Premium</span>
-          </span>
-        )}
       </div>
       <div className="flex items-baseline gap-1 mb-3">
         <span className="text-3xl font-bold text-gray-900 tracking-tight">
