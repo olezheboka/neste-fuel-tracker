@@ -205,39 +205,84 @@ export default function App() {
   const petrolPrices = latestPrices.filter(p => !p.type.includes('D') && !p.type.includes('Diesel'));
   const dieselPrices = latestPrices.filter(p => p.type.includes('D') || p.type.includes('Diesel'));
 
-  // Filter Data based on Interval (same logic as before)
-  // Filter Data based on Interval and Group by Timestamp
+  // Filter Data based on Interval and Group by Period (Day/Week/Month)
+  // Calculate AVERAGE price per period instead of showing every data point
   const chartData = useMemo(() => {
     if (!historyData.length) return [];
 
     const now = new Date();
     let cutoff = new Date();
 
-    if (graphInterval === 'hours') cutoff.setHours(now.getHours() - 24);
     if (graphInterval === 'days') cutoff.setDate(now.getDate() - 30);
     if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - 90);
     if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - 12);
-    // Removed years as requested
 
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
 
-    // Group by timestamp (pivot data)
-    const groupedMap = new Map();
+    // Helper to get period key based on interval
+    const getPeriodKey = (timestamp) => {
+      const d = new Date(timestamp);
+      if (graphInterval === 'days') {
+        // Group by day: YYYY-MM-DD
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      } else if (graphInterval === 'weeks') {
+        // Group by ISO week: YYYY-WXX
+        const date = new Date(d.getTime());
+        date.setHours(0, 0, 0, 0);
+        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
+        const week1 = new Date(date.getFullYear(), 0, 4);
+        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
+        return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
+      } else if (graphInterval === 'months') {
+        // Group by month: YYYY-MM
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      }
+      return timestamp; // Default fallback
+    };
+
+    // Accumulate prices by period and fuel type
+    // Structure: { periodKey: { fuelType: { sum: X, count: Y }, ... } }
+    const periodData = new Map();
 
     filteredByTime.forEach(item => {
-      const timeKey = item.timestamp;
-      if (!groupedMap.has(timeKey)) {
-        groupedMap.set(timeKey, {
-          date: new Date(timeKey).getTime(),
-          formattedTime: formatDate(timeKey),
+      const periodKey = getPeriodKey(item.timestamp);
+
+      if (!periodData.has(periodKey)) {
+        periodData.set(periodKey, {
+          _timestamp: new Date(item.timestamp).getTime(), // For sorting
         });
       }
-      const entry = groupedMap.get(timeKey);
-      entry[item.type] = item.price;
+
+      const period = periodData.get(periodKey);
+
+      if (!period[item.type]) {
+        period[item.type] = { sum: 0, count: 0 };
+      }
+
+      period[item.type].sum += item.price;
+      period[item.type].count += 1;
     });
 
-    return Array.from(groupedMap.values()).sort((a, b) => a.date - b.date);
+    // Convert to chart format with averages
+    const result = Array.from(periodData.entries()).map(([periodKey, data]) => {
+      const entry = {
+        date: data._timestamp,
+        periodKey,
+        formattedTime: periodKey, // Will be formatted by XAxis
+      };
+
+      // Calculate average for each fuel type
+      Object.keys(data).forEach(key => {
+        if (key !== '_timestamp' && key !== 'periodKey') {
+          entry[key] = data[key].sum / data[key].count;
+        }
+      });
+
+      return entry;
+    });
+
+    return result.sort((a, b) => a.date - b.date);
   }, [historyData, graphInterval]);
 
   const changeLanguage = (lng) => {
