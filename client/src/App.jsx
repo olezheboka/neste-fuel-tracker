@@ -50,6 +50,18 @@ const lngs = {
   en: { nativeName: 'English', flag: '🇬🇧' }
 };
 
+const FUEL_URL_MAP = {
+  '95': 'Neste Futura 95',
+  '98': 'Neste Futura 98',
+  'diesel': 'Neste Futura D',
+  'pro': 'Neste Pro Diesel',
+  'all': 'all'
+};
+
+const FUEL_TO_URL = Object.fromEntries(
+  Object.entries(FUEL_URL_MAP).map(([k, v]) => [v, k])
+);
+
 // Apple-style Segmented Control
 const SegmentedControl = ({ options, value, onChange, layoutId, className, size = 'default' }) => (
   <div className={twMerge("inline-flex bg-gray-100/80 p-1 rounded-xl relative", className)}>
@@ -184,10 +196,55 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
   const [historyData, setHistoryData] = useState([]);
-  const [selectedFuel, setSelectedFuel] = useState('all');
+
+  // URL and Storage Initialization
+  const [selectedFuel, setSelectedFuel] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const fuelParam = params.get('fuel');
+    return FUEL_URL_MAP[fuelParam] || 'all';
+  });
+
+  const [graphInterval, setGraphInterval] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const periodParam = params.get('period');
+    return ['days', 'weeks', 'months'].includes(periodParam) ? periodParam : 'days';
+  });
+
   const [loading, setLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
-  const [graphInterval, setGraphInterval] = useState('days');
+
+  // Sync state to URL and Storage
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+
+    // Sync Language
+    const currentLang = i18n.language;
+    if (currentLang) {
+      params.set('lang', currentLang);
+      localStorage.setItem('i18nextLng', currentLang);
+    }
+
+    // Sync Period
+    params.set('period', graphInterval);
+
+    // Sync Fuel
+    params.set('fuel', FUEL_TO_URL[selectedFuel] || 'all');
+
+    const newRelativePathQuery = window.location.pathname + '?' + params.toString();
+    window.history.replaceState(null, '', newRelativePathQuery);
+  }, [i18n.language, graphInterval, selectedFuel]);
+
+  // Handle Initial Language
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const langParam = params.get('lang');
+    const storedLang = localStorage.getItem('i18nextLng');
+    const initialLang = langParam || storedLang || 'lv';
+
+    if (lngs[initialLang] && i18n.language !== initialLang) {
+      i18n.changeLanguage(initialLang);
+    }
+  }, []);
 
   const fetchData = async (forceScrape = false) => {
     try {
