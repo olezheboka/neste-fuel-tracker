@@ -276,6 +276,11 @@ export default function App() {
 
   useEffect(() => {
     fetchData();
+    // Auto-refresh data every 15 minutes to catch automated backend updates
+    const interval = setInterval(() => {
+      fetchData();
+    }, 15 * 60 * 1000);
+    return () => clearInterval(interval);
   }, []);
 
   // Format date helper (European/Latvian: DD.MM.YYYY HH:mm)
