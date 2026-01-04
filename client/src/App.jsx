@@ -531,8 +531,8 @@ export default function App() {
 
             {/* Chart Warning Notice */}
             {chartData.length > 0 && (
-              <div className="bg-amber-50 rounded-xl p-3 mb-4 border border-amber-200 flex items-center gap-2">
-                <span className="text-amber-500 text-lg">⚠️</span>
+              <div className="bg-amber-50 rounded-lg p-2 mb-3 border border-amber-200 flex items-center gap-1.5">
+                <span className="text-amber-500 text-sm">⚠️</span>
                 <p className="text-[10px] text-amber-700 leading-tight">{t('chart_warning')}</p>
               </div>
             )}
