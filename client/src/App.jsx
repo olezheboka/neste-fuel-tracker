@@ -498,6 +498,26 @@ export default function App() {
               })}
             </div>
 
+            {/* Average Price Callout */}
+            {chartData.length > 0 && (
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 rounded-xl p-4 mb-4 border border-blue-100">
+                <p className="text-xs text-blue-600 font-medium uppercase tracking-wide mb-1">{t('average_for_period') || 'Average for period'}</p>
+                <div className="flex flex-wrap gap-4">
+                  {(selectedFuel === 'all' ? Object.keys(FUEL_COLORS) : [selectedFuel]).map(fuel => {
+                    const avgPrice = chartData.reduce((sum, d) => sum + (d[fuel] || 0), 0) / chartData.filter(d => d[fuel]).length;
+                    if (isNaN(avgPrice)) return null;
+                    return (
+                      <div key={fuel} className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full" style={{ backgroundColor: FUEL_COLORS[fuel] }} />
+                        <span className="text-sm text-gray-600">{t(fuel.replace('Neste ', ''))}:</span>
+                        <span className="text-sm font-bold text-gray-900">€{avgPrice.toFixed(3)}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
