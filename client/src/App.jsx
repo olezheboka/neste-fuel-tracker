@@ -87,6 +87,37 @@ const Card = ({ children, className }) => (
   </div>
 );
 
+// Chart Legend Component
+const ChartLegend = ({ selectedFuel, fuelColors, t }) => {
+  const fuelsToDisplay = selectedFuel === 'all'
+    ? Object.keys(fuelColors)
+    : [selectedFuel];
+
+  return (
+    <div className="flex flex-wrap justify-center gap-4 mt-6 pt-4 border-t border-gray-100">
+      {fuelsToDisplay.map(fuel => (
+        <div key={fuel} className="flex items-center gap-2">
+          <div
+            className="w-3 h-3 rounded-full"
+            style={{ backgroundColor: fuelColors[fuel] }}
+          />
+          <span className="text-xs font-medium text-gray-600">
+            {t(fuel.replace('Neste ', ''))}
+          </span>
+        </div>
+      ))}
+      {selectedFuel === 'all' && (
+        <div className="flex items-center gap-2">
+          <div className="w-4 h-0.5 border-t border-dashed border-gray-400" />
+          <span className="text-xs font-medium text-gray-500 italic">
+            Trend
+          </span>
+        </div>
+      )}
+    </div>
+  );
+};
+
 const FuelCard = ({ type, price, location }) => {
   const { t } = useTranslation();
 
@@ -502,7 +533,7 @@ export default function App() {
             {chartData.length > 0 && (
               <div className="bg-amber-50 rounded-xl p-3 mb-4 border border-amber-200 flex items-center gap-2">
                 <span className="text-amber-500 text-lg">⚠️</span>
-                <p className="text-sm text-amber-700">{t('chart_warning')}</p>
+                <p className="text-[10px] text-amber-700 leading-tight">{t('chart_warning')}</p>
               </div>
             )}
 
@@ -612,6 +643,11 @@ export default function App() {
                 </LineChart>
               </ResponsiveContainer>
             </div>
+            <ChartLegend
+              selectedFuel={selectedFuel}
+              fuelColors={FUEL_COLORS}
+              t={t}
+            />
           </Card>
         </section>
 
