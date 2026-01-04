@@ -495,7 +495,7 @@ export default function App() {
                           dataKey={fuel}
                           stroke={FUEL_COLORS[fuel]}
                           strokeWidth={2}
-                          dot={false}
+                          dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
                           activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
                         />
                         <Line
@@ -519,7 +519,7 @@ export default function App() {
                         dataKey={selectedFuel}
                         stroke={FUEL_COLORS[selectedFuel]}
                         strokeWidth={2.5}
-                        dot={false}
+                        dot={{ r: 3, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
                         activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
                       />
                       <Line
