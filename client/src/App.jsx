@@ -239,7 +239,7 @@ export default function App() {
     const params = new URLSearchParams(window.location.search);
     const langParam = params.get('lang');
     const storedLang = localStorage.getItem('i18nextLng');
-    const initialLang = langParam || storedLang || 'lv';
+    const initialLang = langParam || storedLang || 'en';
 
     if (lngs[initialLang] && i18n.language !== initialLang) {
       i18n.changeLanguage(initialLang);
