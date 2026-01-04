@@ -380,7 +380,7 @@ export default function App() {
           <SegmentedControl
             options={Object.keys(lngs).map(lng => ({
               value: lng,
-              label: <span className="text-sm">{lngs[lng].flag}</span>
+              label: <span className="flex items-center gap-1">{lngs[lng].flag} {lng.toUpperCase()}</span>
             }))}
             value={i18n.language}
             onChange={(val) => i18n.changeLanguage(val)}
