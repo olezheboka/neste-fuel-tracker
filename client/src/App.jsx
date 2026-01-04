@@ -179,11 +179,11 @@ const FuelCard = ({ type, price, location }) => {
                   href={mapUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="group flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer border-b border-gray-100 hover:border-blue-200 pb-1.5 leading-tight"
+                  className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer leading-tight"
                 >
                   <MapPin size={12} className="text-green-500 shrink-0" />
-                  <span className="font-medium tracking-tight">{addr}</span>
-                  <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity translate-y-[-1px]" />
+                  <span className="font-medium tracking-tight underline">{addr}</span>
+                  <ExternalLink size={10} className="translate-y-[-1px]" />
                 </a>
               );
             })
