@@ -162,7 +162,7 @@ const FuelCard = ({ type, price, location }) => {
         <span className="text-3xl font-bold text-gray-900 tracking-tight">
           {price.toFixed(3)}
         </span>
-        <span className="text-sm text-gray-400 font-medium">€/L</span>
+        <span className="text-sm text-gray-400 font-medium">€/l</span>
       </div>
       <div className="text-xs text-gray-400">
         <div className="flex items-center gap-1.5 mb-2">
