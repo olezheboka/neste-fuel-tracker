@@ -166,7 +166,7 @@ const FuelCard = ({ type, price, location }) => {
         <div className="flex items-center gap-1.5 mb-2">
           <span>{t('valid_at')} ({addressList.length} DUS)</span>
         </div>
-        <div className="pl-3 space-y-2 max-h-32 overflow-y-auto mt-1">
+        <div className="pl-3 space-y-2 mt-1">
           {addressList.length > 0 ? (
             addressList.map((addr, i) => {
               // Add "Rīga" for Google Maps search since these are the lowest prices in Rīga
