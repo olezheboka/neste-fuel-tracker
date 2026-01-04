@@ -92,13 +92,13 @@ export default function InsightsPanel({ historyData, latestPrices }) {
         }
 
         return (
-            <div className={`p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
-                <span className="text-xs text-gray-400 uppercase tracking-wide mb-2">{label}</span>
-                <div className="flex items-center gap-1">
-                    <span className={`text-xl font-semibold ${colorClass}`}>
+            <div className={`p-3 sm:p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
+                <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 sm:mb-2 whitespace-nowrap">{label}</span>
+                <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
+                    <span className={`text-base sm:text-xl font-semibold ${colorClass}`}>
                         {num > 0 ? '+' : ''}{num.toFixed(3)}
                     </span>
-                    <Icon size={18} className={colorClass} strokeWidth={2} />
+                    <Icon size={16} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
                 </div>
             </div>
         );
