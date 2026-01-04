@@ -3,7 +3,7 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, RefreshCw, MapPin } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import InsightsPanel from './InsightsPanel';
@@ -151,8 +151,8 @@ const FuelCard = ({ type, price, location }) => {
           {t(type.replace('Neste ', ''))}
         </p>
         {isPremium && (
-          <span className="bg-yellow-50 text-yellow-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wide border border-yellow-200/60 shadow-sm">
-            Premium
+          <span className="bg-gradient-to-br from-amber-400 via-amber-500 to-amber-600 text-black text-[10px] font-extrabold px-1.5 py-0.5 rounded-md uppercase tracking-wider border border-amber-600/20 shadow-[0_1px_3px_rgba(0,0,0,0.1)] flex items-center gap-1">
+            <span className="opacity-80">Premium</span>
           </span>
         )}
       </div>
@@ -166,7 +166,7 @@ const FuelCard = ({ type, price, location }) => {
         <div className="flex items-center gap-1.5 mb-2">
           <span>{t('valid_at')} ({addressList.length} DUS)</span>
         </div>
-        <div className="pl-3 space-y-1 max-h-32 overflow-y-auto">
+        <div className="pl-3 space-y-2 max-h-32 overflow-y-auto mt-1">
           {addressList.length > 0 ? (
             addressList.map((addr, i) => {
               // Add "Rīga" for Google Maps search since these are the lowest prices in Rīga
@@ -177,14 +177,16 @@ const FuelCard = ({ type, price, location }) => {
                   href={mapUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="block text-gray-500 hover:text-blue-600 transition-colors cursor-pointer"
+                  className="group inline-flex items-center gap-1.5 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer border-b border-gray-200 hover:border-blue-400 pb-0.5 leading-tight"
                 >
-                  <MapPin size={12} className="inline text-green-500 mr-1" /> {addr}
+                  <MapPin size={12} className="text-green-500 shrink-0" />
+                  <span className="font-medium tracking-tight whitespace-nowrap">{addr}</span>
+                  <ExternalLink size={10} className="opacity-0 group-hover:opacity-100 transition-opacity translate-y-[-1px]" />
                 </a>
               );
             })
           ) : (
-            <span>{t('location')}</span>
+            <span className="text-gray-400 italic">{t('location')}</span>
           )}
         </div>
       </div>
