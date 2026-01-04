@@ -77,8 +77,8 @@ export default function InsightsPanel({ historyData, latestPrices }) {
 
     const renderTrend = (val, label) => {
         const num = parseFloat(val);
-        let colorClass = "text-amber-500";
-        let bgClass = "bg-amber-50";
+        let colorClass = "text-blue-600";
+        let bgClass = "bg-blue-50";
         let Icon = Minus;
 
         if (num > 0.001) {
