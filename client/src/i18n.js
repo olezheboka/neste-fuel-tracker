@@ -53,7 +53,10 @@ const resources = {
                 lowest_recent: "Lowest recently",
                 summary_multifuel_stable: "Market is stable across all fuel types.",
                 summary_multifuel_increase: "General price increase observed.",
-                summary_multifuel_decrease: "Prices are trending down across the board."
+                summary_multifuel_decrease: "Prices are trending down across the board.",
+                reason_stable: "Steady global oil prices and balanced supply-demand dynamics are keeping fuel costs consistent.",
+                reason_increase: "Rising crude oil prices, increased demand, or supply constraints may be contributing to higher costs.",
+                reason_decrease: "Lower crude oil prices, reduced demand, or improved supply chains are likely driving costs down."
             },
             intervals: {
                 hours: "Hours",
@@ -115,7 +118,10 @@ const resources = {
                 lowest_recent: "Zemākā nesen",
                 summary_multifuel_stable: "Tirgus ir stabils visos degvielas veidos.",
                 summary_multifuel_increase: "Novērots vispārējs cenu pieaugums.",
-                summary_multifuel_decrease: "Cenas kopumā samazinās."
+                summary_multifuel_decrease: "Cenas kopumā samazinās.",
+                reason_stable: "Stabilas starptautiskās naftas cenas un līdzsvarota piedāvājuma-pieprasījuma dinamika uztur degvielas izmaksas nemainīgas.",
+                reason_increase: "Pieaugošas jēlnaftas cenas, palielināts pieprasījums vai piegādes traucējumi var veicināt augstākas izmaksas.",
+                reason_decrease: "Zemākas jēlnaftas cenas, samazināts pieprasījums vai uzlabota piegādes ķēde, iespējams, samazina izmaksas."
             },
             intervals: {
                 hours: "Stundas",
@@ -177,7 +183,10 @@ const resources = {
                 lowest_recent: "Минимум недавно",
                 summary_multifuel_stable: "Рынок стабилен по всем видам топлива.",
                 summary_multifuel_increase: "Наблюдается общий рост цен.",
-                summary_multifuel_decrease: "Цены в целом снижаются."
+                summary_multifuel_decrease: "Цены в целом снижаются.",
+                reason_stable: "Стабильные мировые цены на нефть и сбалансированная динамика спроса и предложения поддерживают стоимость топлива на постоянном уровне.",
+                reason_increase: "Рост цен на сырую нефть, увеличение спроса или ограничения в поставках могут способствовать повышению цен.",
+                reason_decrease: "Снижение цен на нефть, уменьшение спроса или улучшение цепочек поставок, вероятно, способствуют снижению цен."
             },
             intervals: {
                 hours: "Часы",
