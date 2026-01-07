@@ -57,6 +57,9 @@ export default function InsightsPanel({ historyData, latestPrices }) {
         let totalChange24h = 0;
         let totalChange7d = 0;
         let totalChange30d = 0;
+        let totalPct24h = 0;
+        let totalPct7d = 0;
+        let totalPct30d = 0;
         let count = 0;
 
         fuelTypes.forEach(type => {
@@ -77,6 +80,12 @@ export default function InsightsPanel({ historyData, latestPrices }) {
             totalChange24h += (current - price24h);
             totalChange7d += (current - price7d);
             totalChange30d += (current - price30d);
+
+            // Calculate percentage changes
+            if (price24h > 0) totalPct24h += ((current - price24h) / price24h) * 100;
+            if (price7d > 0) totalPct7d += ((current - price7d) / price7d) * 100;
+            if (price30d > 0) totalPct30d += ((current - price30d) / price30d) * 100;
+
             count++;
         });
 
@@ -85,7 +94,10 @@ export default function InsightsPanel({ historyData, latestPrices }) {
         return {
             avgChange24h: (totalChange24h / count),
             avgChange7d: (totalChange7d / count),
-            avgChange30d: (totalChange30d / count)
+            avgChange30d: (totalChange30d / count),
+            avgPct24h: (totalPct24h / count),
+            avgPct7d: (totalPct7d / count),
+            avgPct30d: (totalPct30d / count)
         };
     }, [historyData, fuelTypes]);
 
@@ -107,8 +119,9 @@ export default function InsightsPanel({ historyData, latestPrices }) {
         }
     };
 
-    const renderTrend = (val, label) => {
+    const renderTrend = (val, pct, label) => {
         const num = parseFloat(val);
+        const pctNum = parseFloat(pct);
         let colorClass = "text-blue-600";
         let bgClass = "bg-blue-50";
         let Icon = Minus;
@@ -132,6 +145,9 @@ export default function InsightsPanel({ historyData, latestPrices }) {
                     </span>
                     <Icon size={16} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
                 </div>
+                <span className={`text-[9px] sm:text-[10px] ${colorClass} opacity-70 mt-0.5`}>
+                    ({pctNum > 0 ? '+' : ''}{pctNum.toFixed(2)}%)
+                </span>
             </div>
         );
     };
@@ -172,9 +188,9 @@ export default function InsightsPanel({ historyData, latestPrices }) {
             </p>
 
             <div className="grid grid-cols-3 gap-3">
-                {renderTrend(analysis.avgChange24h, t('insights.change_24h'))}
-                {renderTrend(analysis.avgChange7d, t('insights.change_7d'))}
-                {renderTrend(analysis.avgChange30d, t('insights.change_30d'))}
+                {renderTrend(analysis.avgChange24h, analysis.avgPct24h, t('insights.change_24h'))}
+                {renderTrend(analysis.avgChange7d, analysis.avgPct7d, t('insights.change_7d'))}
+                {renderTrend(analysis.avgChange30d, analysis.avgPct30d, t('insights.change_30d'))}
             </div>
         </div>
     );
