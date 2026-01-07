@@ -121,6 +121,7 @@ export default function InsightsPanel({ historyData, latestPrices }) {
 
     const renderTrend = (val, pct, label) => {
         const num = parseFloat(val);
+        const cents = num * 100; // Convert to cents
         const pctNum = parseFloat(pct);
         let colorClass = "text-blue-600";
         let bgClass = "bg-blue-50";
@@ -141,7 +142,7 @@ export default function InsightsPanel({ historyData, latestPrices }) {
                 <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 sm:mb-2 whitespace-nowrap">{label}</span>
                 <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
                     <span className={`text-base sm:text-xl font-semibold ${colorClass}`}>
-                        {num > 0 ? '+' : ''}{num.toFixed(3)}€
+                        {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
                     </span>
                     <Icon size={16} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
                 </div>
