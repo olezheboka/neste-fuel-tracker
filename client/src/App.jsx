@@ -13,7 +13,7 @@ const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 
 const FUEL_COLORS = {
   'Neste Futura 95': '#22c55e', // green-500
-  'Neste Futura 98': '#15803d', // green-700
+  'Neste Futura 98': '#06b6d4', // cyan-500
   'Neste Futura D': '#111827',  // gray-900 (black)
   'Neste Pro Diesel': '#EAB308' // yellow-500
 };
@@ -26,10 +26,10 @@ const FUEL_STYLES = {
     icon: 'text-green-500'
   },
   'Neste Futura 98': {
-    active: 'bg-green-700 text-white',
-    inactive: 'bg-green-50 text-green-800 hover:bg-green-100', // Maybe darker text for 98 inactive
-    border: 'border-l-green-700',
-    icon: 'text-green-700'
+    active: 'bg-cyan-500 text-white',
+    inactive: 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100',
+    border: 'border-l-cyan-500',
+    icon: 'text-cyan-500'
   },
   'Neste Futura D': {
     active: 'bg-gray-900 text-white',
