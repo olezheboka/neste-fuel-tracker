@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
@@ -81,9 +81,8 @@ const calculateAnalysis = (historyData, fuelTypes) => {
     };
 };
 
-export default function InsightsPanel({ historyData, latestPrices }) {
+export default function InsightsPanel({ historyData, latestPrices, selectedFuel, setSelectedFuel }) {
     const { t } = useTranslation();
-    const [selectedFuel, setSelectedFuel] = useState('all');
 
     // Get all fuel types from latest prices
     const allFuelTypes = useMemo(() => {
