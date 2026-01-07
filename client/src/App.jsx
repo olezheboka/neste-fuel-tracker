@@ -197,6 +197,44 @@ const FuelCard = ({ type, price, location }) => {
   );
 };
 
+// Calculate trend line helper
+const calculateTrendLine = (data, dataKey) => {
+  if (!data || data.length < 2) return null;
+
+  const n = data.length;
+  let sumX = 0;
+  let sumY = 0;
+  let sumXY = 0;
+  let sumXX = 0;
+
+  // Map data points to index (x) and value (y)
+  const points = data.map((d, i) => {
+    const val = parseFloat(d[dataKey]);
+    if (isNaN(val)) return null;
+    return { x: i, y: val };
+  }).filter(p => p !== null);
+
+  if (points.length < 2) return null;
+
+  points.forEach(p => {
+    sumX += p.x;
+    sumY += p.y;
+    sumXY += p.x * p.y;
+    sumXX += p.x * p.x;
+  });
+
+  const count = points.length;
+  // Linear regression formula: y = mx + c
+  const slope = (count * sumXY - sumX * sumY) / (count * sumXX - sumX * sumX);
+  const intercept = (sumY - slope * sumX) / count;
+
+  // Return mapped data with trend values
+  return data.map((d, i) => ({
+    ...d,
+    [`${dataKey}_trend`]: slope * i + intercept
+  }));
+};
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
@@ -410,48 +448,13 @@ export default function App() {
     i18n.changeLanguage(lng);
   };
 
-  // Calculate trend line helper
-  const calculateTrendLine = (data, dataKey) => {
-    if (!data || data.length < 2) return null;
 
-    const n = data.length;
-    let sumX = 0;
-    let sumY = 0;
-    let sumXY = 0;
-    let sumXX = 0;
-
-    // Map data points to index (x) and value (y)
-    const points = data.map((d, i) => {
-      const val = parseFloat(d[dataKey]);
-      if (isNaN(val)) return null;
-      return { x: i, y: val };
-    }).filter(p => p !== null);
-
-    if (points.length < 2) return null;
-
-    points.forEach(p => {
-      sumX += p.x;
-      sumY += p.y;
-      sumXY += p.x * p.y;
-      sumXX += p.x * p.x;
-    });
-
-    const count = points.length;
-    // Linear regression formula: y = mx + c
-    const slope = (count * sumXY - sumX * sumY) / (count * sumXX - sumX * sumX);
-    const intercept = (sumY - slope * sumX) / count;
-
-    // Return mapped data with trend values
-    return data.map((d, i) => ({
-      ...d,
-      [`${dataKey}_trend`]: slope * i + intercept
-    }));
-  };
 
   // Prepare data with trend lines
   const chartDataWithTrend = useMemo(() => {
     if (!chartData) return [];
-    let data = [...chartData];
+    // Deep copy objects to avoid mutating memoized chartData
+    let data = chartData.map(item => ({ ...item }));
 
     if (selectedFuel === 'all') {
       Object.keys(FUEL_COLORS).forEach(fuel => {
