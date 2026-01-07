@@ -164,7 +164,7 @@ const FuelCard = ({ type, price, location }) => {
       </div>
       <div className="text-xs text-gray-400">
         <div className="flex items-center gap-1.5 mb-2">
-          <span>{addressList.length} {t('stations')}</span>
+          <span>{t('station', { count: addressList.length })}</span>
         </div>
         <div className="pl-3 space-y-2 mt-1">
           {addressList.length > 0 ? (
