@@ -1,18 +1,50 @@
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
+const FUEL_COLORS = {
+    'Neste Futura 95': '#22c55e',
+    'Neste Futura 98': '#15803d',
+    'Neste Futura D': '#111827',
+    'Neste Pro Diesel': '#EAB308'
+};
+
+const FUEL_STYLES = {
+    'Neste Futura 95': {
+        active: 'bg-green-500 text-white',
+        inactive: 'bg-green-50 text-green-700 hover:bg-green-100'
+    },
+    'Neste Futura 98': {
+        active: 'bg-green-700 text-white',
+        inactive: 'bg-green-50 text-green-800 hover:bg-green-100'
+    },
+    'Neste Futura D': {
+        active: 'bg-gray-900 text-white',
+        inactive: 'bg-gray-100 text-gray-900 hover:bg-gray-200'
+    },
+    'Neste Pro Diesel': {
+        active: 'bg-yellow-500 text-white',
+        inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
+    }
+};
+
 export default function InsightsPanel({ historyData, latestPrices }) {
     const { t } = useTranslation();
+    const [selectedFuel, setSelectedFuel] = useState('all');
 
-    // We analyze ALL fuels now, not just one.
-    // latestPrices contains current prices.
-    // historyData contains historical points.
-
-    const fuelTypes = useMemo(() => {
+    // Get all fuel types from latest prices
+    const allFuelTypes = useMemo(() => {
         if (!latestPrices) return [];
         return latestPrices.map(p => p.type);
     }, [latestPrices]);
+
+    // Filter fuel types based on selection
+    const fuelTypes = useMemo(() => {
+        if (selectedFuel === 'all') {
+            return allFuelTypes;
+        }
+        return allFuelTypes.filter(type => type === selectedFuel);
+    }, [allFuelTypes, selectedFuel]);
 
     const analysis = useMemo(() => {
         if (!historyData || historyData.length === 0 || fuelTypes.length === 0) return null;
@@ -109,6 +141,31 @@ export default function InsightsPanel({ historyData, latestPrices }) {
             <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 {t('insights.title')}
             </h3>
+
+            {/* Fuel Type Selector */}
+            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
+            <div className="flex flex-wrap gap-2 mb-6">
+                <button
+                    onClick={() => setSelectedFuel('all')}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                >
+                    {t('all')}
+                </button>
+                {Object.keys(FUEL_COLORS).map(fuel => {
+                    const isActive = selectedFuel === fuel;
+                    const style = FUEL_STYLES[fuel];
+
+                    return (
+                        <button
+                            key={fuel}
+                            onClick={() => setSelectedFuel(fuel)}
+                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive ? style.active : style.inactive}`}
+                        >
+                            {t(fuel.replace('Neste ', ''))}
+                        </button>
+                    );
+                })}
+            </div>
 
             <p className="text-sm text-gray-500 mb-6">
                 {generateSummary()}
