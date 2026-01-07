@@ -146,17 +146,15 @@ const FuelCard = ({ type, price, location }) => {
 
   return (
     <Card className={`bg-white shadow-md border-l-4 ${style.border} relative overflow-hidden`}>
-      {isPremium && (
-        <div className="absolute top-0 right-0">
-          <div className="bg-gradient-to-br from-gray-900 to-black text-[9px] text-white/90 font-black px-2.5 py-1 rounded-bl-xl uppercase tracking-[0.15em] border-l border-b border-white/10 shadow-lg animate-shimmer">
-            Premium
-          </div>
-        </div>
-      )}
-      <div className="flex items-center justify-between mb-1">
+      <div className="flex items-center gap-2 mb-1">
         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
           {t(type.replace('Neste ', ''))}
         </p>
+        {isPremium && (
+          <span className="bg-blue-100 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
+            Premium
+          </span>
+        )}
       </div>
       <div className="flex items-baseline gap-1 mb-3">
         <span className="text-3xl font-bold text-gray-900 tracking-tight">
