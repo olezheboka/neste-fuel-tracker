@@ -585,19 +585,18 @@ export default function App() {
             <div className="flex flex-wrap gap-2 mb-6">
               <button
                 onClick={() => setSelectedFuel('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
                 {t('all')}
               </button>
               {Object.keys(FUEL_COLORS).map(fuel => {
                 const isActive = selectedFuel === fuel;
-                const style = FUEL_STYLES[fuel];
-
+                // Reuse same neutral styling as 'all' and time periods
                 return (
                   <button
                     key={fuel}
                     onClick={() => setSelectedFuel(fuel)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive ? style.active : style.inactive}`}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                   >
                     {t(fuel.replace('Neste ', ''))}
                   </button>
