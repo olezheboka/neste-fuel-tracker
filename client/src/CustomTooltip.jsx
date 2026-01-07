@@ -1,3 +1,4 @@
+import React from 'react';
 
 // Custom Tooltip Component for Graph
 const CustomTooltip = ({ active, payload, label, t, interval }) => {
@@ -39,3 +40,5 @@ const CustomTooltip = ({ active, payload, label, t, interval }) => {
     }
     return null;
 };
+
+export default CustomTooltip;
