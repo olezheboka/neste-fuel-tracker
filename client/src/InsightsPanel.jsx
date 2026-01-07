@@ -109,32 +109,32 @@ export default function InsightsPanel({ historyData, latestPrices, selectedFuel,
 
     if (!globalAnalysis || !filteredAnalysis) return null;
 
-    // Generate Natural Language Summary (based on global analysis)
-    const generateSummary = () => {
-        const { avgChange24h, avgChange7d, avgChange30d } = globalAnalysis;
+    // Generate unified market insight based on actual price data
+    const generateMarketInsight = () => {
+        const { avgChange7d, avgChange30d, avgPct7d, avgPct30d } = globalAnalysis;
 
-        let trendText = '';
-        let reasonText = '';
+        // Calculate cents for readability
+        const cents7d = Math.abs(avgChange7d * 100).toFixed(1);
+        const cents30d = Math.abs(avgChange30d * 100).toFixed(1);
+        const pct30d = Math.abs(avgPct30d).toFixed(1);
 
-        // Determine trend
-        if (Math.abs(avgChange24h) < 0.002 && Math.abs(avgChange7d) < 0.005) {
-            trendText = t('insights.summary_multifuel_stable');
-            reasonText = t('insights.reason_stable');
-        } else if (avgChange7d > 0.01 || avgChange30d > 0.02) {
-            trendText = t('insights.summary_multifuel_increase');
-            reasonText = t('insights.reason_increase');
-        } else if (avgChange7d < -0.01 || avgChange30d < -0.02) {
-            trendText = t('insights.summary_multifuel_decrease');
-            reasonText = t('insights.reason_decrease');
-        } else {
-            trendText = t('insights.summary_multifuel_stable');
-            reasonText = t('insights.reason_stable');
-        }
+        // Determine trend magnitude
+        const isSignificantChange = Math.abs(avgPct30d) > 1;
+        const isModerateChange = Math.abs(avgPct30d) > 0.5;
+        const isIncreasing = avgChange30d > 0.005;
+        const isDecreasing = avgChange30d < -0.005;
 
-        return { trendText, reasonText };
+        // Build the insight with interpolation values
+        return t('insights.market_insight', {
+            trend: isIncreasing ? t('insights.trend_increased') : isDecreasing ? t('insights.trend_decreased') : t('insights.trend_stable_verb'),
+            cents30d,
+            pct30d,
+            magnitude: isSignificantChange ? t('insights.magnitude_significant') : isModerateChange ? t('insights.magnitude_moderate') : t('insights.magnitude_minor'),
+            context: isIncreasing ? t('insights.context_increase') : isDecreasing ? t('insights.context_decrease') : t('insights.context_stable')
+        });
     };
 
-    const { trendText, reasonText } = generateSummary();
+    const marketInsight = generateMarketInsight();
 
     const renderTrend = (val, pct, label) => {
         const num = parseFloat(val);
@@ -176,13 +176,10 @@ export default function InsightsPanel({ historyData, latestPrices, selectedFuel,
                 {t('insights.title')}
             </h3>
 
-            {/* Global Market Summary */}
-            <div className="mb-6">
-                <p className="text-sm text-gray-700 mb-2">
-                    {trendText}
-                </p>
-                <p className="text-xs text-gray-500 italic">
-                    {reasonText}
+            {/* Unified Market Insight */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
+                <p className="text-sm text-gray-700 leading-relaxed">
+                    {marketInsight}
                 </p>
             </div>
 
