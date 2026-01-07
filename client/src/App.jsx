@@ -220,7 +220,8 @@ export default function App() {
 
   // Sync state to URL and Storage
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
+    // Create fresh params to avoid keeping deprecated parameters
+    const params = new URLSearchParams();
 
     // Sync Language
     const currentLang = i18n.language;
