@@ -2,32 +2,6 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-const FUEL_COLORS = {
-    'Neste Futura 95': '#22c55e',
-    'Neste Futura 98': '#15803d',
-    'Neste Futura D': '#111827',
-    'Neste Pro Diesel': '#EAB308'
-};
-
-const FUEL_STYLES = {
-    'Neste Futura 95': {
-        active: 'bg-green-500 text-white',
-        inactive: 'bg-green-50 text-green-700 hover:bg-green-100'
-    },
-    'Neste Futura 98': {
-        active: 'bg-green-700 text-white',
-        inactive: 'bg-green-50 text-green-800 hover:bg-green-100'
-    },
-    'Neste Futura D': {
-        active: 'bg-gray-900 text-white',
-        inactive: 'bg-gray-100 text-gray-900 hover:bg-gray-200'
-    },
-    'Neste Pro Diesel': {
-        active: 'bg-yellow-500 text-white',
-        inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100'
-    }
-};
-
 // Helper function to calculate analysis for given fuel types
 const calculateAnalysis = (historyData, fuelTypes) => {
     if (!historyData || historyData.length === 0 || fuelTypes.length === 0) return null;
@@ -81,7 +55,8 @@ const calculateAnalysis = (historyData, fuelTypes) => {
     };
 };
 
-export default function InsightsPanel({ historyData, latestPrices, selectedFuel, setSelectedFuel }) {
+// Simple component that only renders the Change cards
+export default function PriceChangeCards({ historyData, latestPrices, selectedFuel }) {
     const { t } = useTranslation();
 
     // Get all fuel types from latest prices
@@ -90,12 +65,7 @@ export default function InsightsPanel({ historyData, latestPrices, selectedFuel,
         return latestPrices.map(p => p.type);
     }, [latestPrices]);
 
-    // Global analysis (all fuel types) - for summary
-    const globalAnalysis = useMemo(() => {
-        return calculateAnalysis(historyData, allFuelTypes);
-    }, [historyData, allFuelTypes]);
-
-    // Filtered analysis (based on selection) - for Change cards
+    // Filtered analysis (based on selection)
     const filteredFuelTypes = useMemo(() => {
         if (selectedFuel === 'all') {
             return allFuelTypes;
@@ -107,34 +77,7 @@ export default function InsightsPanel({ historyData, latestPrices, selectedFuel,
         return calculateAnalysis(historyData, filteredFuelTypes);
     }, [historyData, filteredFuelTypes]);
 
-    if (!globalAnalysis || !filteredAnalysis) return null;
-
-    // Generate unified market insight based on actual price data
-    const generateMarketInsight = () => {
-        const { avgChange7d, avgChange30d, avgPct7d, avgPct30d } = globalAnalysis;
-
-        // Calculate cents for readability
-        const cents7d = Math.abs(avgChange7d * 100).toFixed(1);
-        const cents30d = Math.abs(avgChange30d * 100).toFixed(1);
-        const pct30d = Math.abs(avgPct30d).toFixed(1);
-
-        // Determine trend magnitude
-        const isSignificantChange = Math.abs(avgPct30d) > 1;
-        const isModerateChange = Math.abs(avgPct30d) > 0.5;
-        const isIncreasing = avgChange30d > 0.005;
-        const isDecreasing = avgChange30d < -0.005;
-
-        // Build the insight with interpolation values
-        return t('insights.market_insight', {
-            trend: isIncreasing ? t('insights.trend_increased') : isDecreasing ? t('insights.trend_decreased') : t('insights.trend_stable_verb'),
-            cents30d,
-            pct30d,
-            magnitude: isSignificantChange ? t('insights.magnitude_significant') : isModerateChange ? t('insights.magnitude_moderate') : t('insights.magnitude_minor'),
-            context: isIncreasing ? t('insights.context_increase') : isDecreasing ? t('insights.context_decrease') : t('insights.context_stable')
-        });
-    };
-
-    const marketInsight = generateMarketInsight();
+    if (!filteredAnalysis) return null;
 
     const renderTrend = (val, pct, label) => {
         const num = parseFloat(val);
@@ -171,49 +114,10 @@ export default function InsightsPanel({ historyData, latestPrices, selectedFuel,
     };
 
     return (
-        <div className="bg-white rounded-2xl p-5">
-            <h3 className="text-lg font-semibold text-gray-900 mb-4">
-                {t('insights.title')}
-            </h3>
-
-            {/* Unified Market Insight */}
-            <div className="mb-6 p-4 bg-gray-50 rounded-xl border border-gray-100">
-                <p className="text-sm text-gray-700 leading-relaxed">
-                    {marketInsight}
-                </p>
-            </div>
-
-            {/* Fuel Type Selector - Only affects Change cards */}
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
-            <div className="flex flex-wrap gap-2 mb-4">
-                <button
-                    onClick={() => setSelectedFuel('all')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-                >
-                    {t('all')}
-                </button>
-                {Object.keys(FUEL_COLORS).map(fuel => {
-                    const isActive = selectedFuel === fuel;
-                    const style = FUEL_STYLES[fuel];
-
-                    return (
-                        <button
-                            key={fuel}
-                            onClick={() => setSelectedFuel(fuel)}
-                            className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive ? style.active : style.inactive}`}
-                        >
-                            {t(fuel.replace('Neste ', ''))}
-                        </button>
-                    );
-                })}
-            </div>
-
-            {/* Change Cards - Based on filtered analysis */}
-            <div className="grid grid-cols-3 gap-3">
-                {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, t('insights.change_24h'))}
-                {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, t('insights.change_7d'))}
-                {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, t('insights.change_30d'))}
-            </div>
+        <div className="grid grid-cols-3 gap-3">
+            {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, t('insights.change_24h'))}
+            {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, t('insights.change_7d'))}
+            {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, t('insights.change_30d'))}
         </div>
     );
 }

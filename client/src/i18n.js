@@ -42,21 +42,7 @@ const resources = {
                 title: "Price Insights",
                 change_24h: "Change (24h)",
                 change_7d: "Change (7d)",
-                change_30d: "Change (30d)",
-                // Unified market insight template
-                market_insight: "Over the past 30 days, fuel prices in Latvia have {{trend}} by approximately {{cents30d}}¢ per liter ({{pct30d}}%). This represents a {{magnitude}} change in the local market. {{context}}",
-                // Trend verbs
-                trend_increased: "increased",
-                trend_decreased: "decreased",
-                trend_stable_verb: "remained stable",
-                // Magnitude descriptions
-                magnitude_significant: "significant",
-                magnitude_moderate: "moderate",
-                magnitude_minor: "minor",
-                // Context explanations
-                context_increase: "Fuel price increases in Latvia typically correlate with rising global crude oil prices, seasonal demand changes, or adjustments in excise taxes. The Latvian fuel market closely follows European wholesale prices and refinery costs.",
-                context_decrease: "Lower fuel prices are often driven by decreasing global crude oil costs, reduced regional demand, or favorable exchange rates. Competition among fuel retailers in Latvia also contributes to price adjustments.",
-                context_stable: "Stable fuel prices indicate balanced market conditions with steady global oil prices and consistent local demand. The Latvian fuel market is currently experiencing equilibrium between supply and consumer demand."
+                change_30d: "Change (30d)"
             },
             intervals: {
                 hours: "Hours",
@@ -107,21 +93,7 @@ const resources = {
                 title: "Tirgus analīze",
                 change_24h: "Izmaiņas (24st)",
                 change_7d: "Izmaiņas (7d)",
-                change_30d: "Izmaiņas (30d)",
-                // Unified market insight template
-                market_insight: "Pēdējo 30 dienu laikā degvielas cenas Latvijā ir {{trend}} par aptuveni {{cents30d}}¢ uz litru ({{pct30d}}%). Tas ir {{magnitude}} izmaiņas vietējā tirgū. {{context}}",
-                // Trend verbs
-                trend_increased: "pieaugušas",
-                trend_decreased: "samazinājušās",
-                trend_stable_verb: "saglabājušās stabilas",
-                // Magnitude descriptions
-                magnitude_significant: "būtiskas",
-                magnitude_moderate: "mērenas",
-                magnitude_minor: "nelielas",
-                // Context explanations
-                context_increase: "Degvielas cenu pieaugums Latvijā parasti ir saistīts ar augošām pasaules jēlnaftas cenām, sezonālām pieprasījuma izmaiņām vai akcīzes nodokļu korekcijām. Latvijas degvielas tirgus cieši seko Eiropas vairumtirdzniecības cenām un naftas pārstrādes izmaksām.",
-                context_decrease: "Zemākas degvielas cenas bieži ir saistītas ar pasaules jēlnaftas cenu kritumu, samazinātu reģionālo pieprasījumu vai labvēlīgiem valūtas kursiem. Konkurence starp degvielas mazumtirgotājiem Latvijā arī veicina cenu pielāgošanos.",
-                context_stable: "Stabilas degvielas cenas norāda uz līdzsvarotiem tirgus apstākļiem ar stabilām pasaules naftas cenām un konsekventu vietējo pieprasījumu. Latvijas degvielas tirgū pašlaik valda līdzsvars starp piedāvājumu un patērētāju pieprasījumu."
+                change_30d: "Izmaiņas (30d)"
             },
             intervals: {
                 hours: "Stundas",
@@ -172,21 +144,7 @@ const resources = {
                 title: "Анализ цен",
                 change_24h: "Изменение (24ч)",
                 change_7d: "Изменение (7д)",
-                change_30d: "Изменение (30д)",
-                // Unified market insight template
-                market_insight: "За последние 30 дней цены на топливо в Латвии {{trend}} примерно на {{cents30d}}¢ за литр ({{pct30d}}%). Это {{magnitude}} изменение на местном рынке. {{context}}",
-                // Trend verbs
-                trend_increased: "выросли",
-                trend_decreased: "снизились",
-                trend_stable_verb: "оставались стабильными",
-                // Magnitude descriptions
-                magnitude_significant: "значительное",
-                magnitude_moderate: "умеренное",
-                magnitude_minor: "незначительное",
-                // Context explanations
-                context_increase: "Рост цен на топливо в Латвии обычно связан с повышением мировых цен на сырую нефть, сезонными изменениями спроса или корректировкой акцизных налогов. Латвийский топливный рынок тесно следует за европейскими оптовыми ценами и затратами на переработку нефти.",
-                context_decrease: "Снижение цен на топливо часто обусловлено падением мировых цен на нефть, уменьшением регионального спроса или благоприятными валютными курсами. Конкуренция между топливными розничными продавцами в Латвии также способствует корректировке цен.",
-                context_stable: "Стабильные цены на топливо указывают на сбалансированные рыночные условия со стабильными мировыми ценами на нефть и постоянным местным спросом. На латвийском топливном рынке в настоящее время сохраняется баланс между предложением и потребительским спросом."
+                change_30d: "Изменение (30д)"
             },
             intervals: {
                 hours: "Часы",

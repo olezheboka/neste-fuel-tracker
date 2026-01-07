@@ -6,7 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, RefreshCw, MapPin, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import InsightsPanel from './InsightsPanel';
+import PriceChangeCards from './InsightsPanel';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 
@@ -218,13 +218,6 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
 
-  // Insights fuel selector state (initialized from URL)
-  const [insightsFuel, setInsightsFuel] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const insightsParam = params.get('insights');
-    return FUEL_URL_MAP[insightsParam] || 'all';
-  });
-
   // Sync state to URL and Storage
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -239,15 +232,12 @@ export default function App() {
     // Sync Period
     params.set('period', graphInterval);
 
-    // Sync Fuel (chart)
+    // Sync Fuel (used for both chart and change cards)
     params.set('fuel', FUEL_TO_URL[selectedFuel] || 'all');
-
-    // Sync Insights Fuel
-    params.set('insights', FUEL_TO_URL[insightsFuel] || 'all');
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, selectedFuel, insightsFuel]);
+  }, [i18n.language, graphInterval, selectedFuel]);
 
   // Handle Initial Language
   useEffect(() => {
@@ -558,16 +548,6 @@ export default function App() {
           )}
         </section>
 
-        {/* Insights */}
-        <section>
-          <InsightsPanel
-            historyData={historyData}
-            latestPrices={latestPrices}
-            selectedFuel={insightsFuel}
-            setSelectedFuel={setInsightsFuel}
-          />
-        </section>
-
         {/* Chart Section */}
         <section>
           <Card className="p-6">
@@ -743,6 +723,16 @@ export default function App() {
               fuelColors={FUEL_COLORS}
               t={t}
             />
+
+            {/* Price Change Cards */}
+            <div className="mt-6 pt-6 border-t border-gray-100">
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('insights.title')}</p>
+              <PriceChangeCards
+                historyData={historyData}
+                latestPrices={latestPrices}
+                selectedFuel={selectedFuel}
+              />
+            </div>
           </Card>
         </section>
 
