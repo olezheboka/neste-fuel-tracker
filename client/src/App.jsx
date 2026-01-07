@@ -7,6 +7,7 @@ import { Calendar, RefreshCw, MapPin, ExternalLink } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
+import CustomTooltip from './CustomTooltip';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 
@@ -655,19 +656,8 @@ export default function App() {
                     tickFormatter={(value) => `€${parseFloat(value).toFixed(2)}`}
                   />
                   <Tooltip
-                    contentStyle={{
-                      backgroundColor: '#fff',
-                      border: 'none',
-                      borderRadius: '12px',
-                      boxShadow: '0 4px 20px rgba(0,0,0,0.1)',
-                      fontSize: '13px',
-                      padding: '12px 16px'
-                    }}
-                    formatter={(value, name) => {
-                      if (name.includes('_trend')) return [null, null]; // Hide trend values
-                      return [`€${parseFloat(value).toFixed(3)}`, t((name || '').replace('Neste ', ''))];
-                    }}
-                    labelFormatter={(label, payload) => payload?.[0]?.payload?.formattedTime || label}
+                    content={<CustomTooltip t={t} interval={graphInterval} />}
+                    cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
                   />
                   {selectedFuel === 'all' ? (
                     Object.keys(FUEL_COLORS).map(fuel => (
