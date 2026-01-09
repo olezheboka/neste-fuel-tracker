@@ -124,49 +124,61 @@ const Toast = ({ notification, onDismiss, t }) => {
         >
           {/* Apple liquid-style container */}
           <div
-            className="rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-4 border border-white/20"
+            className="rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden border border-white/20"
             style={{
               background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%)'
             }}
           >
-            <div className="flex items-center gap-3">
-              {/* Icon */}
-              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
-                {notification.hasChanges ? (
-                  <TrendingUp size={18} className="text-white" strokeWidth={2.5} />
-                ) : (
-                  <Check size={18} className="text-white" strokeWidth={2.5} />
-                )}
-              </div>
+            <div className="p-4">
+              <div className="flex items-center gap-3">
+                {/* Icon */}
+                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
+                  {notification.hasChanges ? (
+                    <TrendingUp size={18} className="text-white" strokeWidth={2.5} />
+                  ) : (
+                    <Check size={18} className="text-white" strokeWidth={2.5} />
+                  )}
+                </div>
 
-              {/* Content */}
-              <div className="flex-1 min-w-0">
-                <p className="text-[15px] font-semibold text-white leading-tight">
-                  {notification.title}
-                </p>
-                {notification.changes && notification.changes.length > 0 ? (
-                  <div className="mt-1.5 space-y-0.5">
-                    {notification.changes.map((change, i) => (
-                      <div key={i} className="flex items-center gap-1.5 text-[13px]">
-                        <span className="text-white/80">{change.fuel}:</span>
-                        <span className={`font-semibold ${change.diff > 0 ? 'text-red-200' : 'text-emerald-100'}`}>
-                          {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
-                )}
-              </div>
+                {/* Content */}
+                <div className="flex-1 min-w-0">
+                  <p className="text-[15px] font-semibold text-white leading-tight">
+                    {notification.title}
+                  </p>
+                  {notification.changes && notification.changes.length > 0 ? (
+                    <div className="mt-1.5 space-y-0.5">
+                      {notification.changes.map((change, i) => (
+                        <div key={i} className="flex items-center gap-1.5 text-[13px]">
+                          <span className="text-white/80">{change.fuel}:</span>
+                          <span className={`font-semibold ${change.diff > 0 ? 'text-red-200' : 'text-emerald-100'}`}>
+                            {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
+                  )}
+                </div>
 
-              {/* Close button */}
-              <button
-                onClick={onDismiss}
-                className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
-              >
-                <X size={14} className="text-white" strokeWidth={2.5} />
-              </button>
+                {/* Close button */}
+                <button
+                  onClick={onDismiss}
+                  className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                >
+                  <X size={14} className="text-white" strokeWidth={2.5} />
+                </button>
+              </div>
+            </div>
+
+            {/* Progress bar */}
+            <div className="h-1 bg-white/10">
+              <motion.div
+                initial={{ width: "100%" }}
+                animate={{ width: "0%" }}
+                transition={{ duration: 5, ease: "linear" }}
+                className="h-full bg-white/50"
+              />
             </div>
           </div>
         </motion.div>
