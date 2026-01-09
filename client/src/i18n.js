@@ -173,11 +173,30 @@ const resources = {
     }
 };
 
+// Get initial language from URL params or localStorage
+const getInitialLanguage = () => {
+    // Check URL params first
+    const params = new URLSearchParams(window.location.search);
+    const langParam = params.get('lang');
+    if (langParam && ['en', 'lv', 'ru'].includes(langParam)) {
+        return langParam;
+    }
+
+    // Then check localStorage
+    const storedLang = localStorage.getItem('i18nextLng');
+    if (storedLang && ['en', 'lv', 'ru'].includes(storedLang)) {
+        return storedLang;
+    }
+
+    // Default to English
+    return 'en';
+};
+
 i18n
     .use(initReactI18next)
     .init({
         resources,
-        lng: "en",
+        lng: getInitialLanguage(),
         fallbackLng: "en",
         interpolation: {
             escapeValue: false
