@@ -10,13 +10,16 @@ const calculateAnalysis = (historyData, fuelTypes) => {
     const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
     const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
     let totalChange24h = 0;
     let totalChange7d = 0;
     let totalChange30d = 0;
+    let totalChange3m = 0;
     let totalPct24h = 0;
     let totalPct7d = 0;
     let totalPct30d = 0;
+    let totalPct3m = 0;
     let count = 0;
 
     fuelTypes.forEach(type => {
@@ -40,14 +43,17 @@ const calculateAnalysis = (historyData, fuelTypes) => {
         const price24h = getPriceAtCutoff(oneDayAgo);
         const price7d = getPriceAtCutoff(sevenDaysAgo);
         const price30d = getPriceAtCutoff(thirtyDaysAgo);
+        const price3m = getPriceAtCutoff(threeMonthsAgo);
 
         totalChange24h += (current - price24h);
         totalChange7d += (current - price7d);
         totalChange30d += (current - price30d);
+        totalChange3m += (current - price3m);
 
         if (price24h > 0) totalPct24h += ((current - price24h) / price24h) * 100;
         if (price7d > 0) totalPct7d += ((current - price7d) / price7d) * 100;
         if (price30d > 0) totalPct30d += ((current - price30d) / price30d) * 100;
+        if (price3m > 0) totalPct3m += ((current - price3m) / price3m) * 100;
 
         count++;
     });
@@ -58,9 +64,11 @@ const calculateAnalysis = (historyData, fuelTypes) => {
         avgChange24h: (totalChange24h / count),
         avgChange7d: (totalChange7d / count),
         avgChange30d: (totalChange30d / count),
+        avgChange3m: (totalChange3m / count),
         avgPct24h: (totalPct24h / count),
         avgPct7d: (totalPct7d / count),
-        avgPct30d: (totalPct30d / count)
+        avgPct30d: (totalPct30d / count),
+        avgPct3m: (totalPct3m / count)
     };
 };
 
@@ -123,10 +131,11 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
     };
 
     return (
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-4 gap-2 sm:gap-3">
             {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, t('insights.change_24h'))}
             {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, t('insights.change_7d'))}
             {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, t('insights.change_30d'))}
+            {renderTrend(filteredAnalysis.avgChange3m, filteredAnalysis.avgPct3m, t('insights.change_3m'))}
         </div>
     );
 }

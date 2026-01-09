@@ -42,7 +42,8 @@ const resources = {
                 title: "Price Insights",
                 change_24h: "Change (24h)",
                 change_7d: "Change (7d)",
-                change_30d: "Change (30d)"
+                change_30d: "Change (30d)",
+                change_3m: "Change (3 M)"
             },
             intervals: {
                 hours: "Hours",
@@ -93,7 +94,8 @@ const resources = {
                 title: "Tirgus analīze",
                 change_24h: "Izmaiņas (24st)",
                 change_7d: "Izmaiņas (7d)",
-                change_30d: "Izmaiņas (30d)"
+                change_30d: "Izmaiņas (30d)",
+                change_3m: "Izmaiņas (3 mēn.)"
             },
             intervals: {
                 hours: "Stundas",
@@ -144,7 +146,8 @@ const resources = {
                 title: "Анализ цен",
                 change_24h: "Изменение (24ч)",
                 change_7d: "Изменение (7д)",
-                change_30d: "Изменение (30д)"
+                change_30d: "Изменение (30д)",
+                change_3m: "Изменение (3 мес.)"
             },
             intervals: {
                 hours: "Часы",
