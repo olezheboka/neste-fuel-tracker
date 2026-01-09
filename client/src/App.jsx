@@ -3,7 +3,7 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Calendar, RefreshCw, MapPin, ExternalLink, Check, X, TrendingUp } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
@@ -136,7 +136,7 @@ const Toast = ({ notification, onDismiss, t }) => {
                   {notification.hasChanges ? (
                     <TrendingUp size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   ) : (
-                    <Check size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+                    <Info size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   )}
                 </div>
 
