@@ -43,7 +43,7 @@ const resources = {
                 change_24h: "Change (24h)",
                 change_7d: "Change (7d)",
                 change_30d: "Change (30d)",
-                change_3m: "Change (3 M)"
+                change_3m: "Change (3M)"
             },
             intervals: {
                 hours: "Hours",
@@ -95,7 +95,7 @@ const resources = {
                 change_24h: "Izmaiņas (24st)",
                 change_7d: "Izmaiņas (7d)",
                 change_30d: "Izmaiņas (30d)",
-                change_3m: "Izmaiņas (3 mēn.)"
+                change_3m: "Izmaiņas (3M)"
             },
             intervals: {
                 hours: "Stundas",
@@ -147,7 +147,7 @@ const resources = {
                 change_24h: "Изменение (24ч)",
                 change_7d: "Изменение (7д)",
                 change_30d: "Изменение (30д)",
-                change_3m: "Изменение (3 мес.)"
+                change_3m: "Изменение (3М)"
             },
             intervals: {
                 hours: "Часы",
