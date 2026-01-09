@@ -610,9 +610,12 @@ export default function App() {
       {/* Header */}
       <header className="bg-white backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200">
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
-          <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">
+          <a
+            href="/"
+            className="text-2xl font-semibold text-gray-900 tracking-tight hover:text-gray-600 transition-colors cursor-pointer"
+          >
             {t('app_title')}
-          </h1>
+          </a>
           <SegmentedControl
             options={Object.keys(lngs).map(lng => ({
               value: lng,
