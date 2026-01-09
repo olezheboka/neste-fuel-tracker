@@ -96,7 +96,7 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
 
     if (!filteredAnalysis) return null;
 
-    const renderTrend = (val, pct, label) => {
+    const renderTrend = (val, pct, periodKey) => {
         const num = parseFloat(val);
         const cents = num * 100;
         const pctNum = parseFloat(pct);
@@ -116,7 +116,10 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
 
         return (
             <div className={`p-3 sm:p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
-                <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 sm:mb-2 whitespace-nowrap">{label}</span>
+                <div className="flex flex-col items-center mb-1 sm:mb-2">
+                    <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{t('insights.change')}</span>
+                    <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{t(`insights.${periodKey}`)}</span>
+                </div>
                 <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
                     <span className={`text-base sm:text-xl font-semibold ${colorClass}`}>
                         {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
@@ -132,10 +135,10 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
 
     return (
         <div className="grid grid-cols-4 gap-2 sm:gap-3">
-            {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, t('insights.change_24h'))}
-            {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, t('insights.change_7d'))}
-            {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, t('insights.change_30d'))}
-            {renderTrend(filteredAnalysis.avgChange3m, filteredAnalysis.avgPct3m, t('insights.change_3m'))}
+            {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, 'period_24h')}
+            {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, 'period_7d')}
+            {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, 'period_30d')}
+            {renderTrend(filteredAnalysis.avgChange3m, filteredAnalysis.avgPct3m, 'period_3m')}
         </div>
     );
 }

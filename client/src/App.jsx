@@ -155,7 +155,7 @@ const Toast = ({ notification, onDismiss, t }) => {
                         return (
                           <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
                             <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-200' :
-                                change.diff < -0.0001 ? 'text-emerald-100' : 'text-white/80'
+                              change.diff < -0.0001 ? 'text-emerald-100' : 'text-white/80'
                               }`}>
                               {t(textKey, {
                                 fuel: change.fuel,
@@ -688,18 +688,6 @@ export default function App() {
 
       <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
 
-        {/* Subheading with last update */}
-        <div className="text-sm text-gray-500">
-          {t('data_source')} {lastCheck && (
-            <span>• {t('last_update')}: {new Date(lastCheck).toLocaleString('lv-LV', {
-              day: '2-digit',
-              month: '2-digit',
-              year: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}</span>
-          )}
-        </div>
 
         {/* Loading State */}
         {loading && latestPrices.length === 0 && (
