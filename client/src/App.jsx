@@ -328,17 +328,35 @@ export default function App() {
   const [latestPrices, setLatestPrices] = useState([]);
   const [historyData, setHistoryData] = useState([]);
 
-  // URL and Storage Initialization
+  // URL and Storage Initialization - Priority: URL params > localStorage > defaults
   const [selectedFuel, setSelectedFuel] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const fuelParam = params.get('fuel');
-    return FUEL_URL_MAP[fuelParam] || 'all';
+    const storedFuel = localStorage.getItem('selectedFuel');
+
+    // URL params take priority, then localStorage, then default
+    if (fuelParam && FUEL_URL_MAP[fuelParam]) {
+      return FUEL_URL_MAP[fuelParam];
+    }
+    if (storedFuel && (storedFuel === 'all' || Object.keys(FUEL_COLORS).includes(storedFuel))) {
+      return storedFuel;
+    }
+    return 'all';
   });
 
   const [graphInterval, setGraphInterval] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const periodParam = params.get('period');
-    return ['days', 'weeks', 'months'].includes(periodParam) ? periodParam : 'days';
+    const storedPeriod = localStorage.getItem('graphInterval');
+
+    // URL params take priority, then localStorage, then default
+    if (['days', 'weeks', 'months'].includes(periodParam)) {
+      return periodParam;
+    }
+    if (['days', 'weeks', 'months'].includes(storedPeriod)) {
+      return storedPeriod;
+    }
+    return 'days';
   });
 
   const [loading, setLoading] = useState(true);
@@ -346,7 +364,7 @@ export default function App() {
   const [notification, setNotification] = useState(null);
   const previousPricesRef = React.useRef([]);
 
-  // Sync state to URL and Storage
+  // Sync state to URL and localStorage
   useEffect(() => {
     // Create fresh params to avoid keeping deprecated parameters
     const params = new URLSearchParams();
@@ -360,9 +378,12 @@ export default function App() {
 
     // Sync Period
     params.set('period', graphInterval);
+    localStorage.setItem('graphInterval', graphInterval);
 
     // Sync Fuel (used for both chart and change cards)
-    params.set('fuel', FUEL_TO_URL[selectedFuel] || 'all');
+    const fuelUrlKey = FUEL_TO_URL[selectedFuel] || 'all';
+    params.set('fuel', fuelUrlKey);
+    localStorage.setItem('selectedFuel', selectedFuel);
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
