@@ -120,7 +120,7 @@ const Toast = ({ notification, onDismiss, t }) => {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -40, scale: 0.9 }}
           transition={{ type: "spring", stiffness: 400, damping: 28 }}
-          className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] max-w-sm w-[92%]"
+          className="fixed top-4 inset-x-0 mx-auto z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-[92%]"
         >
           {/* Apple liquid-style container */}
           <div
@@ -129,26 +129,26 @@ const Toast = ({ notification, onDismiss, t }) => {
               background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%)'
             }}
           >
-            <div className="p-4">
-              <div className="flex items-center gap-3">
+            <div className="p-3 sm:p-4">
+              <div className="flex items-center gap-2.5 sm:gap-3">
                 {/* Icon */}
-                <div className="flex-shrink-0 w-9 h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
+                <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
                   {notification.hasChanges ? (
-                    <TrendingUp size={18} className="text-white" strokeWidth={2.5} />
+                    <TrendingUp size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   ) : (
-                    <Check size={18} className="text-white" strokeWidth={2.5} />
+                    <Check size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[15px] font-semibold text-white leading-tight">
+                  <p className="text-[14px] sm:text-[15px] font-semibold text-white leading-tight">
                     {notification.title}
                   </p>
                   {notification.changes && notification.changes.length > 0 ? (
                     <div className="mt-1.5 space-y-0.5">
                       {notification.changes.map((change, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[13px]">
+                        <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
                           <span className="text-white/80">{change.fuel}:</span>
                           <span className={`font-semibold ${change.diff > 0 ? 'text-red-200' : 'text-emerald-100'}`}>
                             {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
@@ -157,16 +157,16 @@ const Toast = ({ notification, onDismiss, t }) => {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
+                    <p className="text-[12px] sm:text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
                   )}
                 </div>
 
                 {/* Close button */}
                 <button
                   onClick={onDismiss}
-                  className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                  className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
                 >
-                  <X size={14} className="text-white" strokeWidth={2.5} />
+                  <X size={12} className="text-white sm:w-[14px] sm:h-[14px]" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
