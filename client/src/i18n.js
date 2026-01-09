@@ -120,6 +120,8 @@ const resources = {
             no_data: 'Нет данных',
             valid_at: 'Действует:',
             station_one: '{{count}} АЗС',
+            station_few: '{{count}} АЗС',
+            station_many: '{{count}} АЗС',
             station_other: '{{count}} АЗС',
             location: 'Адрес:',
             fuel_type: 'Тип топлива',
