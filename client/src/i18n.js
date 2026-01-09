@@ -54,8 +54,8 @@ const resources = {
             },
             notification: {
                 prices_changed: "Prices Updated",
-                data_refreshed: "Data Refreshed",
-                no_changes: "No price changes detected"
+                data_refreshed: "Updated",
+                no_changes: "Prices haven't changed"
             }
         }
     },
@@ -110,8 +110,8 @@ const resources = {
             },
             notification: {
                 prices_changed: "Cenas atjauninātas",
-                data_refreshed: "Dati atjaunināti",
-                no_changes: "Cenu izmaiņas nav konstatētas"
+                data_refreshed: "Atjaunots",
+                no_changes: "Cenas nav mainījušās"
             }
         }
     },
@@ -166,8 +166,8 @@ const resources = {
             },
             notification: {
                 prices_changed: "Цены обновлены",
-                data_refreshed: "Данные обновлены",
-                no_changes: "Изменений цен не обнаружено"
+                data_refreshed: "Обновлено",
+                no_changes: "Цены не изменились"
             }
         }
     }
