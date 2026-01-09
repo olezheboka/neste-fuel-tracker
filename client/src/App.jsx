@@ -2,8 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useTranslation } from 'react-i18next';
-import { motion } from 'framer-motion';
-import { Calendar, RefreshCw, MapPin, ExternalLink } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Calendar, RefreshCw, MapPin, ExternalLink, Check, X, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
@@ -99,6 +99,81 @@ const Card = ({ children, className }) => (
     {children}
   </div>
 );
+
+// Toast Notification Component
+
+const Toast = ({ notification, onDismiss, t }) => {
+  useEffect(() => {
+    if (notification) {
+      const timer = setTimeout(() => {
+        onDismiss();
+      }, 10000);
+      return () => clearTimeout(timer);
+    }
+  }, [notification, onDismiss]);
+
+  return (
+    <AnimatePresence>
+      {notification && (
+        <motion.div
+          initial={{ opacity: 0, y: -50, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          className="fixed top-4 left-1/2 -translate-x-1/2 z-[100] max-w-md w-[90%]"
+        >
+          <div className={`
+            rounded-xl shadow-lg border backdrop-blur-sm p-4
+            ${notification.hasChanges
+              ? 'bg-blue-50/95 border-blue-200'
+              : 'bg-gray-50/95 border-gray-200'}
+          `}>
+            <div className="flex items-start gap-3">
+              <div className={`
+                flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center
+                ${notification.hasChanges ? 'bg-blue-100' : 'bg-gray-100'}
+              `}>
+                {notification.hasChanges ? (
+                  <TrendingUp size={16} className="text-blue-600" />
+                ) : (
+                  <Check size={16} className="text-gray-500" />
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className={`text-sm font-semibold ${notification.hasChanges ? 'text-blue-900' : 'text-gray-700'}`}>
+                  {notification.title}
+                </p>
+                {notification.changes && notification.changes.length > 0 ? (
+                  <div className="mt-2 space-y-1">
+                    {notification.changes.map((change, i) => (
+                      <div key={i} className="flex items-center gap-2 text-xs">
+                        <span className="text-gray-600">{change.fuel}:</span>
+                        <span className={change.diff > 0 ? 'text-red-500 font-medium' : 'text-green-500 font-medium'}>
+                          {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
+                        </span>
+                        <span className="text-gray-400">
+                          (€{change.oldPrice.toFixed(3)} → €{change.newPrice.toFixed(3)})
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-xs text-gray-500 mt-1">{notification.message}</p>
+                )}
+              </div>
+              <button
+                onClick={onDismiss}
+                className="flex-shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+};
 
 // Chart Legend Component
 const ChartLegend = ({ selectedFuel, fuelColors, t }) => {
@@ -256,6 +331,8 @@ export default function App() {
 
   const [loading, setLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
+  const [notification, setNotification] = useState(null);
+  const previousPricesRef = React.useRef([]);
 
   // Sync state to URL and Storage
   useEffect(() => {
@@ -291,7 +368,7 @@ export default function App() {
     }
   }, []);
 
-  const fetchData = async (forceScrape = false) => {
+  const fetchData = async (forceScrape = false, showNotification = false) => {
     try {
       setLoading(true);
 
@@ -300,9 +377,45 @@ export default function App() {
       }
 
       const latestRes = await axios.get(`${API_BASE}/prices/latest`);
-      setLatestPrices(latestRes.data);
-      if (latestRes.data.length > 0) {
-        setLastCheck(latestRes.data[0].timestamp);
+      const newPrices = latestRes.data;
+
+      // Compare prices if we have previous data and notification is requested
+      if (showNotification && previousPricesRef.current.length > 0) {
+        const changes = [];
+
+        newPrices.forEach(newPrice => {
+          const oldPrice = previousPricesRef.current.find(p => p.type === newPrice.type);
+          if (oldPrice && Math.abs(newPrice.price - oldPrice.price) >= 0.001) {
+            changes.push({
+              fuel: newPrice.type.replace('Neste ', ''),
+              oldPrice: oldPrice.price,
+              newPrice: newPrice.price,
+              diff: newPrice.price - oldPrice.price
+            });
+          }
+        });
+
+        if (changes.length > 0) {
+          setNotification({
+            hasChanges: true,
+            title: t('notification.prices_changed'),
+            changes
+          });
+        } else {
+          setNotification({
+            hasChanges: false,
+            title: t('notification.data_refreshed'),
+            message: t('notification.no_changes')
+          });
+        }
+      }
+
+      // Store current prices for future comparison
+      previousPricesRef.current = newPrices;
+
+      setLatestPrices(newPrices);
+      if (newPrices.length > 0) {
+        setLastCheck(newPrices[0].timestamp);
       }
 
       const historyRes = await axios.get(`${API_BASE}/prices/history`);
@@ -316,7 +429,7 @@ export default function App() {
   };
 
   const handleRefresh = () => {
-    fetchData(true);
+    fetchData(true, true);
   };
 
   useEffect(() => {
@@ -474,6 +587,13 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 pb-24">
+
+      {/* Toast Notification */}
+      <Toast
+        notification={notification}
+        onDismiss={() => setNotification(null)}
+        t={t}
+      />
 
       {/* Header */}
       <header className="bg-white backdrop-blur-xl sticky top-0 z-50 border-b border-gray-200">

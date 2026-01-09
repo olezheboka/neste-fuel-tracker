@@ -51,6 +51,11 @@ const resources = {
                 weeks: "Weeks",
                 "months": "Months",
                 "years": "Years"
+            },
+            notification: {
+                prices_changed: "Prices Updated",
+                data_refreshed: "Data Refreshed",
+                no_changes: "No price changes detected"
             }
         }
     },
@@ -102,6 +107,11 @@ const resources = {
                 weeks: "Nedēļas",
                 months: "Mēneši",
                 years: "Gadi"
+            },
+            notification: {
+                prices_changed: "Cenas atjauninātas",
+                data_refreshed: "Dati atjaunināti",
+                no_changes: "Cenu izmaiņas nav konstatētas"
             }
         }
     },
@@ -153,6 +163,11 @@ const resources = {
                 weeks: "Недели",
                 months: "Месяцы",
                 years: "Годы"
+            },
+            notification: {
+                prices_changed: "Цены обновлены",
+                data_refreshed: "Данные обновлены",
+                no_changes: "Изменений цен не обнаружено"
             }
         }
     }
