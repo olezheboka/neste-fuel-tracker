@@ -146,15 +146,25 @@ const Toast = ({ notification, onDismiss, t }) => {
                     {notification.title}
                   </p>
                   {notification.changes && notification.changes.length > 0 ? (
-                    <div className="mt-1.5 space-y-0.5">
-                      {notification.changes.map((change, i) => (
-                        <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
-                          <span className="text-white/80">{change.fuel}:</span>
-                          <span className={`font-semibold ${change.diff > 0 ? 'text-red-200' : 'text-emerald-100'}`}>
-                            {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
-                          </span>
-                        </div>
-                      ))}
+                    <div className="mt-1.5 space-y-1">
+                      {notification.changes.map((change, i) => {
+                        let textKey = 'notification.item_unchanged';
+                        if (change.diff > 0.0001) textKey = 'notification.item_increased';
+                        if (change.diff < -0.0001) textKey = 'notification.item_decreased';
+
+                        return (
+                          <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
+                            <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-200' :
+                                change.diff < -0.0001 ? 'text-emerald-100' : 'text-white/80'
+                              }`}>
+                              {t(textKey, {
+                                fuel: change.fuel,
+                                diff: Math.abs(change.diff * 100).toFixed(1)
+                              })}
+                            </span>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-[12px] sm:text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
@@ -415,24 +425,43 @@ export default function App() {
       // Compare prices if we have previous data and notification is requested
       if (showNotification && previousPricesRef.current.length > 0) {
         const changes = [];
+        let hasAnyChange = false;
 
         newPrices.forEach(newPrice => {
           const oldPrice = previousPricesRef.current.find(p => p.type === newPrice.type);
-          if (oldPrice && Math.abs(newPrice.price - oldPrice.price) >= 0.001) {
+          if (oldPrice) {
+            const diff = newPrice.price - oldPrice.price;
+            // Check if there is a significant change
+            if (Math.abs(diff) >= 0.001) {
+              hasAnyChange = true;
+            }
+            // Always add to changes array
             changes.push({
-              fuel: newPrice.type.replace('Neste ', ''),
+              fuel: newPrice.type.replace('Neste ', '').replace('Futura ', ''), // Clean up names further if needed, or keep as is. User asked for "95", "98".
               oldPrice: oldPrice.price,
               newPrice: newPrice.price,
-              diff: newPrice.price - oldPrice.price
+              diff: diff
             });
           }
         });
 
-        if (changes.length > 0) {
+        // Filter/Map names to be cleaner:
+        // Current names: "Futura 95", "Futura 98", "Futura D", "Pro Diesel"
+        // User wants: "95", "98", "Diesel", "Pro Diesel"
+        const cleanName = (name) => {
+          return name.replace('Futura D', 'Diesel').replace('Futura ', '');
+        };
+
+        const processedChanges = changes.map(c => ({
+          ...c,
+          fuel: cleanName(c.fuel)
+        }));
+
+        if (hasAnyChange) {
           setNotification({
             hasChanges: true,
             title: t('notification.prices_changed'),
-            changes
+            changes: processedChanges
           });
         } else {
           setNotification({
