@@ -27,10 +27,19 @@ const calculateAnalysis = (historyData, fuelTypes) => {
         if (typeHistory.length === 0) return;
 
         const current = typeHistory[0].price;
+        const oldest = typeHistory[typeHistory.length - 1]; // Oldest available data point
 
-        const price24h = typeHistory.find(d => new Date(d.timestamp) <= oneDayAgo)?.price || current;
-        const price7d = typeHistory.find(d => new Date(d.timestamp) <= sevenDaysAgo)?.price || current;
-        const price30d = typeHistory.find(d => new Date(d.timestamp) <= thirtyDaysAgo)?.price || current;
+        // Helper to get price at or before a cutoff, or use oldest available if not enough data
+        const getPriceAtCutoff = (cutoffDate) => {
+            const found = typeHistory.find(d => new Date(d.timestamp) <= cutoffDate);
+            if (found) return found.price;
+            // If no data at cutoff, use oldest available data (better than showing 0 change)
+            return oldest.price;
+        };
+
+        const price24h = getPriceAtCutoff(oneDayAgo);
+        const price7d = getPriceAtCutoff(sevenDaysAgo);
+        const price30d = getPriceAtCutoff(thirtyDaysAgo);
 
         totalChange24h += (current - price24h);
         totalChange7d += (current - price7d);
