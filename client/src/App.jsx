@@ -100,7 +100,7 @@ const Card = ({ children, className }) => (
   </div>
 );
 
-// Toast Notification Component
+// Toast Notification Component - Apple Liquid Style
 
 const Toast = ({ notification, onDismiss, t }) => {
   useEffect(() => {
@@ -116,56 +116,56 @@ const Toast = ({ notification, onDismiss, t }) => {
     <AnimatePresence>
       {notification && (
         <motion.div
-          initial={{ opacity: 0, y: -50, scale: 0.9 }}
+          initial={{ opacity: 0, y: -60, scale: 0.85 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -30, scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 500, damping: 30 }}
-          className="fixed top-6 left-1/2 -translate-x-1/2 z-[100] max-w-lg w-[95%]"
+          exit={{ opacity: 0, y: -40, scale: 0.9 }}
+          transition={{ type: "spring", stiffness: 400, damping: 28 }}
+          className="fixed top-5 left-1/2 -translate-x-1/2 z-[100] max-w-sm w-[92%]"
         >
-          <div className={`
-            rounded-2xl shadow-2xl border-2 p-5
-            ${notification.hasChanges
-              ? 'bg-white border-blue-400 ring-4 ring-blue-100'
-              : 'bg-white border-gray-300 ring-4 ring-100'}
-          `}>
-            <div className="flex items-start gap-4">
-              <div className={`
-                flex-shrink-0 w-10 h-10 rounded-full flex items-center justify-center
-                ${notification.hasChanges ? 'bg-blue-500' : 'bg-gray-500'}
-              `}>
+          {/* Apple liquid-style container */}
+          <div
+            className="rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] p-4 border border-white/20"
+            style={{
+              background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%)'
+            }}
+          >
+            <div className="flex items-center gap-3">
+              {/* Icon */}
+              <div className="flex-shrink-0 w-9 h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
                 {notification.hasChanges ? (
-                  <TrendingUp size={20} className="text-white" />
+                  <TrendingUp size={18} className="text-white" strokeWidth={2.5} />
                 ) : (
-                  <Check size={20} className="text-white" />
+                  <Check size={18} className="text-white" strokeWidth={2.5} />
                 )}
               </div>
+
+              {/* Content */}
               <div className="flex-1 min-w-0">
-                <p className={`text-base font-bold ${notification.hasChanges ? 'text-blue-900' : 'text-gray-800'}`}>
+                <p className="text-[15px] font-semibold text-white leading-tight">
                   {notification.title}
                 </p>
                 {notification.changes && notification.changes.length > 0 ? (
-                  <div className="mt-2 space-y-1.5">
+                  <div className="mt-1.5 space-y-0.5">
                     {notification.changes.map((change, i) => (
-                      <div key={i} className="flex items-center gap-2 text-sm">
-                        <span className="text-gray-700 font-medium">{change.fuel}:</span>
-                        <span className={`font-bold ${change.diff > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      <div key={i} className="flex items-center gap-1.5 text-[13px]">
+                        <span className="text-white/80">{change.fuel}:</span>
+                        <span className={`font-semibold ${change.diff > 0 ? 'text-red-200' : 'text-emerald-100'}`}>
                           {change.diff > 0 ? '+' : ''}{(change.diff * 100).toFixed(1)}¢
-                        </span>
-                        <span className="text-gray-500">
-                          (€{change.oldPrice.toFixed(3)} → €{change.newPrice.toFixed(3)})
                         </span>
                       </div>
                     ))}
                   </div>
                 ) : (
-                  <p className="text-sm text-gray-600 mt-1">{notification.message}</p>
+                  <p className="text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
                 )}
               </div>
+
+              {/* Close button */}
               <button
                 onClick={onDismiss}
-                className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center bg-gray-100 hover:bg-gray-200 text-gray-500 hover:text-gray-700 transition-all"
+                className="flex-shrink-0 w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
               >
-                <X size={18} strokeWidth={2.5} />
+                <X size={14} className="text-white" strokeWidth={2.5} />
               </button>
             </div>
           </div>
