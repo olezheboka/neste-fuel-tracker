@@ -174,8 +174,8 @@ const Toast = ({ notification, onDismiss, t }) => {
             {/* Progress bar */}
             <div className="h-1 bg-white/10">
               <motion.div
-                initial={{ width: "100%" }}
-                animate={{ width: "0%" }}
+                initial={{ width: "0%" }}
+                animate={{ width: "100%" }}
                 transition={{ duration: 5, ease: "linear" }}
                 className="h-full bg-white/50"
               />
