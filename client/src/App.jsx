@@ -788,7 +788,7 @@ export default function App() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataWithTrend}
-                  margin={{ top: 5, right: 5, left: 5, bottom: 5 }}
+                  margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
@@ -831,81 +831,123 @@ export default function App() {
                     cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
                   />
                   {selectedFuel === 'all' ? (
-                    Object.keys(FUEL_COLORS).map((fuel, index) => (
-                      <React.Fragment key={fuel}>
-                        <Line
-                          type="monotone"
-                          dataKey={fuel}
-                          stroke={FUEL_COLORS[fuel]}
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
-                          activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
-                        >
-                          <LabelList
+                    Object.keys(FUEL_COLORS).map((fuel, index) => {
+                      const fuelShortName = t(fuel.replace('Neste ', ''));
+                      return (
+                        <React.Fragment key={fuel}>
+                          <Line
+                            type="monotone"
                             dataKey={fuel}
-                            position="top"
-                            offset={8}
-                            fontSize={9}
-                            fill={FUEL_COLORS[fuel]}
-                            formatter={(value) => value ? `€${value.toFixed(3)}` : ''}
+                            stroke={FUEL_COLORS[fuel]}
+                            strokeWidth={2}
+                            dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
+                            activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
+                          >
+                            <LabelList
+                              dataKey={fuel}
+                              position="top"
+                              offset={8}
+                              fontSize={9}
+                              fill={FUEL_COLORS[fuel]}
+                              content={({ x, y, value, index: pointIndex }) => {
+                                if (!value || pointIndex === 0 || pointIndex === chartDataWithTrend.length - 1) return null;
+                                return (
+                                  <text x={x} y={y - 8} textAnchor="middle" fontSize={9} fill={FUEL_COLORS[fuel]}>
+                                    €{value.toFixed(3)}
+                                  </text>
+                                );
+                              }}
+                            />
+                            <LabelList
+                              dataKey={fuel}
+                              position="right"
+                              offset={5}
+                              content={({ x, y, value, index: pointIndex }) => {
+                                if (pointIndex !== chartDataWithTrend.length - 1) return null;
+                                return (
+                                  <text x={x + 8} y={y + 4} textAnchor="start" fontSize={10} fontWeight="600" fill={FUEL_COLORS[fuel]}>
+                                    {fuelShortName}
+                                  </text>
+                                );
+                              }}
+                            />
+                          </Line>
+                          <Line
+                            type="linear"
+                            dataKey={`${fuel}_trend`}
+                            stroke={FUEL_COLORS[fuel]}
+                            strokeWidth={1}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            activeDot={false}
+                            legendType="none"
+                            isAnimationActive={false}
+                            opacity={0.5}
                           />
-                        </Line>
-                        <Line
-                          type="linear"
-                          dataKey={`${fuel}_trend`}
-                          stroke={FUEL_COLORS[fuel]}
-                          strokeWidth={1}
-                          strokeDasharray="5 5"
-                          dot={false}
-                          activeDot={false}
-                          legendType="none"
-                          isAnimationActive={false}
-                          opacity={0.5}
-                        />
-                      </React.Fragment>
-                    ))
+                        </React.Fragment>
+                      );
+                    })
                   ) : (
-                    <>
-                      <Line
-                        type="monotone"
-                        dataKey={selectedFuel}
-                        stroke={FUEL_COLORS[selectedFuel]}
-                        strokeWidth={2.5}
-                        dot={{ r: 4, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
-                        activeDot={{ r: 6, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
-                      >
-                        <LabelList
-                          dataKey={selectedFuel}
-                          position="top"
-                          offset={10}
-                          fontSize={10}
-                          fill={FUEL_COLORS[selectedFuel]}
-                          formatter={(value) => value ? `€${value.toFixed(3)}` : ''}
-                        />
-                      </Line>
-                      <Line
-                        type="linear"
-                        dataKey={`${selectedFuel}_trend`}
-                        stroke={FUEL_COLORS[selectedFuel]}
-                        strokeWidth={1.5}
-                        strokeDasharray="5 5"
-                        dot={false}
-                        activeDot={false}
-                        legendType="none"
-                        isAnimationActive={false}
-                        opacity={0.6}
-                      />
-                    </>
+                    (() => {
+                      const fuelShortName = t(selectedFuel.replace('Neste ', ''));
+                      return (
+                        <>
+                          <Line
+                            type="monotone"
+                            dataKey={selectedFuel}
+                            stroke={FUEL_COLORS[selectedFuel]}
+                            strokeWidth={2.5}
+                            dot={{ r: 4, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
+                            activeDot={{ r: 6, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
+                          >
+                            <LabelList
+                              dataKey={selectedFuel}
+                              position="top"
+                              offset={10}
+                              fontSize={10}
+                              fill={FUEL_COLORS[selectedFuel]}
+                              content={({ x, y, value, index: pointIndex }) => {
+                                if (!value || pointIndex === 0 || pointIndex === chartDataWithTrend.length - 1) return null;
+                                return (
+                                  <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fill={FUEL_COLORS[selectedFuel]}>
+                                    €{value.toFixed(3)}
+                                  </text>
+                                );
+                              }}
+                            />
+                            <LabelList
+                              dataKey={selectedFuel}
+                              position="right"
+                              offset={5}
+                              content={({ x, y, value, index: pointIndex }) => {
+                                if (pointIndex !== chartDataWithTrend.length - 1) return null;
+                                return (
+                                  <text x={x + 8} y={y + 4} textAnchor="start" fontSize={11} fontWeight="600" fill={FUEL_COLORS[selectedFuel]}>
+                                    {fuelShortName}
+                                  </text>
+                                );
+                              }}
+                            />
+                          </Line>
+                          <Line
+                            type="linear"
+                            dataKey={`${selectedFuel}_trend`}
+                            stroke={FUEL_COLORS[selectedFuel]}
+                            strokeWidth={1.5}
+                            strokeDasharray="5 5"
+                            dot={false}
+                            activeDot={false}
+                            legendType="none"
+                            isAnimationActive={false}
+                            opacity={0.6}
+                          />
+                        </>
+                      );
+                    })()
                   )}
                 </LineChart>
               </ResponsiveContainer>
-            </div>
-            <ChartLegend
-              selectedFuel={selectedFuel}
-              fuelColors={FUEL_COLORS}
-              t={t}
-            />
-
+            </div>\n
             {/* Price Change Cards */}
             <div className="mt-6 pt-6 border-t border-gray-100">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('insights.title')}</p>
