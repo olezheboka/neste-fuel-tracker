@@ -121,7 +121,7 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
                 </div>
                 <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
                     <span className={`text-base sm:text-xl font-semibold ${colorClass}`}>
-                        {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
+                        {cents > 0 ? '+' : ''}{cents.toFixed(2)}¢
                     </span>
                     <Icon size={16} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
                 </div>
