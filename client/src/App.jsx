@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
@@ -831,7 +831,7 @@ export default function App() {
                     cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
                   />
                   {selectedFuel === 'all' ? (
-                    Object.keys(FUEL_COLORS).map(fuel => (
+                    Object.keys(FUEL_COLORS).map((fuel, index) => (
                       <React.Fragment key={fuel}>
                         <Line
                           type="monotone"
@@ -840,7 +840,16 @@ export default function App() {
                           strokeWidth={2}
                           dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
                           activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
-                        />
+                        >
+                          <LabelList
+                            dataKey={fuel}
+                            position="top"
+                            offset={8}
+                            fontSize={9}
+                            fill={FUEL_COLORS[fuel]}
+                            formatter={(value) => value ? `€${value.toFixed(3)}` : ''}
+                          />
+                        </Line>
                         <Line
                           type="linear"
                           dataKey={`${fuel}_trend`}
@@ -862,9 +871,18 @@ export default function App() {
                         dataKey={selectedFuel}
                         stroke={FUEL_COLORS[selectedFuel]}
                         strokeWidth={2.5}
-                        dot={{ r: 3, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
-                        activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
-                      />
+                        dot={{ r: 4, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
+                        activeDot={{ r: 6, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
+                      >
+                        <LabelList
+                          dataKey={selectedFuel}
+                          position="top"
+                          offset={10}
+                          fontSize={10}
+                          fill={FUEL_COLORS[selectedFuel]}
+                          formatter={(value) => value ? `€${value.toFixed(3)}` : ''}
+                        />
+                      </Line>
                       <Line
                         type="linear"
                         dataKey={`${selectedFuel}_trend`}
