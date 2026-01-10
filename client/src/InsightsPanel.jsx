@@ -117,7 +117,6 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
         return (
             <div className={`p-3 sm:p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
                 <div className="flex flex-col items-center mb-1 sm:mb-2">
-                    <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{t('insights.change')}</span>
                     <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{t(`insights.${periodKey}`)}</span>
                 </div>
                 <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
