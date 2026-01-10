@@ -682,8 +682,7 @@ export default function App() {
       {/* Disclaimer */}
       <div className="bg-blue-50 border-b border-blue-200">
         <div className="max-w-5xl mx-auto px-6 py-3">
-          <p className="text-sm text-blue-700 text-center font-medium flex items-center justify-center gap-2">
-            <span className="text-blue-500">ℹ️</span>
+          <p className="text-sm text-blue-700 text-center font-medium">
             {t('disclaimer')}
           </p>
         </div>
