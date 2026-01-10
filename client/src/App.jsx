@@ -850,9 +850,13 @@ export default function App() {
                               fontSize={9}
                               fill={FUEL_COLORS[fuel]}
                               content={({ x, y, value, index: pointIndex }) => {
-                                if (!value || pointIndex === 0 || pointIndex === chartDataWithTrend.length - 1) return null;
+                                if (!value) return null;
+                                // Adjust text anchor for first and last points to avoid overlap/cropping
+                                let anchor = "middle";
+                                if (pointIndex === 0) anchor = "start";
+                                if (pointIndex === chartDataWithTrend.length - 1) anchor = "end";
                                 return (
-                                  <text x={x} y={y - 8} textAnchor="middle" fontSize={9} fill={FUEL_COLORS[fuel]}>
+                                  <text x={x} y={y - 8} textAnchor={anchor} fontSize={9} fill={FUEL_COLORS[fuel]}>
                                     €{value.toFixed(3)}
                                   </text>
                                 );
@@ -907,9 +911,13 @@ export default function App() {
                               fontSize={10}
                               fill={FUEL_COLORS[selectedFuel]}
                               content={({ x, y, value, index: pointIndex }) => {
-                                if (!value || pointIndex === 0 || pointIndex === chartDataWithTrend.length - 1) return null;
+                                if (!value) return null;
+                                // Adjust text anchor for first and last points to avoid overlap/cropping
+                                let anchor = "middle";
+                                if (pointIndex === 0) anchor = "start";
+                                if (pointIndex === chartDataWithTrend.length - 1) anchor = "end";
                                 return (
-                                  <text x={x} y={y - 10} textAnchor="middle" fontSize={10} fill={FUEL_COLORS[selectedFuel]}>
+                                  <text x={x} y={y - 10} textAnchor={anchor} fontSize={10} fill={FUEL_COLORS[selectedFuel]}>
                                     €{value.toFixed(3)}
                                   </text>
                                 );
@@ -947,7 +955,7 @@ export default function App() {
                   )}
                 </LineChart>
               </ResponsiveContainer>
-            </div>\n
+            </div>
             {/* Price Change Cards */}
             <div className="mt-6 pt-6 border-t border-gray-100">
               <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('insights.title')}</p>
