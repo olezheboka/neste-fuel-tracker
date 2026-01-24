@@ -34,8 +34,7 @@ class PostgresDatabase {
     }
 }
 
-const sqlite3 = require('sqlite3');
-const { open } = require('sqlite');
+
 
 class SQLiteDatabase {
     constructor(db) {
@@ -180,9 +179,12 @@ async function openDb() {
     }
 
     // 2. Local SQLite Development
-    console.log('[DB] No POSTGRES_URL found. Using Local SQLite Database.');
+    console.log('[DB] No POSTGRES_URL found. Attempting to use Local SQLite Database.');
 
     try {
+        const sqlite3 = require('sqlite3');
+        const { open } = require('sqlite');
+
         const db = await open({
             filename: path.join(__dirname, 'fuel_prices.db'),
             driver: sqlite3.Database
@@ -192,8 +194,9 @@ async function openDb() {
         dbInstance = new SQLiteDatabase(db);
         return dbInstance;
     } catch (e) {
-        console.error('[DB] Failed to open SQLite:', e);
-        throw e;
+        console.warn('[DB] SQLite initialization failed. Falling back to Mock In-Memory DB (Data will not save).', e.message);
+        dbInstance = new MockDatabase();
+        return dbInstance;
     }
 }
 
