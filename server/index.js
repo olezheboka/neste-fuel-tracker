@@ -1,3 +1,4 @@
+require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 // const cron = require('node-cron'); // Disable cron for Vercel
@@ -228,5 +229,11 @@ app.use('/api', (req, res) => {
     console.log('[Warning] Unhandled API route:', req.originalUrl);
     res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
 });
+
+if (require.main === module) {
+    app.listen(PORT, () => {
+        console.log(`Server running on port ${PORT}`);
+    });
+}
 
 module.exports = app;

@@ -34,12 +34,94 @@ class PostgresDatabase {
     }
 }
 
+const sqlite3 = require('sqlite3');
+const { open } = require('sqlite');
+
+class SQLiteDatabase {
+    constructor(db) {
+        this.db = db;
+    }
+
+    async exec(sql) {
+        return this.db.exec(sql);
+    }
+
+    async get(sql, params = []) {
+        return this.db.get(sql, params);
+    }
+
+    async all(sql, params = []) {
+        return this.db.all(sql, params);
+    }
+
+    async run(sql, params = []) {
+        return this.db.run(sql, params);
+    }
+}
+
+// Mock Database for when Postgres is missing (avoids sqlite3 crashes)
 // Mock Database for when Postgres is missing (avoids sqlite3 crashes)
 class MockDatabase {
-    async exec(sql) { console.log('[MockDB] exec:', sql); }
-    async get(sql, params) { console.log('[MockDB] get:', sql, params); return null; }
-    async all(sql, params) { console.log('[MockDB] all:', sql, params); return []; }
-    async run(sql, params) { console.log('[MockDB] run:', sql, params); return {}; }
+    constructor() {
+        this.prices = [];
+    }
+
+    async exec(sql) {
+        // Simple mock for table creation
+        console.log('[MockDB] exec:', sql.substring(0, 50) + '...');
+    }
+
+    async get(sql, params) {
+        // console.log('[MockDB] get:', sql, params);
+        if (sql.includes('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1')) {
+            return this.prices.length > 0 ? { timestamp: this.prices[this.prices.length - 1].timestamp } : undefined;
+        }
+        return null;
+    }
+
+    async all(sql, params) {
+        // console.log('[MockDB] all:', sql, params);
+
+        // Very basic query handling for specific app queries
+        if (sql.includes('SELECT type, price, location, timestamp') && sql.includes('MAX(timestamp)')) {
+            if (this.prices.length === 0) return [];
+            // Find latest timestamp
+            const latest = this.prices[this.prices.length - 1].timestamp;
+            // Return all items with that timestamp
+            return this.prices.filter(p => p.timestamp === latest);
+        }
+
+        // Return all for history
+        if (sql.includes('SELECT * FROM fuel_prices')) {
+            // Sort by timestamp if requested
+            if (sql.includes('ORDER BY timestamp ASC')) {
+                return [...this.prices].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+            }
+            return this.prices;
+        }
+
+        return [];
+    }
+
+    async run(sql, params) {
+        // console.log('[MockDB] run:', sql, params);
+        if (sql.includes('INSERT INTO fuel_prices')) {
+            // Params: [type, price, location, timestamp]
+            const [type, price, location, timestamp] = params;
+            this.prices.push({
+                id: this.prices.length + 1,
+                type,
+                price,
+                location,
+                timestamp
+            });
+            // Keep memory check in bounds (last 1000 records)
+            if (this.prices.length > 5000) {
+                this.prices = this.prices.slice(-4000);
+            }
+        }
+        return { changes: 1 };
+    }
 }
 
 // Global instance to persist across HMR/warm starts
@@ -97,12 +179,22 @@ async function openDb() {
         }
     }
 
-    // 2. Fallback (NO SQLite native dependency to avoid Vercel crashes)
-    console.warn('[DB] No POSTGRES_URL found. Using Mock In-Memory DB (Data will not save).');
-    console.warn('[DB] SQLite is disabled in this debug build to prevent invocation failures.');
+    // 2. Local SQLite Development
+    console.log('[DB] No POSTGRES_URL found. Using Local SQLite Database.');
 
-    dbInstance = new MockDatabase();
-    return dbInstance;
+    try {
+        const db = await open({
+            filename: path.join(__dirname, 'fuel_prices.db'),
+            driver: sqlite3.Database
+        });
+
+        console.log('[DB] SQLite connected successfully.');
+        dbInstance = new SQLiteDatabase(db);
+        return dbInstance;
+    } catch (e) {
+        console.error('[DB] Failed to open SQLite:', e);
+        throw e;
+    }
 }
 
 async function initDb() {
