@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar } from 'recharts';
 import { useTranslation } from 'react-i18next';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -839,7 +839,6 @@ export default function App() {
                       const d = new Date(unixTime);
                       if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { hour: '2-digit', minute: '2-digit' });
                       if (graphInterval === 'weeks') {
-                        const d = new Date(unixTime);
                         const start = new Date(d);
                         const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
                         const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
