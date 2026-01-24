@@ -10,7 +10,7 @@ const resources = {
             history: 'History',
             loading: 'Loading...',
             loading_initial: 'Loading...',
-            chart_warning: 'Note: Displayed price is an average per period.',
+
             refresh: 'Refresh Data',
             updated: 'Updated',
             no_data: 'No data',
@@ -55,7 +55,6 @@ const resources = {
             notification: {
                 prices_changed: "Prices Updated",
                 data_refreshed: "Updated",
-                data_refreshed: "Updated",
                 no_changes: "Prices haven't changed",
                 item_increased: "{{fuel}} price increased by {{diff}}¢",
                 item_decreased: "{{fuel}} price decreased by {{diff}}¢",
@@ -71,7 +70,7 @@ const resources = {
             history: 'Vēsture',
             loading: 'Ielādē...',
             loading_initial: 'Ielādē...',
-            chart_warning: 'Piezīme: Rādītā cena ir vidējā cena par periodu.',
+
             refresh: 'Atjaunot datus',
             updated: 'Atjaunots',
             no_data: 'Nav datu',
@@ -115,7 +114,6 @@ const resources = {
             notification: {
                 prices_changed: "Cenas atjauninātas",
                 data_refreshed: "Atjaunots",
-                data_refreshed: "Atjaunots",
                 no_changes: "Cenas nav mainījušās",
                 item_increased: "{{fuel}} cena pieauga par {{diff}}¢",
                 item_decreased: "{{fuel}} cena samazinājās par {{diff}}¢",
@@ -131,7 +129,7 @@ const resources = {
             history: 'История',
             loading: 'Загрузка...',
             loading_initial: 'Загрузка...',
-            chart_warning: 'Примечание: Отображается средняя цена за период.',
+
             refresh: 'Обновить данные',
             updated: 'Обновлено',
             no_data: 'Нет данных',
@@ -174,7 +172,6 @@ const resources = {
             },
             notification: {
                 prices_changed: "Цены обновлены",
-                data_refreshed: "Обновлено",
                 data_refreshed: "Обновлено",
                 no_changes: "Цены не изменились",
                 item_increased: "Цена {{fuel}} выросла на {{diff}}¢",

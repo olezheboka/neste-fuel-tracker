@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar } from 'recharts';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -299,7 +299,7 @@ const FuelCard = ({ type, price, location }) => {
 const calculateTrendLine = (data, dataKey) => {
   if (!data || data.length < 2) return null;
 
-  const n = data.length;
+  // const n = data.length; // unused
   let sumX = 0;
   let sumY = 0;
   let sumXY = 0;
@@ -337,6 +337,13 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
   const [historyData, setHistoryData] = useState([]);
+  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
+
+  useEffect(() => {
+    const handleResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   // URL and Storage Initialization - Priority: URL params > localStorage > defaults
   const [selectedFuel, setSelectedFuel] = useState(() => {
@@ -503,17 +510,7 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  // Format date helper (European/Latvian: DD.MM.YYYY HH:mm)
-  const formatDate = (isoString) => {
-    const date = new Date(isoString);
-    return date.toLocaleString('lv-LV', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
+
 
   const petrolPrices = latestPrices.filter(p => !p.type.includes('D') && !p.type.includes('Diesel'));
   const dieselPrices = latestPrices.filter(p => p.type.includes('D') || p.type.includes('Diesel'));
@@ -526,9 +523,9 @@ export default function App() {
     const now = new Date();
     let cutoff = new Date();
 
-    if (graphInterval === 'days') cutoff.setDate(now.getDate() - 30);
-    if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - 90);
-    if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - 12);
+    if (graphInterval === 'days') cutoff.setDate(now.getDate() - (isMobile ? 14 : 30));
+    if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - (isMobile ? 60 : 90));
+    if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - (isMobile ? 6 : 12));
 
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
@@ -594,31 +591,69 @@ export default function App() {
       const period = periodData.get(periodKey);
 
       if (!period[item.type]) {
-        period[item.type] = { sum: 0, count: 0 };
+        period[item.type] = { prices: [] };
       }
 
-      period[item.type].sum += item.price;
-      period[item.type].count += 1;
+      period[item.type].prices.push({
+        price: item.price,
+        timestamp: item.timestamp
+      });
     });
 
-    // Convert to chart format with averages
+    // Convert to chart format with High-Low Range logic (Option 1)
     const result = Array.from(periodData.entries()).map(([periodKey, data]) => {
+      let formattedTime = periodKey;
+      if (graphInterval === 'days') {
+        const [year, month, day] = periodKey.split('-');
+        formattedTime = `${day}.${month}.${year}`;
+      } else if (graphInterval === 'weeks') {
+        const timestamp = getPeriodTimestamp(periodKey);
+        const start = new Date(timestamp);
+        const end = new Date(timestamp + 6 * 24 * 60 * 60 * 1000);
+        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        formattedTime = `${startStr} - ${endStr}`;
+      }
+
       const entry = {
         date: getPeriodTimestamp(periodKey),
         periodKey,
-        formattedTime: periodKey,
+        formattedTime,
       };
 
-      // Calculate average for each fuel type
+      // Calculate stats for each fuel type
       Object.keys(data).forEach(key => {
-        entry[key] = data[key].sum / data[key].count;
+        // Sort by timestamp to find the true "last" price
+        const sortedItems = data[key].prices.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+        // Filter out duplicates (keep only changes) for tooltip history
+        const distinctItems = sortedItems.filter((item, index, arr) => {
+          if (index === 0) return true;
+          return Math.abs(item.price - arr[index - 1].price) > 0.0001;
+        });
+
+        const priceValues = sortedItems.map(p => p.price); // Use ALL values for min/max to be safe
+
+        const lastPrice = priceValues[priceValues.length - 1];
+        const minPrice = Math.min(...priceValues);
+        const maxPrice = Math.max(...priceValues);
+
+        entry[key] = lastPrice; // Main line plots LAST price
+        entry[`${key}_min`] = minPrice;
+        entry[`${key}_max`] = maxPrice;
+
+        // Error range for Recharts ErrorBar: [negativeError, positiveError]
+        // This draws a line from (last - (last-min)) to (last + (max-last)) => min to max
+        entry[`${key}_range`] = [lastPrice - minPrice, maxPrice - lastPrice];
+
+        entry[`${key}_history`] = distinctItems.reverse(); // Store CLEAN history for tooltip (Newest first)
       });
 
       return entry;
     });
 
     return result.sort((a, b) => a.date - b.date);
-  }, [historyData, graphInterval]);
+  }, [historyData, graphInterval, isMobile]);
 
 
 
@@ -646,6 +681,9 @@ export default function App() {
     }
     return data;
   }, [chartData, selectedFuel]);
+
+  // No smoothing - use raw daily aggregation (High-Low)
+  const chartDataFinal = chartDataWithTrend;
 
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 pb-24">
@@ -779,17 +817,13 @@ export default function App() {
             </div>
 
             {/* Chart Warning Notice */}
-            {chartData.length > 0 && (
-              <div className="bg-amber-50 rounded-lg p-2 mb-3 border border-amber-200 flex items-center gap-1.5">
-                <span className="text-amber-500 text-sm">⚠️</span>
-                <p className="text-[10px] text-amber-700 leading-tight">{t('chart_warning')}</p>
-              </div>
-            )}
 
+
+            {/* Horizontal Scroll Wrapper - REVERTED */}
             <div className="h-[350px] w-full">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={chartDataWithTrend}
+                  data={chartDataFinal}
                   margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
@@ -799,18 +833,18 @@ export default function App() {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
+                    minTickGap={30}
                     dy={8}
                     tickFormatter={(unixTime) => {
                       const d = new Date(unixTime);
                       if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { hour: '2-digit', minute: '2-digit' });
                       if (graphInterval === 'weeks') {
-                        // Simple ISO week number calculation
-                        const date = new Date(d.getTime());
-                        date.setHours(0, 0, 0, 0);
-                        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-                        const week1 = new Date(date.getFullYear(), 0, 4);
-                        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
-                        return `W${weekNumber}`;
+                        const d = new Date(unixTime);
+                        const start = new Date(d);
+                        const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
+                        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        return `${startStr} - ${endStr}`;
                       }
                       if (graphInterval === 'months') {
                         const d = new Date(unixTime);
@@ -824,7 +858,7 @@ export default function App() {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    domain={[dataMin => (dataMin - 0.02), dataMax => (dataMax + 0.02)]}
+                    domain={[dataMin => (dataMin - 0.02), dataMax => (dataMax + 0.05)]}
                     allowDataOverflow={true}
                     tickFormatter={(value) => `€${parseFloat(value).toFixed(2)}`}
                   />
@@ -832,8 +866,9 @@ export default function App() {
                     content={<CustomTooltip t={t} interval={graphInterval} />}
                     cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
                   />
+
                   {selectedFuel === 'all' ? (
-                    Object.keys(FUEL_COLORS).map((fuel, index) => {
+                    Object.keys(FUEL_COLORS).map((fuel) => {
                       const fuelShortName = t(fuel.replace('Neste ', ''));
                       return (
                         <React.Fragment key={fuel}>
@@ -845,6 +880,13 @@ export default function App() {
                             dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
                             activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
                           >
+                            <ErrorBar
+                              dataKey={`${fuel}_range`}
+                              width={4}
+                              strokeWidth={2}
+                              stroke={FUEL_COLORS[fuel]}
+                              direction="y"
+                            />
                             <LabelList
                               dataKey={fuel}
                               position="top"
@@ -853,14 +895,35 @@ export default function App() {
                               fill={FUEL_COLORS[fuel]}
                               content={({ x, y, value, index: pointIndex }) => {
                                 if (!value) return null;
-                                // Adjust text anchor for first and last points to avoid overlap/cropping
-                                let anchor = "middle";
-                                if (pointIndex === 0) anchor = "start";
-                                if (pointIndex === chartDataWithTrend.length - 1) anchor = "end";
+                                // Only show label for the last data point (today)
+                                if (pointIndex !== chartDataFinal.length - 1) return null;
+
                                 return (
-                                  <text x={x} y={y - 8} textAnchor={anchor} fontSize={9} fill={FUEL_COLORS[fuel]}>
-                                    €{value.toFixed(3)}
-                                  </text>
+                                  <g>
+                                    <text
+                                      x={x}
+                                      y={y - 15}
+                                      textAnchor="end"
+                                      fontSize={12}
+                                      fontWeight="700"
+                                      stroke="#fff"
+                                      strokeWidth={4}
+                                      strokeLinejoin="round"
+                                      fill="none"
+                                    >
+                                      €{value.toFixed(3)}
+                                    </text>
+                                    <text
+                                      x={x}
+                                      y={y - 15}
+                                      textAnchor="end"
+                                      fontSize={12}
+                                      fontWeight="700"
+                                      fill={FUEL_COLORS[fuel]}
+                                    >
+                                      €{value.toFixed(3)}
+                                    </text>
+                                  </g>
                                 );
                               }}
                             />
@@ -868,8 +931,8 @@ export default function App() {
                               dataKey={fuel}
                               position="right"
                               offset={5}
-                              content={({ x, y, value, index: pointIndex }) => {
-                                if (pointIndex !== chartDataWithTrend.length - 1) return null;
+                              content={({ x, y, index: pointIndex }) => {
+                                if (pointIndex !== chartDataFinal.length - 1) return null;
                                 return (
                                   <text x={x + 8} y={y + 4} textAnchor="start" fontSize={10} fontWeight="600" fill={FUEL_COLORS[fuel]}>
                                     {fuelShortName}
@@ -906,6 +969,13 @@ export default function App() {
                             dot={{ r: 4, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
                             activeDot={{ r: 6, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
                           >
+                            <ErrorBar
+                              dataKey={`${selectedFuel}_range`}
+                              width={4}
+                              strokeWidth={2}
+                              stroke={FUEL_COLORS[selectedFuel]}
+                              direction="y"
+                            />
                             <LabelList
                               dataKey={selectedFuel}
                               position="top"
@@ -914,14 +984,35 @@ export default function App() {
                               fill={FUEL_COLORS[selectedFuel]}
                               content={({ x, y, value, index: pointIndex }) => {
                                 if (!value) return null;
-                                // Adjust text anchor for first and last points to avoid overlap/cropping
-                                let anchor = "middle";
-                                if (pointIndex === 0) anchor = "start";
-                                if (pointIndex === chartDataWithTrend.length - 1) anchor = "end";
+                                // Only show label for the last data point (today)
+                                if (pointIndex !== chartDataFinal.length - 1) return null;
+
                                 return (
-                                  <text x={x} y={y - 10} textAnchor={anchor} fontSize={10} fill={FUEL_COLORS[selectedFuel]}>
-                                    €{value.toFixed(3)}
-                                  </text>
+                                  <g>
+                                    <text
+                                      x={x}
+                                      y={y - 15}
+                                      textAnchor="end"
+                                      fontSize={13}
+                                      fontWeight="700"
+                                      stroke="#fff"
+                                      strokeWidth={4}
+                                      strokeLinejoin="round"
+                                      fill="none"
+                                    >
+                                      €{value.toFixed(3)}
+                                    </text>
+                                    <text
+                                      x={x}
+                                      y={y - 15}
+                                      textAnchor="end"
+                                      fontSize={13}
+                                      fontWeight="700"
+                                      fill={FUEL_COLORS[selectedFuel]}
+                                    >
+                                      €{value.toFixed(3)}
+                                    </text>
+                                  </g>
                                 );
                               }}
                             />
@@ -929,8 +1020,8 @@ export default function App() {
                               dataKey={selectedFuel}
                               position="right"
                               offset={5}
-                              content={({ x, y, value, index: pointIndex }) => {
-                                if (pointIndex !== chartDataWithTrend.length - 1) return null;
+                              content={({ x, y, index: pointIndex }) => {
+                                if (pointIndex !== chartDataFinal.length - 1) return null;
                                 return (
                                   <text x={x + 8} y={y + 4} textAnchor="start" fontSize={11} fontWeight="600" fill={FUEL_COLORS[selectedFuel]}>
                                     {fuelShortName}
