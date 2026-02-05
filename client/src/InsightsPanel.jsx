@@ -2,15 +2,48 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
+// Helper to get end-of-day in Latvian timezone (Europe/Riga)
+// Latvia uses EET (UTC+2) in winter and EEST (UTC+3) in summer
+const getEndOfDayInLatvia = (date) => {
+    // Get the date components in Latvian timezone
+    const latvianDateStr = date.toLocaleString('en-CA', {
+        timeZone: 'Europe/Riga',
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit'
+    }); // Format: YYYY-MM-DD
+
+    // Parse the Latvian date
+    const [year, month, day] = latvianDateStr.split('-').map(Number);
+
+    // Create a Date object for 23:59:59 UTC on that day, then adjust for timezone
+    // We need to find what UTC time equals 23:59:59 in Latvia
+    const tempDate = new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T23:59:59Z`);
+    const latvianTime = new Date(tempDate.toLocaleString('en-US', { timeZone: 'Europe/Riga' }));
+    const utcTime = new Date(tempDate.toLocaleString('en-US', { timeZone: 'UTC' }));
+    const offset = latvianTime.getTime() - utcTime.getTime();
+
+    // Return the UTC time that corresponds to 23:59:59 in Latvia
+    return new Date(tempDate.getTime() - offset);
+};
+
+
 // Helper function to calculate analysis for given fuel types
 const calculateAnalysis = (historyData, fuelTypes) => {
     if (!historyData || historyData.length === 0 || fuelTypes.length === 0) return null;
 
     const now = new Date();
-    const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-    const sevenDaysAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-    const threeMonthsAgo = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+    // Calculate cutoff dates (N days ago from now)
+    const oneDayAgoRaw = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const sevenDaysAgoRaw = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+    const thirtyDaysAgoRaw = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+    const threeMonthsAgoRaw = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+
+    // Use end-of-day for more intuitive comparison (shows price valid for most of that day)
+    const oneDayAgo = getEndOfDayInLatvia(oneDayAgoRaw);
+    const sevenDaysAgo = getEndOfDayInLatvia(sevenDaysAgoRaw);
+    const thirtyDaysAgo = getEndOfDayInLatvia(thirtyDaysAgoRaw);
+    const threeMonthsAgo = getEndOfDayInLatvia(threeMonthsAgoRaw);
 
     let totalChange24h = 0;
     let totalChange7d = 0;
@@ -32,7 +65,7 @@ const calculateAnalysis = (historyData, fuelTypes) => {
         const current = typeHistory[0].price;
         const oldest = typeHistory[typeHistory.length - 1]; // Oldest available data point
 
-        // Helper to get price at or before a cutoff, or use oldest available if not enough data
+        // Helper to get price at or before a cutoff (end of day), or use oldest available if not enough data
         const getPriceAtCutoff = (cutoffDate) => {
             const found = typeHistory.find(d => new Date(d.timestamp) <= cutoffDate);
             if (found) return found.price;
