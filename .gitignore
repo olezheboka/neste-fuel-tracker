@@ -8,3 +8,4 @@ prices.db
 prices.db-journal
 *.db
 *.db-journal
+.vercel
