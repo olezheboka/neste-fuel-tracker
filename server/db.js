@@ -204,7 +204,9 @@ async function initDb() {
     const db = await openDb();
 
     // Check if we are using Postgres or Mock
+    // Check if we are using Postgres, SQLite, or Mock
     const isPostgres = db instanceof PostgresDatabase;
+    const isSQLite = db instanceof SQLiteDatabase;
 
     if (isPostgres) {
         // Postgres Schema
@@ -217,6 +219,18 @@ async function initDb() {
                 timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
+    } else if (isSQLite) {
+        // SQLite Schema
+        await db.exec(`
+            CREATE TABLE IF NOT EXISTS fuel_prices (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                type TEXT NOT NULL,
+                price REAL NOT NULL,
+                location TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+        console.log('[DB] SQLite Table initialized');
     } else {
         console.log('[DB] Mock DB initialized (No table creation needed)');
     }
