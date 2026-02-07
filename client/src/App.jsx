@@ -741,7 +741,7 @@ export default function App() {
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.petrol')}</h2>
           {petrolPrices.length > 0 && (
-            <div className="grid grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
               {petrolPrices.map((item) => (
                 <FuelCard key={item.type} {...item} />
               ))}
@@ -750,7 +750,7 @@ export default function App() {
 
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.diesel')}</h2>
           {dieselPrices.length > 0 && (
-            <div className="grid grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {dieselPrices.map((item) => (
                 <FuelCard key={item.type} {...item} />
               ))}
