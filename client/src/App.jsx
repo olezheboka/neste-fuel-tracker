@@ -780,7 +780,7 @@ export default function App() {
                     <button
                       key={step}
                       onClick={() => setGraphInterval(step)}
-                      className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all ${isActive
+                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium transition-all ${isActive
                         ? 'bg-blue-800 text-white'
                         : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                         }`}
@@ -797,7 +797,7 @@ export default function App() {
             <div className="flex flex-wrap gap-2 mb-6">
               <button
                 onClick={() => setSelectedFuel('all')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
               >
                 {t('all')}
               </button>
@@ -808,7 +808,7 @@ export default function App() {
                   <button
                     key={fuel}
                     onClick={() => setSelectedFuel(fuel)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+                    className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                   >
                     {t(fuel.replace('Neste ', ''))}
                   </button>
