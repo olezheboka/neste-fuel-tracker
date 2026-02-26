@@ -894,36 +894,73 @@ export default function App() {
                               fill={FUEL_COLORS[fuel]}
                               content={({ x, y, value, index: pointIndex }) => {
                                 if (!value) return null;
-                                // Only show label for the last data point (today)
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
+                                // Pre-calculate stacking to avoid overlap
+                                const lastPoint = chartDataFinal[chartDataFinal.length - 1];
+                                const activeFuels = Object.keys(FUEL_COLORS)
+                                  .filter(f => lastPoint[f] !== undefined)
+                                  .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first (lowest Y coordinate on chart)
+
+                                const MIN_GAP = 24; // Minimum vertical gap between badges
+                                let yOffset = -30; // Starting offset
+
+                                // In SVG, lower Y is higher on screen. 
+                                // Higher price = lower Y coordinate in data-to-pixel mapping.
+                                // But Recharts 'y' is the pixel coordinate. 
+                                // Higher price = Smaller 'y' value.
+
+                                // If multiple fuels are close in Y pixels, we stack them upwards.
+                                const sortedByY = [...activeFuels].sort((a, b) => {
+                                  // This is a bit complex because we don't have access to other fuels' Y yet.
+                                  // But we know their prices.
+                                  return lastPoint[b] - lastPoint[a]; // Highest price first (smallest Y)
+                                });
+
+                                const myYRank = sortedByY.indexOf(fuel);
+                                // Simple stacking: higher price fuels get placed higher.
+                                // We offset each badge based on its rank relative to others close to it.
+                                yOffset -= (myYRank * 4); // Basic staggered offset
+
                                 const text = `€${value.toFixed(3)}`;
-                                const textWidth = text.length * 6.5; // Estimated width
+                                const textWidth = text.length * 6.5;
                                 const pillWidth = textWidth + 12;
                                 const pillHeight = 20;
 
                                 return (
-                                  <g transform={`translate(${x - pillWidth}, ${y - 25})`}>
-                                    <rect
-                                      width={pillWidth}
-                                      height={pillHeight}
-                                      rx={10}
-                                      fill="white"
+                                  <g>
+                                    {/* Connector line */}
+                                    <path
+                                      d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[fuel]}
-                                      strokeWidth={1.5}
-                                      className="shadow-sm"
+                                      strokeWidth={1}
+                                      strokeDasharray="2 2"
+                                      opacity={0.6}
                                     />
-                                    <text
-                                      x={pillWidth / 2}
-                                      y={pillHeight / 2 + 1}
-                                      textAnchor="middle"
-                                      dominantBaseline="middle"
-                                      fontSize={11}
-                                      fontWeight="700"
-                                      fill={FUEL_COLORS[fuel]}
-                                    >
-                                      {text}
-                                    </text>
+                                    <circle cx={x} cy={y} r={2} fill={FUEL_COLORS[fuel]} />
+
+                                    <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
+                                      <rect
+                                        width={pillWidth}
+                                        height={pillHeight}
+                                        rx={10}
+                                        fill="white"
+                                        stroke="#e5e7eb"
+                                        strokeWidth={1}
+                                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))' }}
+                                      />
+                                      <text
+                                        x={pillWidth / 2}
+                                        y={pillHeight / 2 + 1}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fontSize={11}
+                                        fontWeight="700"
+                                        fill={FUEL_COLORS[fuel]}
+                                      >
+                                        {text}
+                                      </text>
+                                    </g>
                                   </g>
                                 );
                               }}
@@ -985,36 +1022,48 @@ export default function App() {
                               fill={FUEL_COLORS[selectedFuel]}
                               content={({ x, y, value, index: pointIndex }) => {
                                 if (!value) return null;
-                                // Only show label for the last data point (today)
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
+                                const yOffset = -35;
                                 const text = `€${value.toFixed(3)}`;
-                                const textWidth = text.length * 7; // Slightly larger for single view
+                                const textWidth = text.length * 7;
                                 const pillWidth = textWidth + 14;
                                 const pillHeight = 22;
 
                                 return (
-                                  <g transform={`translate(${x - pillWidth}, ${y - 28})`}>
-                                    <rect
-                                      width={pillWidth}
-                                      height={pillHeight}
-                                      rx={11}
-                                      fill="white"
+                                  <g>
+                                    {/* Connector line */}
+                                    <path
+                                      d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[selectedFuel]}
-                                      strokeWidth={2}
-                                      className="shadow-md"
+                                      strokeWidth={1.5}
+                                      strokeDasharray="2 2"
+                                      opacity={0.6}
                                     />
-                                    <text
-                                      x={pillWidth / 2}
-                                      y={pillHeight / 2 + 1}
-                                      textAnchor="middle"
-                                      dominantBaseline="middle"
-                                      fontSize={12}
-                                      fontWeight="700"
-                                      fill={FUEL_COLORS[selectedFuel]}
-                                    >
-                                      {text}
-                                    </text>
+                                    <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[selectedFuel]} />
+
+                                    <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
+                                      <rect
+                                        width={pillWidth}
+                                        height={pillHeight}
+                                        rx={11}
+                                        fill="white"
+                                        stroke="#e5e7eb"
+                                        strokeWidth={1}
+                                        style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}
+                                      />
+                                      <text
+                                        x={pillWidth / 2}
+                                        y={pillHeight / 2 + 1}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fontSize={12}
+                                        fontWeight="700"
+                                        fill={FUEL_COLORS[selectedFuel]}
+                                      >
+                                        {text}
+                                      </text>
+                                    </g>
                                   </g>
                                 );
                               }}
