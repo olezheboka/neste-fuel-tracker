@@ -896,15 +896,31 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                // Guaranteed non-overlapping stacking logic
+                                // Horizontal collision detection
                                 const lastPoint = chartDataFinal[chartDataFinal.length - 1];
                                 const activeFuels = Object.keys(FUEL_COLORS)
                                   .filter(f => lastPoint[f] !== undefined)
-                                  .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first
+                                  .sort((a, b) => lastPoint[b] - lastPoint[a]); // Highest price first
 
-                                const myRank = activeFuels.indexOf(fuel);
-                                // Start closer (-14) and stack more tightly (22px gap)
-                                const yOffset = -14 - (myRank * 22);
+
+                                let xOffset = 0;
+                                let yOffset = -20; // Consistent close proximity
+
+                                // Check if we are very close in price to other fuels
+                                const collisions = activeFuels.filter(f =>
+                                  f !== fuel && Math.abs(lastPoint[f] - lastPoint[fuel]) < 0.015
+                                );
+
+                                if (collisions.length > 0) {
+                                  // In a collision group, we shift horizontally
+                                  // Find my position in the collision group
+                                  const group = [fuel, ...collisions].sort((a, b) => lastPoint[b] - lastPoint[a]);
+                                  const indexInGroup = group.indexOf(fuel);
+
+                                  if (indexInGroup === 1) xOffset = -55;
+                                  else if (indexInGroup === 2) xOffset = 55;
+                                  else if (indexInGroup === 3) xOffset = -110;
+                                }
 
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 6.5;
@@ -913,24 +929,24 @@ export default function App() {
 
                                 return (
                                   <g>
-                                    {/* Connector line - solid but subtle */}
+                                    {/* Prominent connector line */}
                                     <path
-                                      d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
+                                      d={`M ${x} ${y} L ${x + xOffset} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[fuel]}
-                                      strokeWidth={1}
-                                      opacity={0.4}
+                                      strokeWidth={1.5}
+                                      opacity={0.5}
                                     />
                                     {/* Anchor dot */}
-                                    <circle cx={x} cy={y} r={2.5} fill={FUEL_COLORS[fuel]} />
+                                    <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
 
-                                    <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
+                                    <g transform={`translate(${x + xOffset - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
                                       {/* Clean, borderless pill with shadow */}
                                       <rect
                                         width={pillWidth}
                                         height={pillHeight}
                                         rx={11}
                                         fill="white"
-                                        style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.12))' }}
+                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
@@ -1007,7 +1023,7 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                const yOffset = -16;
+                                const yOffset = -20;
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 7;
                                 const pillWidth = textWidth + 14;
@@ -1015,14 +1031,14 @@ export default function App() {
 
                                 return (
                                   <g>
-                                    {/* Connector line */}
+                                    {/* Prominent connector line */}
                                     <path
                                       d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[selectedFuel]}
-                                      strokeWidth={1.5}
-                                      opacity={0.4}
+                                      strokeWidth={2}
+                                      opacity={0.5}
                                     />
-                                    <circle cx={x} cy={y} r={3.5} fill={FUEL_COLORS[selectedFuel]} />
+                                    <circle cx={x} cy={y} r={4} fill={FUEL_COLORS[selectedFuel]} />
 
                                     <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
                                       <rect
@@ -1030,7 +1046,7 @@ export default function App() {
                                         height={pillHeight}
                                         rx={12}
                                         fill="white"
-                                        style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' }}
+                                        style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
