@@ -896,58 +896,41 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                // Pre-calculate stacking to avoid overlap
+                                // Guaranteed non-overlapping stacking logic
                                 const lastPoint = chartDataFinal[chartDataFinal.length - 1];
                                 const activeFuels = Object.keys(FUEL_COLORS)
                                   .filter(f => lastPoint[f] !== undefined)
-                                  .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first (lowest Y coordinate on chart)
+                                  .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first
 
-                                const MIN_GAP = 24; // Minimum vertical gap between badges
-                                let yOffset = -30; // Starting offset
-
-                                // In SVG, lower Y is higher on screen. 
-                                // Higher price = lower Y coordinate in data-to-pixel mapping.
-                                // But Recharts 'y' is the pixel coordinate. 
-                                // Higher price = Smaller 'y' value.
-
-                                // If multiple fuels are close in Y pixels, we stack them upwards.
-                                const sortedByY = [...activeFuels].sort((a, b) => {
-                                  // This is a bit complex because we don't have access to other fuels' Y yet.
-                                  // But we know their prices.
-                                  return lastPoint[b] - lastPoint[a]; // Highest price first (smallest Y)
-                                });
-
-                                const myYRank = sortedByY.indexOf(fuel);
-                                // Simple stacking: higher price fuels get placed higher.
-                                // We offset each badge based on its rank relative to others close to it.
-                                yOffset -= (myYRank * 4); // Basic staggered offset
+                                const myRank = activeFuels.indexOf(fuel);
+                                // Stack them with a clear 26px gap
+                                const yOffset = -22 - (myRank * 26);
 
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 6.5;
                                 const pillWidth = textWidth + 12;
-                                const pillHeight = 20;
+                                const pillHeight = 22;
 
                                 return (
                                   <g>
-                                    {/* Connector line */}
+                                    {/* Connector line - solid but subtle */}
                                     <path
                                       d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[fuel]}
                                       strokeWidth={1}
-                                      strokeDasharray="2 2"
-                                      opacity={0.6}
+                                      opacity={0.4}
                                     />
-                                    <circle cx={x} cy={y} r={2} fill={FUEL_COLORS[fuel]} />
+                                    {/* Anchor dot */}
+                                    <circle cx={x} cy={y} r={2.5} fill={FUEL_COLORS[fuel]} />
 
                                     <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
+                                      {/* Clean, borderless pill with shadow */}
                                       <rect
                                         width={pillWidth}
                                         height={pillHeight}
-                                        rx={10}
+                                        rx={11}
                                         fill="white"
-                                        stroke="#e5e7eb"
-                                        strokeWidth={1}
-                                        style={{ filter: 'drop-shadow(0 1px 2px rgba(0,0,0,0.08))' }}
+                                        style={{ filter: 'drop-shadow(0 2px 5px rgba(0,0,0,0.12))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
@@ -1024,11 +1007,11 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                const yOffset = -35;
+                                const yOffset = -30;
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 7;
                                 const pillWidth = textWidth + 14;
-                                const pillHeight = 22;
+                                const pillHeight = 24;
 
                                 return (
                                   <g>
@@ -1037,20 +1020,17 @@ export default function App() {
                                       d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
                                       stroke={FUEL_COLORS[selectedFuel]}
                                       strokeWidth={1.5}
-                                      strokeDasharray="2 2"
-                                      opacity={0.6}
+                                      opacity={0.4}
                                     />
-                                    <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[selectedFuel]} />
+                                    <circle cx={x} cy={y} r={3.5} fill={FUEL_COLORS[selectedFuel]} />
 
                                     <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
                                       <rect
                                         width={pillWidth}
                                         height={pillHeight}
-                                        rx={11}
+                                        rx={12}
                                         fill="white"
-                                        stroke="#e5e7eb"
-                                        strokeWidth={1}
-                                        style={{ filter: 'drop-shadow(0 4px 6px rgba(0,0,0,0.1))' }}
+                                        style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.12))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
