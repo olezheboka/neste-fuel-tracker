@@ -946,7 +946,9 @@ export default function App() {
                                         height={pillHeight}
                                         rx={11}
                                         fill="white"
-                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.15))' }}
+                                        stroke="#f3f4f6"
+                                        strokeWidth={1}
+                                        style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.06))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
@@ -1046,7 +1048,9 @@ export default function App() {
                                         height={pillHeight}
                                         rx={12}
                                         fill="white"
-                                        style={{ filter: 'drop-shadow(0 4px 8px rgba(0,0,0,0.15))' }}
+                                        stroke="#f3f4f6"
+                                        strokeWidth={1}
+                                        style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.08))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
