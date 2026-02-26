@@ -903,8 +903,8 @@ export default function App() {
                                   .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first
 
                                 const myRank = activeFuels.indexOf(fuel);
-                                // Stack them with a clear 24px gap
-                                const yOffset = -22 - (myRank * 24);
+                                // Start closer (-14) and stack more tightly (22px gap)
+                                const yOffset = -14 - (myRank * 22);
 
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 6.5;
@@ -1007,7 +1007,7 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                const yOffset = -30;
+                                const yOffset = -16;
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 7;
                                 const pillWidth = textWidth + 14;
