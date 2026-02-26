@@ -897,30 +897,32 @@ export default function App() {
                                 // Only show label for the last data point (today)
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
+                                const text = `€${value.toFixed(3)}`;
+                                const textWidth = text.length * 6.5; // Estimated width
+                                const pillWidth = textWidth + 12;
+                                const pillHeight = 20;
+
                                 return (
-                                  <g>
+                                  <g transform={`translate(${x - pillWidth}, ${y - 25})`}>
+                                    <rect
+                                      width={pillWidth}
+                                      height={pillHeight}
+                                      rx={10}
+                                      fill="white"
+                                      stroke={FUEL_COLORS[fuel]}
+                                      strokeWidth={1.5}
+                                      className="shadow-sm"
+                                    />
                                     <text
-                                      x={x}
-                                      y={y - 15}
-                                      textAnchor="end"
-                                      fontSize={12}
-                                      fontWeight="700"
-                                      stroke="#fff"
-                                      strokeWidth={4}
-                                      strokeLinejoin="round"
-                                      fill="none"
-                                    >
-                                      €{value.toFixed(3)}
-                                    </text>
-                                    <text
-                                      x={x}
-                                      y={y - 15}
-                                      textAnchor="end"
-                                      fontSize={12}
+                                      x={pillWidth / 2}
+                                      y={pillHeight / 2 + 1}
+                                      textAnchor="middle"
+                                      dominantBaseline="middle"
+                                      fontSize={11}
                                       fontWeight="700"
                                       fill={FUEL_COLORS[fuel]}
                                     >
-                                      €{value.toFixed(3)}
+                                      {text}
                                     </text>
                                   </g>
                                 );
@@ -986,30 +988,32 @@ export default function App() {
                                 // Only show label for the last data point (today)
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
+                                const text = `€${value.toFixed(3)}`;
+                                const textWidth = text.length * 7; // Slightly larger for single view
+                                const pillWidth = textWidth + 14;
+                                const pillHeight = 22;
+
                                 return (
-                                  <g>
+                                  <g transform={`translate(${x - pillWidth}, ${y - 28})`}>
+                                    <rect
+                                      width={pillWidth}
+                                      height={pillHeight}
+                                      rx={11}
+                                      fill="white"
+                                      stroke={FUEL_COLORS[selectedFuel]}
+                                      strokeWidth={2}
+                                      className="shadow-md"
+                                    />
                                     <text
-                                      x={x}
-                                      y={y - 15}
-                                      textAnchor="end"
-                                      fontSize={13}
-                                      fontWeight="700"
-                                      stroke="#fff"
-                                      strokeWidth={4}
-                                      strokeLinejoin="round"
-                                      fill="none"
-                                    >
-                                      €{value.toFixed(3)}
-                                    </text>
-                                    <text
-                                      x={x}
-                                      y={y - 15}
-                                      textAnchor="end"
-                                      fontSize={13}
+                                      x={pillWidth / 2}
+                                      y={pillHeight / 2 + 1}
+                                      textAnchor="middle"
+                                      dominantBaseline="middle"
+                                      fontSize={12}
                                       fontWeight="700"
                                       fill={FUEL_COLORS[selectedFuel]}
                                     >
-                                      €{value.toFixed(3)}
+                                      {text}
                                     </text>
                                   </g>
                                 );
