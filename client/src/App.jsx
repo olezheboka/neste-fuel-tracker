@@ -824,7 +824,7 @@ export default function App() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataFinal}
-                  margin={{ top: 20, right: 60, left: 10, bottom: 5 }}
+                  margin={{ top: 40, right: 60, left: 10, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
@@ -857,7 +857,7 @@ export default function App() {
                     fontSize={11}
                     tickLine={false}
                     axisLine={false}
-                    domain={[dataMin => (dataMin - 0.02), dataMax => (dataMax + 0.05)]}
+                    domain={[dataMin => (dataMin - 0.02), dataMax => (dataMax + 0.10)]}
                     allowDataOverflow={true}
                     tickFormatter={(value) => `€${parseFloat(value).toFixed(2)}`}
                   />
@@ -903,8 +903,8 @@ export default function App() {
                                   .sort((a, b) => lastPoint[a] - lastPoint[b]); // Lowest price first
 
                                 const myRank = activeFuels.indexOf(fuel);
-                                // Stack them with a clear 26px gap
-                                const yOffset = -22 - (myRank * 26);
+                                // Stack them with a clear 24px gap
+                                const yOffset = -22 - (myRank * 24);
 
                                 const text = `€${value.toFixed(3)}`;
                                 const textWidth = text.length * 6.5;
