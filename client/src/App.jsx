@@ -913,7 +913,7 @@ export default function App() {
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataFinal}
-                  margin={{ top: 40, right: isMobile ? 10 : 15, left: isMobile ? -5 : 0, bottom: 5 }}
+                  margin={{ top: 40, right: isMobile ? 20 : 30, left: isMobile ? -5 : 0, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
@@ -1025,9 +1025,9 @@ export default function App() {
 
                                 const priceText = `€${value.toFixed(3)}`;
                                 const nameText = fuelShortName;
-                                const textWidth = priceText.length * 6.5;
-                                const pillWidth = textWidth + 12;
-                                const pillHeight = 26;
+                                const textWidth = priceText.length * 7;
+                                const pillWidth = textWidth + 14;
+                                const pillHeight = 30;
                                 const minGap = 2;
 
                                 // Each fuel's natural Y = its data point's Y on the chart
@@ -1072,8 +1072,9 @@ export default function App() {
                                       x1={x} y1={y}
                                       x2={pillX + pillWidth} y2={badgeY + pillHeight / 2}
                                       stroke={FUEL_COLORS[fuel]}
-                                      strokeWidth={1.5}
-                                      opacity={0.4}
+                                      strokeWidth={2}
+                                      strokeDasharray="4 3"
+                                      opacity={0.6}
                                     />
                                     <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
 
@@ -1089,10 +1090,10 @@ export default function App() {
                                       />
                                       <text
                                         x={pillWidth / 2}
-                                        y={pillHeight / 2 - 3}
+                                        y={pillHeight / 2 - 4}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={10}
+                                        fontSize={11}
                                         fontWeight="700"
                                         fill={FUEL_COLORS[fuel]}
                                       >
@@ -1100,10 +1101,10 @@ export default function App() {
                                       </text>
                                       <text
                                         x={pillWidth / 2}
-                                        y={pillHeight / 2 + 8}
+                                        y={pillHeight / 2 + 9}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={7}
+                                        fontSize={9}
                                         fontWeight="600"
                                         fill={FUEL_COLORS[fuel]}
                                         opacity={0.7}
@@ -1164,9 +1165,9 @@ export default function App() {
                                 const yOffset = -20;
                                 const priceText = `€${value.toFixed(3)}`;
                                 const nameText = fuelShortName;
-                                const textWidth = priceText.length * 7;
-                                const pillWidth = textWidth + 14;
-                                const totalHeight = 36;
+                                const textWidth = priceText.length * 7.5;
+                                const pillWidth = textWidth + 16;
+                                const totalHeight = 40;
 
                                 return (
                                   <g>
@@ -1191,10 +1192,10 @@ export default function App() {
                                       />
                                       <text
                                         x={pillWidth / 2}
-                                        y={totalHeight / 2 - 5}
+                                        y={totalHeight / 2 - 6}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={12}
+                                        fontSize={13}
                                         fontWeight="700"
                                         fill={FUEL_COLORS[selectedFuel]}
                                       >
@@ -1202,10 +1203,10 @@ export default function App() {
                                       </text>
                                       <text
                                         x={pillWidth / 2}
-                                        y={totalHeight / 2 + 9}
+                                        y={totalHeight / 2 + 10}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={9}
+                                        fontSize={11}
                                         fontWeight="600"
                                         fill={FUEL_COLORS[selectedFuel]}
                                         opacity={0.7}
