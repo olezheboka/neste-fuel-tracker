@@ -789,7 +789,7 @@ export default function App() {
         </div>
       </div>
 
-      <main className="max-w-5xl mx-auto px-6 py-10 space-y-8">
+      <main className="max-w-5xl mx-auto px-3 sm:px-6 py-10 space-y-8">
 
 
         {/* Loading State */}
@@ -829,7 +829,7 @@ export default function App() {
 
         {/* Chart Section */}
         <section>
-          <Card className="p-6">
+          <Card className="p-3 sm:p-6">
             {/* Header with Time Period Pills */}
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-2">
@@ -908,12 +908,12 @@ export default function App() {
             {/* Chart Warning Notice */}
 
 
-            {/* Horizontal Scroll Wrapper - REVERTED */}
-            <div className="h-[350px] w-full">
+            {/* Chart container — stretch to card edges on mobile */}
+            <div className="h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={chartDataFinal}
-                  margin={{ top: 40, right: 60, left: 10, bottom: 5 }}
+                  margin={{ top: 40, right: isMobile ? 10 : 15, left: isMobile ? -5 : 0, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
@@ -1044,16 +1044,18 @@ export default function App() {
                                   else if (indexInGroup === 3) xOffset = -110;
                                 }
 
-                                const text = `€${value.toFixed(3)}`;
-                                const textWidth = text.length * 6.5;
+                                const priceText = `€${value.toFixed(3)}`;
+                                const nameText = fuelShortName;
+                                const combinedText = `${priceText}`;
+                                const textWidth = combinedText.length * 6.5;
                                 const pillWidth = textWidth + 12;
-                                const pillHeight = 22;
+                                const totalHeight = 34;
 
                                 return (
                                   <g>
-                                    {/* Prominent connector line */}
+                                    {/* Connector line */}
                                     <path
-                                      d={`M ${x} ${y} L ${x + xOffset} ${y + yOffset + pillHeight / 2}`}
+                                      d={`M ${x} ${y} L ${x + xOffset - pillWidth / 2} ${y + yOffset + totalHeight / 2}`}
                                       stroke={FUEL_COLORS[fuel]}
                                       strokeWidth={1.5}
                                       opacity={0.5}
@@ -1061,11 +1063,10 @@ export default function App() {
                                     {/* Anchor dot */}
                                     <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
 
-                                    <g transform={`translate(${x + xOffset - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
-                                      {/* Clean, borderless pill with shadow */}
+                                    <g transform={`translate(${x + xOffset - pillWidth}, ${y + yOffset - totalHeight / 2})`}>
                                       <rect
                                         width={pillWidth}
-                                        height={pillHeight}
+                                        height={totalHeight}
                                         rx={11}
                                         fill="white"
                                         stroke="#f3f4f6"
@@ -1074,30 +1075,29 @@ export default function App() {
                                       />
                                       <text
                                         x={pillWidth / 2}
-                                        y={pillHeight / 2 + 1}
+                                        y={totalHeight / 2 - 4}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
                                         fontSize={11}
                                         fontWeight="700"
                                         fill={FUEL_COLORS[fuel]}
                                       >
-                                        {text}
+                                        {priceText}
+                                      </text>
+                                      <text
+                                        x={pillWidth / 2}
+                                        y={totalHeight / 2 + 9}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fontSize={8}
+                                        fontWeight="600"
+                                        fill={FUEL_COLORS[fuel]}
+                                        opacity={0.7}
+                                      >
+                                        {nameText}
                                       </text>
                                     </g>
                                   </g>
-                                );
-                              }}
-                            />
-                            <LabelList
-                              dataKey={fuel}
-                              position="right"
-                              offset={5}
-                              content={({ x, y, index: pointIndex }) => {
-                                if (pointIndex !== chartDataFinal.length - 1) return null;
-                                return (
-                                  <text x={x + 8} y={y + 4} textAnchor="start" fontSize={10} fontWeight="600" fill={FUEL_COLORS[fuel]}>
-                                    {fuelShortName}
-                                  </text>
                                 );
                               }}
                             />
@@ -1148,26 +1148,27 @@ export default function App() {
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
                                 const yOffset = -20;
-                                const text = `€${value.toFixed(3)}`;
-                                const textWidth = text.length * 7;
+                                const priceText = `€${value.toFixed(3)}`;
+                                const nameText = fuelShortName;
+                                const textWidth = priceText.length * 7;
                                 const pillWidth = textWidth + 14;
-                                const pillHeight = 24;
+                                const totalHeight = 36;
 
                                 return (
                                   <g>
-                                    {/* Prominent connector line */}
+                                    {/* Connector line */}
                                     <path
-                                      d={`M ${x} ${y} L ${x} ${y + yOffset + pillHeight / 2}`}
+                                      d={`M ${x} ${y} L ${x - pillWidth / 2} ${y + yOffset + totalHeight / 2}`}
                                       stroke={FUEL_COLORS[selectedFuel]}
                                       strokeWidth={2}
                                       opacity={0.5}
                                     />
                                     <circle cx={x} cy={y} r={4} fill={FUEL_COLORS[selectedFuel]} />
 
-                                    <g transform={`translate(${x - pillWidth / 2}, ${y + yOffset - pillHeight / 2})`}>
+                                    <g transform={`translate(${x - pillWidth}, ${y + yOffset - totalHeight / 2})`}>
                                       <rect
                                         width={pillWidth}
-                                        height={pillHeight}
+                                        height={totalHeight}
                                         rx={12}
                                         fill="white"
                                         stroke="#f3f4f6"
@@ -1176,30 +1177,29 @@ export default function App() {
                                       />
                                       <text
                                         x={pillWidth / 2}
-                                        y={pillHeight / 2 + 1}
+                                        y={totalHeight / 2 - 5}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
                                         fontSize={12}
                                         fontWeight="700"
                                         fill={FUEL_COLORS[selectedFuel]}
                                       >
-                                        {text}
+                                        {priceText}
+                                      </text>
+                                      <text
+                                        x={pillWidth / 2}
+                                        y={totalHeight / 2 + 9}
+                                        textAnchor="middle"
+                                        dominantBaseline="middle"
+                                        fontSize={9}
+                                        fontWeight="600"
+                                        fill={FUEL_COLORS[selectedFuel]}
+                                        opacity={0.7}
+                                      >
+                                        {nameText}
                                       </text>
                                     </g>
                                   </g>
-                                );
-                              }}
-                            />
-                            <LabelList
-                              dataKey={selectedFuel}
-                              position="right"
-                              offset={5}
-                              content={({ x, y, index: pointIndex }) => {
-                                if (pointIndex !== chartDataFinal.length - 1) return null;
-                                return (
-                                  <text x={x + 8} y={y + 4} textAnchor="start" fontSize={11} fontWeight="600" fill={FUEL_COLORS[selectedFuel]}>
-                                    {fuelShortName}
-                                  </text>
                                 );
                               }}
                             />
