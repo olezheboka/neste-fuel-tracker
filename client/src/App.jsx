@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
 import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
@@ -236,7 +236,10 @@ const FuelCard = ({ type, price, location }) => {
 
   // Parse addresses from pipe-separated string
   let addressList = [];
-  if (location && location.trim().length > 0) {
+  const isAllStationsSamePrice = location && location.includes('Visās stacijās cenas vienādas');
+  if (isAllStationsSamePrice) {
+    addressList = [t('all_stations_same_price')];
+  } else if (location && location.trim().length > 0) {
     addressList = location.split(/\|/).map(s => s.trim()).filter(s => s.length > 0);
   }
 
@@ -270,6 +273,23 @@ const FuelCard = ({ type, price, location }) => {
         <div className="pl-3 space-y-2 mt-1">
           {addressList.length > 0 ? (
             addressList.map((addr, i) => {
+              // Discount days: show translated text + link to all Neste stations in Rīga
+              if (isAllStationsSamePrice) {
+                const allStationsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Neste DUS, Rīga, Latvia')}`;
+                return (
+                  <a
+                    key={i}
+                    href={allStationsUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer leading-tight"
+                  >
+                    <MapPin size={12} className="text-green-500 shrink-0" />
+                    <span className="font-medium tracking-tight underline">{addr}</span>
+                    <ExternalLink size={10} className="translate-y-[-1px]" />
+                  </a>
+                );
+              }
               // Add "Rīga" for Google Maps search since these are the lowest prices in Rīga
               const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Neste ${addr}, Rīga, Latvia`)}`;
               return (
@@ -379,6 +399,10 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
   const [notification, setNotification] = useState(null);
+  const [showDiscounts, setShowDiscounts] = useState(() => {
+    const stored = localStorage.getItem('showDiscounts');
+    return stored === null ? true : stored === 'true';
+  });
   const previousPricesRef = React.useRef([]);
 
   // Sync state to URL and localStorage
@@ -405,6 +429,11 @@ export default function App() {
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
   }, [i18n.language, graphInterval, selectedFuel]);
+
+  // Persist showDiscounts preference
+  useEffect(() => {
+    localStorage.setItem('showDiscounts', String(showDiscounts));
+  }, [showDiscounts]);
 
   // Handle Initial Language
   useEffect(() => {
@@ -596,7 +625,8 @@ export default function App() {
 
       period[item.type].prices.push({
         price: item.price,
-        timestamp: item.timestamp
+        timestamp: item.timestamp,
+        location: item.location
       });
     });
 
@@ -615,10 +645,19 @@ export default function App() {
         formattedTime = `${startStr} - ${endStr}`;
       }
 
+      // Detect discount location: any fuel type in this period has "Visās stacijās cenas vienādas"
+      const hasDiscountLocation = Object.values(data).some(fuelData =>
+        fuelData.prices.some(p =>
+          p.location && p.location.includes('Visās stacijās cenas vienādas')
+        )
+      );
+
       const entry = {
         date: getPeriodTimestamp(periodKey),
         periodKey,
         formattedTime,
+        hasDiscountLocation,
+        isDiscount: false, // Will be finalized in second pass after sorting
       };
 
       // Calculate stats for each fuel type
@@ -652,7 +691,31 @@ export default function App() {
       return entry;
     });
 
-    return result.sort((a, b) => a.date - b.date);
+    const sorted = result.sort((a, b) => a.date - b.date);
+
+    // Second pass: finalize isDiscount by checking price drop vs previous period
+    const fuelTypes = Object.keys(FUEL_COLORS);
+    for (let i = 0; i < sorted.length; i++) {
+      if (!sorted[i].hasDiscountLocation) continue;
+      if (i === 0) {
+        // No previous period to compare — still mark as discount since location says so
+        sorted[i].isDiscount = true;
+        continue;
+      }
+      const prev = sorted[i - 1];
+      const curr = sorted[i];
+      // Check that ALL available fuel types dropped in price
+      const allDropped = fuelTypes.every(fuel => {
+        const prevPrice = prev[fuel];
+        const currPrice = curr[fuel];
+        // If either is missing, skip this fuel (don't block the discount flag)
+        if (prevPrice === undefined || currPrice === undefined) return true;
+        return currPrice < prevPrice - 0.0001;
+      });
+      sorted[i].isDiscount = allDropped;
+    }
+
+    return sorted;
   }, [historyData, graphInterval, isMobile]);
 
 
@@ -816,6 +879,32 @@ export default function App() {
               })}
             </div>
 
+            {/* Discount Toggle — only in day view */}
+            {graphInterval === 'days' && (
+              <div className="flex justify-end mb-4">
+                <button
+                  onClick={() => setShowDiscounts(prev => !prev)}
+                  className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+                >
+                  <span>{t('discounts')}</span>
+                  <div
+                    className={clsx(
+                      'relative w-9 h-5 rounded-full transition-colors duration-200',
+                      showDiscounts ? 'bg-blue-800' : 'bg-gray-300'
+                    )}
+                  >
+                    <div
+                      className={clsx(
+                        'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
+                        showDiscounts ? 'translate-x-[18px]' : 'translate-x-0.5'
+                      )}
+                    />
+                  </div>
+                </button>
+              </div>
+            )}
+
+
             {/* Chart Warning Notice */}
 
 
@@ -829,6 +918,18 @@ export default function App() {
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
                     dataKey="date"
+                    type="number"
+                    domain={['dataMin', (dataMax) => {
+                      // Extend right boundary when last day is a discount to prevent shade clipping
+                      const lastIsDiscount = chartDataFinal.length > 0 && chartDataFinal[chartDataFinal.length - 1].isDiscount;
+                      if (lastIsDiscount && graphInterval === 'days') {
+                        const avgGap = chartDataFinal.length > 1
+                          ? (chartDataFinal[chartDataFinal.length - 1].date - chartDataFinal[0].date) / (chartDataFinal.length - 1)
+                          : 0;
+                        return dataMax + avgGap / 2;
+                      }
+                      return dataMax;
+                    }]}
                     stroke="#a3a3a3"
                     fontSize={11}
                     tickLine={false}
@@ -865,6 +966,27 @@ export default function App() {
                     content={<CustomTooltip t={t} interval={graphInterval} />}
                     cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
                   />
+
+
+                  {/* Discount day highlights — only in day view, always rendered to avoid re-animation */}
+                  {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
+                    if (!point.isDiscount) return areas;
+                    const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
+                    const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
+                    const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
+                    const x1 = (prevDate + point.date) / 2;
+                    const x2 = (point.date + nextDate) / 2;
+                    areas.push(
+                      <ReferenceArea
+                        key={`discount-${point.periodKey}`}
+                        x1={x1}
+                        x2={x2}
+                        fill={showDiscounts ? 'rgba(34, 197, 94, 0.15)' : 'transparent'}
+                        stroke="none"
+                      />
+                    );
+                    return areas;
+                  }, [])}
 
                   {selectedFuel === 'all' ? (
                     Object.keys(FUEL_COLORS).map((fuel) => {

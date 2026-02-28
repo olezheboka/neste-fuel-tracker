@@ -59,7 +59,9 @@ const resources = {
                 item_increased: "{{fuel}} price increased by {{diff}}¢",
                 item_decreased: "{{fuel}} price decreased by {{diff}}¢",
                 item_unchanged: "{{fuel}} price has not changed"
-            }
+            },
+            discounts: 'Discounts',
+            all_stations_same_price: 'Same price at all stations'
         }
     },
     lv: {
@@ -118,7 +120,9 @@ const resources = {
                 item_increased: "{{fuel}} cena pieauga par {{diff}}¢",
                 item_decreased: "{{fuel}} cena samazinājās par {{diff}}¢",
                 item_unchanged: "{{fuel}} cena nav mainījusies"
-            }
+            },
+            discounts: 'Atlaides',
+            all_stations_same_price: 'Visās stacijās cenas vienādas'
         }
     },
     ru: {
@@ -177,7 +181,9 @@ const resources = {
                 item_increased: "Цена {{fuel}} выросла на {{diff}}¢",
                 item_decreased: "Цена {{fuel}} снизилась на {{diff}}¢",
                 item_unchanged: "Цена {{fuel}} не изменилась"
-            }
+            },
+            discounts: 'Скидки',
+            all_stations_same_price: 'Одинаковая цена на всех станциях'
         }
     }
 };
