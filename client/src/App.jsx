@@ -1018,67 +1018,81 @@ export default function App() {
                                 if (!value) return null;
                                 if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                // Horizontal collision detection
                                 const lastPoint = chartDataFinal[chartDataFinal.length - 1];
                                 const activeFuels = Object.keys(FUEL_COLORS)
                                   .filter(f => lastPoint[f] !== undefined)
-                                  .sort((a, b) => lastPoint[b] - lastPoint[a]); // Highest price first
-
-
-                                let xOffset = 0;
-                                let yOffset = -20; // Consistent close proximity
-
-                                // Check if we are very close in price to other fuels
-                                const collisions = activeFuels.filter(f =>
-                                  f !== fuel && Math.abs(lastPoint[f] - lastPoint[fuel]) < 0.015
-                                );
-
-                                if (collisions.length > 0) {
-                                  // In a collision group, we shift horizontally
-                                  // Find my position in the collision group
-                                  const group = [fuel, ...collisions].sort((a, b) => lastPoint[b] - lastPoint[a]);
-                                  const indexInGroup = group.indexOf(fuel);
-
-                                  if (indexInGroup === 1) xOffset = -55;
-                                  else if (indexInGroup === 2) xOffset = 55;
-                                  else if (indexInGroup === 3) xOffset = -110;
-                                }
+                                  .sort((a, b) => lastPoint[b] - lastPoint[a]);
 
                                 const priceText = `€${value.toFixed(3)}`;
                                 const nameText = fuelShortName;
-                                const combinedText = `${priceText}`;
-                                const textWidth = combinedText.length * 6.5;
+                                const textWidth = priceText.length * 6.5;
                                 const pillWidth = textWidth + 12;
-                                const totalHeight = 34;
+                                const pillHeight = 26;
+                                const minGap = 2;
+
+                                // Each fuel's natural Y = its data point's Y on the chart
+                                // We need to resolve collisions across all fuels
+                                // Compute resolved positions for all fuels, then use this fuel's
+                                const naturalPositions = activeFuels.map(f => {
+                                  // Approximate Y from price using the YAxis scale
+                                  // Since Recharts doesn't expose the scale, we use a trick:
+                                  // the `y` parameter IS the correct pixel Y for `fuel`,
+                                  // so we compute relative offsets from price differences
+                                  const priceDiff = lastPoint[f] - lastPoint[fuel];
+                                  // Rough px-per-euro based on chart height (~280px) and typical price range (~0.15€)
+                                  const pxPerEuro = 280 / 0.20;
+                                  return { fuel: f, naturalY: y - priceDiff * pxPerEuro };
+                                });
+
+                                // Sort by naturalY (top to bottom = highest price first)
+                                naturalPositions.sort((a, b) => a.naturalY - b.naturalY);
+
+                                // Resolve overlaps: push badges down if they overlap
+                                const resolved = [];
+                                for (let i = 0; i < naturalPositions.length; i++) {
+                                  let resolvedY = naturalPositions[i].naturalY - pillHeight / 2;
+                                  if (i > 0) {
+                                    const prevBottom = resolved[i - 1] + pillHeight + minGap;
+                                    if (resolvedY < prevBottom) {
+                                      resolvedY = prevBottom;
+                                    }
+                                  }
+                                  resolved.push(resolvedY);
+                                }
+
+                                // Find this fuel's resolved Y
+                                const myIndex = naturalPositions.findIndex(p => p.fuel === fuel);
+                                const badgeY = resolved[myIndex];
+                                const pillX = x - pillWidth - 6;
 
                                 return (
                                   <g>
                                     {/* Connector line */}
-                                    <path
-                                      d={`M ${x} ${y} L ${x + xOffset - pillWidth / 2} ${y + yOffset + totalHeight / 2}`}
+                                    <line
+                                      x1={x} y1={y}
+                                      x2={pillX + pillWidth} y2={badgeY + pillHeight / 2}
                                       stroke={FUEL_COLORS[fuel]}
                                       strokeWidth={1.5}
-                                      opacity={0.5}
+                                      opacity={0.4}
                                     />
-                                    {/* Anchor dot */}
                                     <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
 
-                                    <g transform={`translate(${x + xOffset - pillWidth}, ${y + yOffset - totalHeight / 2})`}>
+                                    <g transform={`translate(${pillX}, ${badgeY})`}>
                                       <rect
                                         width={pillWidth}
-                                        height={totalHeight}
-                                        rx={11}
+                                        height={pillHeight}
+                                        rx={8}
                                         fill="white"
                                         stroke="#f3f4f6"
                                         strokeWidth={1}
-                                        style={{ filter: 'drop-shadow(0 3px 6px rgba(0,0,0,0.06))' }}
+                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
                                       />
                                       <text
                                         x={pillWidth / 2}
-                                        y={totalHeight / 2 - 4}
+                                        y={pillHeight / 2 - 3}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={11}
+                                        fontSize={10}
                                         fontWeight="700"
                                         fill={FUEL_COLORS[fuel]}
                                       >
@@ -1086,10 +1100,10 @@ export default function App() {
                                       </text>
                                       <text
                                         x={pillWidth / 2}
-                                        y={totalHeight / 2 + 9}
+                                        y={pillHeight / 2 + 8}
                                         textAnchor="middle"
                                         dominantBaseline="middle"
-                                        fontSize={8}
+                                        fontSize={7}
                                         fontWeight="600"
                                         fill={FUEL_COLORS[fuel]}
                                         opacity={0.7}
