@@ -122,27 +122,23 @@ const Toast = ({ notification, onDismiss, t }) => {
           transition={{ type: "spring", stiffness: 400, damping: 28 }}
           className="fixed top-4 inset-x-0 mx-auto z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-[92%]"
         >
-          {/* Apple liquid-style container */}
           <div
-            className="rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden border border-white/20"
-            style={{
-              background: 'linear-gradient(135deg, rgba(34, 197, 94, 0.95) 0%, rgba(22, 163, 74, 0.95) 100%)'
-            }}
+            className="bg-white/95 rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden border border-gray-200/50"
           >
             <div className="p-3 sm:p-4">
               <div className="flex items-center gap-2.5 sm:gap-3">
                 {/* Icon */}
-                <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-white/25 backdrop-blur-sm flex items-center justify-center">
+                <div className="flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-gray-100 flex items-center justify-center">
                   {notification.hasChanges ? (
-                    <TrendingUp size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+                    <TrendingUp size={16} className="text-gray-700 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   ) : (
-                    <Info size={16} className="text-white sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+                    <Info size={16} className="text-gray-700 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   )}
                 </div>
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <p className="text-[14px] sm:text-[15px] font-semibold text-white leading-tight">
+                  <p className="text-[14px] sm:text-[15px] font-semibold text-gray-900 leading-tight">
                     {notification.title}
                   </p>
                   {notification.changes && notification.changes.length > 0 ? (
@@ -154,8 +150,8 @@ const Toast = ({ notification, onDismiss, t }) => {
 
                         return (
                           <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
-                            <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-200' :
-                              change.diff < -0.0001 ? 'text-emerald-100' : 'text-white/80'
+                            <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-500' :
+                              change.diff < -0.0001 ? 'text-green-600' : 'text-gray-600'
                               }`}>
                               {t(textKey, {
                                 fuel: change.fuel,
@@ -167,27 +163,27 @@ const Toast = ({ notification, onDismiss, t }) => {
                       })}
                     </div>
                   ) : (
-                    <p className="text-[12px] sm:text-[13px] text-white/75 mt-0.5 leading-tight">{notification.message}</p>
+                    <p className="text-[12px] sm:text-[13px] text-gray-500 mt-0.5 leading-tight">{notification.message}</p>
                   )}
                 </div>
 
                 {/* Close button */}
                 <button
                   onClick={onDismiss}
-                  className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                  className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
                 >
-                  <X size={12} className="text-white sm:w-[14px] sm:h-[14px]" strokeWidth={2.5} />
+                  <X size={12} className="text-gray-500 sm:w-[14px] sm:h-[14px]" strokeWidth={2.5} />
                 </button>
               </div>
             </div>
 
             {/* Progress bar */}
-            <div className="h-1 bg-white/10">
+            <div className="h-1 bg-gray-100">
               <motion.div
                 initial={{ width: "0%" }}
                 animate={{ width: "100%" }}
                 transition={{ duration: 5, ease: "linear" }}
-                className="h-full bg-white/50"
+                className="h-full bg-gray-300"
               />
             </div>
           </div>
