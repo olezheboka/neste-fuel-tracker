@@ -439,7 +439,8 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
   return (
     <div
       ref={trackRef}
-      className="relative h-8 rounded-lg bg-gray-50 ring-1 ring-inset ring-gray-200 select-none mb-3"
+      className="relative h-8 rounded-lg bg-gray-50 ring-1 ring-inset ring-gray-200 select-none mb-3 touch-action-none"
+      style={{ touchAction: 'none' }}
     >
       {/* Active Viewport Thumb */}
       <div
@@ -448,22 +449,28 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
         onMouseDown={(e) => handlePointerDown(e, 'pan')}
         onTouchStart={(e) => handlePointerDown(e, 'pan')}
       >
-        {/* Left drag handle */}
+        {/* Left drag handle container (Larger hit area) */}
         <div
-          className="absolute left-[3px] top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gray-300 cursor-ew-resize"
+          className="absolute left-[-14px] top-0 bottom-0 w-8 flex items-center justify-center cursor-ew-resize z-10"
           onMouseDown={(e) => handlePointerDown(e, 'left')}
           onTouchStart={(e) => handlePointerDown(e, 'left')}
-        />
+        >
+          <div className="w-1 h-4 rounded-full bg-gray-300" />
+        </div>
+
         {/* Date range label */}
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <span className="text-[9px] sm:text-[11px] font-semibold text-gray-400 whitespace-nowrap">{dateLabel}</span>
         </div>
-        {/* Right drag handle */}
+
+        {/* Right drag handle container (Larger hit area) */}
         <div
-          className="absolute right-[3px] top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gray-300 cursor-ew-resize"
+          className="absolute right-[-14px] top-0 bottom-0 w-8 flex items-center justify-center cursor-ew-resize z-10"
           onMouseDown={(e) => handlePointerDown(e, 'right')}
           onTouchStart={(e) => handlePointerDown(e, 'right')}
-        />
+        >
+          <div className="w-1 h-4 rounded-full bg-gray-300" />
+        </div>
       </div>
     </div>
   );
