@@ -349,6 +349,124 @@ const calculateTrendLine = (data, dataKey) => {
   }));
 };
 
+// Custom Timeline Slider — matches Apple-style spec from screenshot
+const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval }) => {
+  const trackRef = React.useRef(null);
+  const dragRef = React.useRef(null); // Stores drag state
+
+  const totalCount = data.length;
+  if (totalCount === 0) return null;
+
+  // Minimum span based on interval mode
+  const minSpan = graphInterval === 'days' ? 6 : 0; // 7 days min for 'days', 1 item min for others (0-indexed)
+
+  const dataSpan = endIndex - startIndex;
+  const dataWidthPct = ((dataSpan + 1) / totalCount) * 100;
+  const effectiveWidthPct = Math.max(dataWidthPct, 30); // Minimum 30% to fit date label
+
+  // Map data position proportionally to the available visual travel range
+  // so the thumb moves smoothly from left edge to right edge
+  const travelRange = 100 - effectiveWidthPct;
+  const maxStartIndex = totalCount - dataSpan - 1;
+  const effectiveLeftPct = maxStartIndex > 0 ? (startIndex / maxStartIndex) * travelRange : 0;
+
+  // Format the date range label
+  const startDate = data[startIndex]?.date ? new Date(data[startIndex].date) : null;
+  const endDate = data[endIndex]?.date ? new Date(data[endIndex].date) : null;
+  const formatDate = (d) => d ? d.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' }) : '';
+  const dateLabel = startDate && endDate ? `${formatDate(startDate)} - ${formatDate(endDate)}` : '';
+
+
+  const clampIndices = (start, end) => {
+    let s = Math.max(0, Math.min(totalCount - 1, start));
+    let e = Math.max(s, Math.min(totalCount - 1, end));
+    // Enforce minimum span
+    if (e - s < minSpan) {
+      // Try expanding the end first, then adjust start if we hit the boundary
+      e = Math.min(totalCount - 1, s + minSpan);
+      if (e - s < minSpan) {
+        s = Math.max(0, e - minSpan);
+      }
+    }
+    return { startIndex: s, endIndex: e };
+  };
+
+  const handlePointerDown = (e, mode) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX || (e.touches && e.touches[0]?.clientX) || 0;
+    dragRef.current = { mode, startX, origStart: startIndex, origEnd: endIndex };
+
+    const onMove = (ev) => {
+      const clientX = ev.clientX || (ev.touches && ev.touches[0]?.clientX) || 0;
+      const drag = dragRef.current;
+      if (!drag) return;
+      const track = trackRef.current;
+      if (!track) return;
+      const rect = track.getBoundingClientRect();
+      const deltaIdx = Math.round(((clientX - drag.startX) / rect.width) * (totalCount - 1));
+
+      if (drag.mode === 'pan') {
+        const span = drag.origEnd - drag.origStart;
+        let newStart = drag.origStart + deltaIdx;
+        let newEnd = newStart + span;
+        if (newStart < 0) { newStart = 0; newEnd = span; }
+        if (newEnd >= totalCount) { newEnd = totalCount - 1; newStart = newEnd - span; }
+        onChange(clampIndices(newStart, newEnd));
+      } else if (drag.mode === 'left') {
+        onChange(clampIndices(drag.origStart + deltaIdx, drag.origEnd));
+      } else if (drag.mode === 'right') {
+        onChange(clampIndices(drag.origStart, drag.origEnd + deltaIdx));
+      }
+    };
+
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      className="relative h-8 rounded-lg bg-gray-50 ring-1 ring-inset ring-gray-200 select-none mb-3"
+    >
+      {/* Active Viewport Thumb */}
+      <div
+        className="absolute top-[2px] bottom-[2px] rounded-md bg-white shadow-sm hover:shadow-md transition-shadow cursor-grab active:cursor-grabbing"
+        style={{ left: `${effectiveLeftPct}%`, width: `${effectiveWidthPct}%` }}
+        onMouseDown={(e) => handlePointerDown(e, 'pan')}
+        onTouchStart={(e) => handlePointerDown(e, 'pan')}
+      >
+        {/* Left drag handle */}
+        <div
+          className="absolute left-[3px] top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gray-300 cursor-ew-resize"
+          onMouseDown={(e) => handlePointerDown(e, 'left')}
+          onTouchStart={(e) => handlePointerDown(e, 'left')}
+        />
+        {/* Date range label */}
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          <span className="text-[9px] sm:text-[11px] font-semibold text-gray-400 whitespace-nowrap">{dateLabel}</span>
+        </div>
+        {/* Right drag handle */}
+        <div
+          className="absolute right-[3px] top-1/2 -translate-y-1/2 w-1 h-3 rounded-full bg-gray-300 cursor-ew-resize"
+          onMouseDown={(e) => handlePointerDown(e, 'right')}
+          onTouchStart={(e) => handlePointerDown(e, 'right')}
+        />
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
@@ -399,6 +517,7 @@ export default function App() {
     const stored = localStorage.getItem('showDiscounts');
     return stored === null ? true : stored === 'true';
   });
+  const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
   const previousPricesRef = React.useRef([]);
 
   // Sync state to URL and localStorage
@@ -541,16 +660,17 @@ export default function App() {
   const dieselPrices = latestPrices.filter(p => p.type.includes('D') || p.type.includes('Diesel'));
 
   // Filter Data based on Interval and Group by Period (Day/Week/Month)
-  // Calculate AVERAGE price per period instead of showing every data point
+  // We keep a larger history window (e.g. 180 days) for the Brush, but the chart will default to showing recent data
   const chartData = useMemo(() => {
     if (!historyData.length) return [];
 
     const now = new Date();
     let cutoff = new Date();
 
-    if (graphInterval === 'days') cutoff.setDate(now.getDate() - (isMobile ? 14 : 30));
-    if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - (isMobile ? 60 : 90));
-    if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - (isMobile ? 6 : 12));
+    // Fetch more data for the Brush
+    if (graphInterval === 'days') cutoff.setDate(now.getDate() - (isMobile ? 180 : 180));
+    if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - (isMobile ? 180 : 365));
+    if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - (isMobile ? 12 : 24));
 
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
@@ -744,6 +864,32 @@ export default function App() {
   // No smoothing - use raw daily aggregation (High-Low)
   const chartDataFinal = chartDataWithTrend;
 
+  // Slice visible data based on timeline slider indices
+  const visibleChartData = useMemo(() => {
+    if (!chartDataFinal || !brushIndices) return chartDataFinal;
+    return chartDataFinal.slice(brushIndices.startIndex, brushIndices.endIndex + 1);
+  }, [chartDataFinal, brushIndices]);
+
+  // Reset Brush indices when data or interval changes
+  useEffect(() => {
+    if (chartDataFinal && chartDataFinal.length > 0) {
+      let defaultVisibleCount = 30; // default for days
+      if (graphInterval === 'weeks') defaultVisibleCount = 4;
+      if (graphInterval === 'months') defaultVisibleCount = 3;
+
+      setBrushIndices({
+        startIndex: Math.max(0, chartDataFinal.length - defaultVisibleCount),
+        endIndex: chartDataFinal.length - 1
+      });
+    }
+  }, [chartDataFinal, graphInterval]);
+
+  const handleBrushChange = (newIndex) => {
+    if (newIndex && newIndex.startIndex !== undefined) {
+      setBrushIndices({ startIndex: newIndex.startIndex, endIndex: newIndex.endIndex });
+    }
+  };
+
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 pb-24">
 
@@ -886,7 +1032,7 @@ export default function App() {
                   <div
                     className={clsx(
                       'relative w-9 h-5 rounded-full transition-colors duration-200',
-                      showDiscounts ? 'bg-blue-800' : 'bg-gray-300'
+                      showDiscounts ? 'bg-[#facc15]' : 'bg-gray-300'
                     )}
                   >
                     <div
@@ -901,15 +1047,23 @@ export default function App() {
             )}
 
 
-            {/* Chart Warning Notice */}
-
+            {/* Timeline Slider — above the chart */}
+            {chartDataFinal && chartDataFinal.length > 0 && brushIndices && (
+              <TimelineSlider
+                data={chartDataFinal}
+                startIndex={brushIndices.startIndex}
+                endIndex={brushIndices.endIndex}
+                onChange={handleBrushChange}
+                graphInterval={graphInterval}
+              />
+            )}
 
             {/* Chart container — stretch to card edges on mobile */}
             <div className="h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
-                  data={chartDataFinal}
-                  margin={{ top: 40, right: isMobile ? 20 : 30, left: isMobile ? -5 : 0, bottom: 5 }}
+                  data={visibleChartData}
+                  margin={{ top: 20, right: isMobile ? 20 : 30, left: isMobile ? -5 : 0, bottom: 5 }}
                 >
                   <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
                   <XAxis
@@ -938,8 +1092,8 @@ export default function App() {
                       if (graphInterval === 'weeks') {
                         const start = new Date(d);
                         const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
-                        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
-                        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
+                        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
                         return `${startStr} - ${endStr}`;
                       }
                       if (graphInterval === 'months') {
@@ -964,6 +1118,7 @@ export default function App() {
                   />
 
 
+
                   {/* Discount day highlights — only in day view, always rendered to avoid re-animation */}
                   {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
                     if (!point.isDiscount) return areas;
@@ -977,7 +1132,7 @@ export default function App() {
                         key={`discount-${point.periodKey}`}
                         x1={x1}
                         x2={x2}
-                        fill={showDiscounts ? 'rgba(34, 197, 94, 0.15)' : 'transparent'}
+                        fill={showDiscounts ? 'rgba(250, 204, 21, 0.2)' : 'transparent'}
                         stroke="none"
                       />
                     );
