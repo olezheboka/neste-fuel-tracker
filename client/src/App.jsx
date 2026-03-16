@@ -549,19 +549,31 @@ export default function App() {
   }, []);
 
   // URL and Storage Initialization - Priority: URL params > localStorage > defaults
-  const [selectedFuel, setSelectedFuel] = useState(() => {
+  const [selectedFuels, setSelectedFuels] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const fuelParam = params.get('fuel');
-    const storedFuel = localStorage.getItem('selectedFuel');
+    const storedFuels = localStorage.getItem('selectedFuels');
+
+    const validFuelNames = Object.keys(FUEL_COLORS);
 
     // URL params take priority, then localStorage, then default
-    if (fuelParam && FUEL_URL_MAP[fuelParam]) {
-      return FUEL_URL_MAP[fuelParam];
+    if (fuelParam) {
+      const keys = fuelParam.split(',').filter(k => FUEL_URL_MAP[k]);
+      if (keys.length > 0) {
+        const fuels = keys.map(k => FUEL_URL_MAP[k]);
+        return fuels.filter(f => validFuelNames.includes(f));
+      }
     }
-    if (storedFuel && (storedFuel === 'all' || Object.keys(FUEL_COLORS).includes(storedFuel))) {
-      return storedFuel;
+    if (storedFuels) {
+      try {
+        const parsed = JSON.parse(storedFuels);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(f => validFuelNames.includes(f));
+          if (filtered.length > 0) return filtered;
+        }
+      } catch { /* ignore */ }
     }
-    return 'all';
+    return [validFuelNames[0]]; // Default to first type
   });
 
   const [graphInterval, setGraphInterval] = useState(() => {
@@ -583,7 +595,11 @@ export default function App() {
   const [lastCheck, setLastCheck] = useState(null);
   const [notification, setNotification] = useState(null);
   const [showDiscounts, setShowDiscounts] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const discountParam = params.get('discounts');
     const stored = localStorage.getItem('showDiscounts');
+    
+    if (discountParam !== null) return discountParam === 'on';
     return stored === null ? true : stored === 'true';
   });
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
@@ -601,18 +617,19 @@ export default function App() {
       localStorage.setItem('i18nextLng', currentLang);
     }
 
-    // Sync Period
-    params.set('period', graphInterval);
-    localStorage.setItem('graphInterval', graphInterval);
-
     // Sync Fuel (used for both chart and change cards)
-    const fuelUrlKey = FUEL_TO_URL[selectedFuel] || 'all';
-    params.set('fuel', fuelUrlKey);
-    localStorage.setItem('selectedFuel', selectedFuel);
+    const fuelKeys = selectedFuels.map(f => FUEL_TO_URL[f] || '95').join(',');
+    params.set('fuel', fuelKeys);
+    localStorage.setItem('selectedFuels', JSON.stringify(selectedFuels));
+
+    // Sync Discounts (only in day view)
+    if (graphInterval === 'days') {
+      params.set('discounts', showDiscounts ? 'on' : 'off');
+    }
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, selectedFuel]);
+  }, [i18n.language, graphInterval, selectedFuels, showDiscounts]);
 
   // Persist showDiscounts preference
   useEffect(() => {
@@ -913,22 +930,18 @@ export default function App() {
     // Deep copy objects to avoid mutating memoized chartData
     let data = chartData.map(item => ({ ...item }));
 
-    if (selectedFuel === 'all') {
-      Object.keys(FUEL_COLORS).forEach(fuel => {
-        const trend = calculateTrendLine(data, fuel);
-        if (trend) {
-          // Merge trend data back into main data array
-          trend.forEach((t, i) => {
-            if (data[i]) data[i][`${fuel}_trend`] = t[`${fuel}_trend`];
-          });
-        }
-      });
-    } else {
-      const trend = calculateTrendLine(data, selectedFuel);
-      if (trend) data = trend;
-    }
+    selectedFuels.forEach(fuel => {
+      const trend = calculateTrendLine(data, fuel);
+      if (trend) {
+        // Merge trend data back into main data array
+        trend.forEach((t, i) => {
+          if (data[i]) data[i][`${fuel}_trend`] = t[`${fuel}_trend`];
+        });
+      }
+    });
+
     return data;
-  }, [chartData, selectedFuel]);
+  }, [chartData, selectedFuels]);
 
   // No smoothing - use raw daily aggregation (High-Low)
   const chartDataFinal = chartDataWithTrend;
@@ -1058,19 +1071,25 @@ export default function App() {
             {/* Fuel Type Section */}
             <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
             <div className="flex flex-wrap gap-2 mb-6">
-              <button
-                onClick={() => setSelectedFuel('all')}
-                className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${selectedFuel === 'all' ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-              >
-                {t('all')}
-              </button>
               {Object.keys(FUEL_COLORS).map(fuel => {
-                const isActive = selectedFuel === fuel;
-                // Reuse same neutral styling as 'all' and time periods
+                const isActive = selectedFuels.includes(fuel);
+                const handleToggle = () => {
+                  setSelectedFuels(prev => {
+                    if (isActive) {
+                      // Don't deselect the last one
+                      if (prev.length <= 1) return prev;
+                      return prev.filter(f => f !== fuel);
+                    } else {
+                      // Max 4
+                      if (prev.length >= 4) return prev;
+                      return [...prev, fuel];
+                    }
+                  });
+                };
                 return (
                   <button
                     key={fuel}
-                    onClick={() => setSelectedFuel(fuel)}
+                    onClick={handleToggle}
                     className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
                   >
                     {t(fuel.replace('Neste ', ''))}
@@ -1198,253 +1217,143 @@ export default function App() {
                     return areas;
                   }, [])}
 
-                  {selectedFuel === 'all' ? (
-                    Object.keys(FUEL_COLORS).map((fuel) => {
-                      const fuelShortName = t(fuel.replace('Neste ', ''));
-                      return (
-                        <React.Fragment key={fuel}>
-                          <Line
-                            type="monotone"
-                            dataKey={fuel}
-                            stroke={FUEL_COLORS[fuel]}
+                  {selectedFuels.map((fuel) => {
+                    const fuelShortName = t(fuel.replace('Neste ', ''));
+                    return (
+                      <React.Fragment key={fuel}>
+                        <Line
+                          type="monotone"
+                          dataKey={fuel}
+                          stroke={FUEL_COLORS[fuel]}
+                          strokeWidth={2}
+                          dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
+                          activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
+                        >
+                          <ErrorBar
+                            dataKey={`${fuel}_range`}
+                            width={4}
                             strokeWidth={2}
-                            dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
-                            activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
-                          >
-                            <ErrorBar
-                              dataKey={`${fuel}_range`}
-                              width={4}
-                              strokeWidth={2}
-                              stroke={FUEL_COLORS[fuel]}
-                              direction="y"
-                            />
-                            <LabelList
-                              dataKey={fuel}
-                              position="top"
-                              offset={8}
-                              fontSize={9}
-                              fill={FUEL_COLORS[fuel]}
-                              content={({ x, y, value, index: pointIndex }) => {
-                                if (!value) return null;
-                                if (pointIndex !== chartDataFinal.length - 1) return null;
-
-                                const lastPoint = chartDataFinal[chartDataFinal.length - 1];
-                                const activeFuels = Object.keys(FUEL_COLORS)
-                                  .filter(f => lastPoint[f] !== undefined)
-                                  .sort((a, b) => lastPoint[b] - lastPoint[a]);
-
-                                const priceText = `€${value.toFixed(3)}`;
-                                const nameText = fuelShortName;
-                                const textWidth = priceText.length * 7;
-                                const pillWidth = textWidth + 14;
-                                const pillHeight = 30;
-                                const minGap = 2;
-
-                                // Each fuel's natural Y = its data point's Y on the chart
-                                // We need to resolve collisions across all fuels
-                                // Compute resolved positions for all fuels, then use this fuel's
-                                const naturalPositions = activeFuels.map(f => {
-                                  // Approximate Y from price using the YAxis scale
-                                  // Since Recharts doesn't expose the scale, we use a trick:
-                                  // the `y` parameter IS the correct pixel Y for `fuel`,
-                                  // so we compute relative offsets from price differences
-                                  const priceDiff = lastPoint[f] - lastPoint[fuel];
-                                  // Rough px-per-euro based on chart height (~280px) and typical price range (~0.15€)
-                                  const pxPerEuro = 280 / 0.20;
-                                  return { fuel: f, naturalY: y - priceDiff * pxPerEuro };
-                                });
-
-                                // Sort by naturalY (top to bottom = highest price first)
-                                naturalPositions.sort((a, b) => a.naturalY - b.naturalY);
-
-                                // Resolve overlaps: push badges down if they overlap
-                                const resolved = [];
-                                for (let i = 0; i < naturalPositions.length; i++) {
-                                  let resolvedY = naturalPositions[i].naturalY - pillHeight / 2;
-                                  if (i > 0) {
-                                    const prevBottom = resolved[i - 1] + pillHeight + minGap;
-                                    if (resolvedY < prevBottom) {
-                                      resolvedY = prevBottom;
-                                    }
-                                  }
-                                  resolved.push(resolvedY);
-                                }
-
-                                // Find this fuel's resolved Y
-                                const myIndex = naturalPositions.findIndex(p => p.fuel === fuel);
-                                const badgeY = resolved[myIndex];
-                                const pillX = x - pillWidth - 6;
-
-                                return (
-                                  <g>
-                                    {/* Connector line */}
-                                    <line
-                                      x1={x} y1={y}
-                                      x2={pillX + pillWidth} y2={badgeY + pillHeight / 2}
-                                      stroke={FUEL_COLORS[fuel]}
-                                      strokeWidth={2}
-                                      strokeDasharray="4 3"
-                                      opacity={0.6}
-                                    />
-                                    <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
-
-                                    <g transform={`translate(${pillX}, ${badgeY})`}>
-                                      <rect
-                                        width={pillWidth}
-                                        height={pillHeight}
-                                        rx={8}
-                                        fill="white"
-                                        stroke="#f3f4f6"
-                                        strokeWidth={1}
-                                        style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
-                                      />
-                                      <text
-                                        x={pillWidth / 2}
-                                        y={pillHeight / 2 - 4}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={11}
-                                        fontWeight="700"
-                                        fill={FUEL_COLORS[fuel]}
-                                      >
-                                        {priceText}
-                                      </text>
-                                      <text
-                                        x={pillWidth / 2}
-                                        y={pillHeight / 2 + 9}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={9}
-                                        fontWeight="600"
-                                        fill={FUEL_COLORS[fuel]}
-                                        opacity={0.7}
-                                      >
-                                        {nameText}
-                                      </text>
-                                    </g>
-                                  </g>
-                                );
-                              }}
-                            />
-                          </Line>
-                          <Line
-                            type="linear"
-                            dataKey={`${fuel}_trend`}
                             stroke={FUEL_COLORS[fuel]}
-                            strokeWidth={1}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            activeDot={false}
-                            legendType="none"
-                            isAnimationActive={false}
-                            opacity={0.5}
+                            direction="y"
                           />
-                        </React.Fragment>
-                      );
-                    })
-                  ) : (
-                    (() => {
-                      const fuelShortName = t(selectedFuel.replace('Neste ', ''));
-                      return (
-                        <>
-                          <Line
-                            type="monotone"
-                            dataKey={selectedFuel}
-                            stroke={FUEL_COLORS[selectedFuel]}
-                            strokeWidth={2.5}
-                            dot={{ r: 4, fill: FUEL_COLORS[selectedFuel], strokeWidth: 0 }}
-                            activeDot={{ r: 6, strokeWidth: 0, fill: FUEL_COLORS[selectedFuel] }}
-                          >
-                            <ErrorBar
-                              dataKey={`${selectedFuel}_range`}
-                              width={4}
-                              strokeWidth={2}
-                              stroke={FUEL_COLORS[selectedFuel]}
-                              direction="y"
-                            />
-                            <LabelList
-                              dataKey={selectedFuel}
-                              position="top"
-                              offset={10}
-                              fontSize={10}
-                              fill={FUEL_COLORS[selectedFuel]}
-                              content={({ x, y, value, index: pointIndex }) => {
-                                if (!value) return null;
-                                if (pointIndex !== chartDataFinal.length - 1) return null;
+                          <LabelList
+                            dataKey={fuel}
+                            position="top"
+                            offset={8}
+                            fontSize={9}
+                            fill={FUEL_COLORS[fuel]}
+                            content={({ x, y, value, index: pointIndex }) => {
+                              if (!value) return null;
+                              if (pointIndex !== chartDataFinal.length - 1) return null;
 
-                                const yOffset = -20;
-                                const priceText = `€${value.toFixed(3)}`;
-                                const nameText = fuelShortName;
-                                const textWidth = priceText.length * 7.5;
-                                const pillWidth = textWidth + 16;
-                                const totalHeight = 40;
+                              const lastPoint = chartDataFinal[chartDataFinal.length - 1];
+                              const activeFuels = selectedFuels
+                                .filter(f => lastPoint[f] !== undefined)
+                                .sort((a, b) => lastPoint[b] - lastPoint[a]);
 
-                                return (
-                                  <g>
-                                    {/* Connector line */}
-                                    <path
-                                      d={`M ${x} ${y} L ${x - pillWidth / 2} ${y + yOffset + totalHeight / 2}`}
-                                      stroke={FUEL_COLORS[selectedFuel]}
-                                      strokeWidth={2}
-                                      opacity={0.5}
+                              const priceText = `€${value.toFixed(3)}`;
+                              const nameText = fuelShortName;
+                              const textWidth = priceText.length * 7;
+                              const pillWidth = textWidth + 14;
+                              const pillHeight = 30;
+                              const minGap = 2;
+
+                              // Each fuel's natural Y = its data point's Y on the chart
+                              // We need to resolve collisions across all fuels
+                              const pxPerEuro = 280 / 0.20;
+                              const naturalPositions = activeFuels.map(f => {
+                                const priceDiff = lastPoint[f] - lastPoint[fuel];
+                                return { fuel: f, naturalY: y - priceDiff * pxPerEuro };
+                              });
+
+                              // Sort by naturalY (top to bottom = highest price first)
+                              naturalPositions.sort((a, b) => a.naturalY - b.naturalY);
+
+                              // Resolve overlaps: push badges down if they overlap
+                              const resolved = [];
+                              for (let i = 0; i < naturalPositions.length; i++) {
+                                let resolvedY = naturalPositions[i].naturalY - pillHeight / 2;
+                                if (i > 0) {
+                                  const prevBottom = resolved[i - 1] + pillHeight + minGap;
+                                  if (resolvedY < prevBottom) {
+                                    resolvedY = prevBottom;
+                                  }
+                                }
+                                resolved.push(resolvedY);
+                              }
+
+                              // Find this fuel's resolved Y
+                              const myIndex = naturalPositions.findIndex(p => p.fuel === fuel);
+                              const badgeY = resolved[myIndex];
+                              const pillX = x - pillWidth - 6;
+
+                              return (
+                                <g>
+                                  {/* Connector line */}
+                                  <line
+                                    x1={x} y1={y}
+                                    x2={pillX + pillWidth} y2={badgeY + pillHeight / 2}
+                                    stroke={FUEL_COLORS[fuel]}
+                                    strokeWidth={2}
+                                    strokeDasharray="4 3"
+                                    opacity={0.6}
+                                  />
+                                  <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
+
+                                  <g transform={`translate(${pillX}, ${badgeY})`}>
+                                    <rect
+                                      width={pillWidth}
+                                      height={pillHeight}
+                                      rx={8}
+                                      fill="white"
+                                      stroke="#f3f4f6"
+                                      strokeWidth={1}
+                                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
                                     />
-                                    <circle cx={x} cy={y} r={4} fill={FUEL_COLORS[selectedFuel]} />
-
-                                    <g transform={`translate(${x - pillWidth}, ${y + yOffset - totalHeight / 2})`}>
-                                      <rect
-                                        width={pillWidth}
-                                        height={totalHeight}
-                                        rx={12}
-                                        fill="white"
-                                        stroke="#f3f4f6"
-                                        strokeWidth={1}
-                                        style={{ filter: 'drop-shadow(0 4px 10px rgba(0,0,0,0.08))' }}
-                                      />
-                                      <text
-                                        x={pillWidth / 2}
-                                        y={totalHeight / 2 - 6}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={13}
-                                        fontWeight="700"
-                                        fill={FUEL_COLORS[selectedFuel]}
-                                      >
-                                        {priceText}
-                                      </text>
-                                      <text
-                                        x={pillWidth / 2}
-                                        y={totalHeight / 2 + 10}
-                                        textAnchor="middle"
-                                        dominantBaseline="middle"
-                                        fontSize={11}
-                                        fontWeight="600"
-                                        fill={FUEL_COLORS[selectedFuel]}
-                                        opacity={0.7}
-                                      >
-                                        {nameText}
-                                      </text>
-                                    </g>
+                                    <text
+                                      x={pillWidth / 2}
+                                      y={pillHeight / 2 - 4}
+                                      textAnchor="middle"
+                                      dominantBaseline="middle"
+                                      fontSize={11}
+                                      fontWeight="700"
+                                      fill={FUEL_COLORS[fuel]}
+                                    >
+                                      {priceText}
+                                    </text>
+                                    <text
+                                      x={pillWidth / 2}
+                                      y={pillHeight / 2 + 9}
+                                      textAnchor="middle"
+                                      dominantBaseline="middle"
+                                      fontSize={9}
+                                      fontWeight="600"
+                                      fill={FUEL_COLORS[fuel]}
+                                      opacity={0.7}
+                                    >
+                                      {nameText}
+                                    </text>
                                   </g>
-                                );
-                              }}
-                            />
-                          </Line>
-                          <Line
-                            type="linear"
-                            dataKey={`${selectedFuel}_trend`}
-                            stroke={FUEL_COLORS[selectedFuel]}
-                            strokeWidth={1.5}
-                            strokeDasharray="5 5"
-                            dot={false}
-                            activeDot={false}
-                            legendType="none"
-                            isAnimationActive={false}
-                            opacity={0.6}
+                                </g>
+                              );
+                            }}
                           />
-                        </>
-                      );
-                    })()
-                  )}
+                        </Line>
+                        <Line
+                          type="linear"
+                          dataKey={`${fuel}_trend`}
+                          stroke={FUEL_COLORS[fuel]}
+                          strokeWidth={1}
+                          strokeDasharray="5 5"
+                          dot={false}
+                          activeDot={false}
+                          legendType="none"
+                          isAnimationActive={false}
+                          opacity={0.5}
+                        />
+                      </React.Fragment>
+                    );
+                  })}
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -1454,7 +1363,7 @@ export default function App() {
               <PriceChangeCards
                 historyData={historyData}
                 latestPrices={latestPrices}
-                selectedFuel={selectedFuel}
+                selectedFuel={selectedFuels[0]} // Use first selected as primary for cards
               />
             </div>
           </Card>
