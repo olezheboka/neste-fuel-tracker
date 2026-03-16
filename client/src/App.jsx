@@ -3,7 +3,7 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
-import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
@@ -94,6 +94,66 @@ const SegmentedControl = ({ options, value, onChange, layoutId, className, size 
     })}
   </div>
 );
+ 
+ // Language Dropdown Component
+ const LanguageDropdown = ({ lngs, currentLng, onChange }) => {
+   const [isOpen, setIsOpen] = useState(false);
+ 
+   return (
+     <div className="relative">
+       <button
+         onClick={() => setIsOpen(!isOpen)}
+         className="flex items-center gap-2 px-3 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl transition-all duration-200 text-sm font-semibold text-gray-900 border border-transparent active:scale-95 shadow-sm"
+       >
+         <span>{lngs[currentLng].flag}</span>
+         <span className="uppercase">{currentLng}</span>
+         {isOpen ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+       </button>
+ 
+       <AnimatePresence>
+         {isOpen && (
+           <>
+             {/* Backdrop to close when clicking outside */}
+             <div
+               className="fixed inset-0 z-40"
+               onClick={() => setIsOpen(false)}
+             />
+             <motion.div
+               initial={{ opacity: 0, y: 8, scale: 0.95 }}
+               animate={{ opacity: 1, y: 0, scale: 1 }}
+               exit={{ opacity: 0, y: 4, scale: 0.95 }}
+               transition={{ type: "spring", stiffness: 400, damping: 30 }}
+               className="absolute right-0 mt-2 w-40 bg-white/95 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-50 overflow-hidden p-1.5"
+             >
+               {Object.keys(lngs).map((lng) => {
+                 const isActive = currentLng === lng;
+                 return (
+                   <button
+                     key={lng}
+                     onClick={() => {
+                       onChange(lng);
+                       setIsOpen(false);
+                     }}
+                     className={clsx(
+                       "w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200",
+                       isActive ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                     )}
+                   >
+                     <div className="flex items-center gap-2.5">
+                       <span className="text-lg">{lngs[lng].flag}</span>
+                       <span className="text-sm font-semibold">{lngs[lng].nativeName}</span>
+                     </div>
+                     {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+                   </button>
+                 );
+               })}
+             </motion.div>
+           </>
+         )}
+       </AnimatePresence>
+     </div>
+   );
+ };
 
 // Clean Card Component
 const Card = ({ children, className }) => (
@@ -914,19 +974,14 @@ export default function App() {
         <div className="max-w-5xl mx-auto px-6 py-5 flex items-center justify-between">
           <a
             href="/"
-            className="text-2xl font-semibold text-gray-900 tracking-tight hover:text-gray-600 transition-colors cursor-pointer"
+            className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight hover:text-gray-600 transition-colors cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis mr-4"
           >
             {t('app_title')}
           </a>
-          <SegmentedControl
-            options={Object.keys(lngs).map(lng => ({
-              value: lng,
-              label: <span className="flex items-center gap-1">{lngs[lng].flag} {lng.toUpperCase()}</span>
-            }))}
-            value={i18n.language}
+          <LanguageDropdown
+            lngs={lngs}
+            currentLng={i18n.language}
             onChange={(val) => i18n.changeLanguage(val)}
-            layoutId="active-lang"
-            size="small"
           />
         </div>
       </header>
