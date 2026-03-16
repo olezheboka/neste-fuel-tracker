@@ -980,23 +980,17 @@ export default function App() {
                 <Calendar className="w-4 h-4 text-gray-400" />
                 <h2 className="text-lg font-semibold text-gray-900">{t('history')}</h2>
               </div>
-              <div className="flex gap-1">
-                {['days', 'weeks', 'months'].map(step => {
-                  const isActive = graphInterval === step;
-                  return (
-                    <button
-                      key={step}
-                      onClick={() => setGraphInterval(step)}
-                      className={`px-2.5 py-1 sm:px-3 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-medium transition-all ${isActive
-                        ? 'bg-blue-800 text-white'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                        }`}
-                    >
-                      {t(`intervals.${step}`)}
-                    </button>
-                  );
-                })}
-              </div>
+              <SegmentedControl
+                options={['days', 'weeks', 'months'].map(step => ({
+                  value: step,
+                  label: t(`intervals.${step}`)
+                }))}
+                value={graphInterval}
+                onChange={setGraphInterval}
+                layoutId="active-interval"
+                size="small"
+                className="z-10"
+              />
             </div>
 
             {/* Fuel Type Section */}
