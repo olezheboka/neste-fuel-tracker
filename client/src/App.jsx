@@ -551,18 +551,20 @@ export default function App() {
   // URL and Storage Initialization - Priority: URL params > localStorage > defaults
   const [selectedFuels, setSelectedFuels] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const fuelParam = params.get('fuel');
+    const fuelParams = params.getAll('fuel');
     const storedFuels = localStorage.getItem('selectedFuels');
-
     const validFuelNames = Object.keys(FUEL_COLORS);
 
     // URL params take priority, then localStorage, then default
-    if (fuelParam) {
-      const keys = fuelParam.split(',').filter(k => FUEL_URL_MAP[k]);
-      if (keys.length > 0) {
-        const fuels = keys.map(k => FUEL_URL_MAP[k]);
-        return fuels.filter(f => validFuelNames.includes(f));
-      }
+    if (fuelParams.length > 0) {
+      // Handle both comma-separated (backward compat) and multiple params
+      const keys = [];
+      fuelParams.forEach(p => {
+        p.split(',').forEach(k => {
+          if (FUEL_URL_MAP[k]) keys.push(FUEL_URL_MAP[k]);
+        });
+      });
+      if (keys.length > 0) return keys.filter(f => validFuelNames.includes(f));
     }
     if (storedFuels) {
       try {
@@ -573,7 +575,7 @@ export default function App() {
         }
       } catch { /* ignore */ }
     }
-    return [validFuelNames[0]]; // Default to first type
+    return [...validFuelNames]; // Default to ALL fuel types
   });
 
   const [graphInterval, setGraphInterval] = useState(() => {
@@ -618,13 +620,17 @@ export default function App() {
     }
 
     // Sync Fuel (used for both chart and change cards)
-    const fuelKeys = selectedFuels.map(f => FUEL_TO_URL[f] || '95').join(',');
-    params.set('fuel', fuelKeys);
+    params.delete('fuel'); // Clear existing to avoid duplicates or old formats
+    selectedFuels.forEach(f => {
+      params.append('fuel', FUEL_TO_URL[f] || '95');
+    });
     localStorage.setItem('selectedFuels', JSON.stringify(selectedFuels));
 
     // Sync Discounts (only in day view)
     if (graphInterval === 'days') {
       params.set('discounts', showDiscounts ? 'on' : 'off');
+    } else {
+      params.delete('discounts');
     }
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
@@ -753,10 +759,8 @@ export default function App() {
     const now = new Date();
     let cutoff = new Date();
 
-    // Fetch more data for the Brush
-    if (graphInterval === 'days') cutoff.setDate(now.getDate() - (isMobile ? 180 : 180));
-    if (graphInterval === 'weeks') cutoff.setDate(now.getDate() - (isMobile ? 180 : 365));
-    if (graphInterval === 'months') cutoff.setMonth(now.getMonth() - (isMobile ? 12 : 24));
+    // Limit to exactly 1 year (365 days) back
+    cutoff.setDate(now.getDate() - 365);
 
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
