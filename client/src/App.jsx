@@ -18,6 +18,8 @@ const FUEL_COLORS = {
   'Neste Pro Diesel': '#EAB308' // yellow-500
 };
 
+const DISCOUNT_COLOR = '#facc15'; // Vibrant Yellow-400 for discounts
+
 const FUEL_STYLES = {
   'Neste Futura 95': {
     active: 'bg-green-500 text-white',
@@ -1032,7 +1034,7 @@ export default function App() {
                   <div
                     className={clsx(
                       'relative w-9 h-5 rounded-full transition-colors duration-200',
-                      showDiscounts ? 'bg-[#facc15]' : 'bg-gray-300'
+                      showDiscounts ? `bg-[${DISCOUNT_COLOR}]` : 'bg-gray-300'
                     )}
                   >
                     <div
@@ -1132,7 +1134,7 @@ export default function App() {
                         key={`discount-${point.periodKey}`}
                         x1={x1}
                         x2={x2}
-                        fill={showDiscounts ? 'rgba(250, 204, 21, 0.2)' : 'transparent'}
+                        fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'} // Exact same yellow with ~20% opacity (33 in hex)
                         stroke="none"
                       />
                     );
