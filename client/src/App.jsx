@@ -1034,8 +1034,9 @@ export default function App() {
                   <div
                     className={clsx(
                       'relative w-9 h-5 rounded-full transition-colors duration-200',
-                      showDiscounts ? `bg-[${DISCOUNT_COLOR}]` : 'bg-gray-300'
+                      !showDiscounts && 'bg-gray-300'
                     )}
+                    style={{ backgroundColor: showDiscounts ? DISCOUNT_COLOR : undefined }}
                   >
                     <div
                       className={clsx(
