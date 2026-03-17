@@ -18,7 +18,7 @@ const FUEL_COLORS = {
   'Neste Pro Diesel': '#EAB308' // yellow-500
 };
 
-const DISCOUNT_COLOR = '#facc15'; // Vibrant Yellow-400 for discounts
+const DISCOUNT_COLOR = '#44D62C'; // Vibrant Pantone Green for discounts
 
 const FUEL_STYLES = {
   'Neste Futura 95': {
