@@ -317,9 +317,6 @@ const FuelCard = ({ type, price, location }) => {
             Premium
           </span>
         )}
-        <span className="bg-green-100 text-green-700 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
-          {t('latest')}
-        </span>
       </div>
       <div className="flex items-baseline gap-1 mb-3">
         <span className="text-3xl font-bold text-gray-900 tracking-tight">
