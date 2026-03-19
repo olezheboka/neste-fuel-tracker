@@ -317,6 +317,9 @@ const FuelCard = ({ type, price, location }) => {
             Premium
           </span>
         )}
+        <span className="bg-green-100 text-green-700 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
+          {t('latest')}
+        </span>
       </div>
       <div className="flex items-baseline gap-1 mb-3">
         <span className="text-3xl font-bold text-gray-900 tracking-tight">
@@ -1223,6 +1226,14 @@ export default function App() {
 
                   {selectedFuels.map((fuel) => {
                     const fuelShortName = t(fuel.replace('Neste ', ''));
+                    
+                    // Calculate precise scale for this specific chart view to ensure perfect badge positioning
+                    const allValues = visibleChartData.flatMap(d => selectedFuels.map(f => d[f]).filter(v => typeof v === 'number'));
+                    const dMin = Math.min(...allValues);
+                    const dMax = Math.max(...allValues);
+                    const chartDomainHeight = (dMax + 0.10) - (dMin - 0.02);
+                    const pxPerEuro = 350 / chartDomainHeight;
+
                     return (
                       <React.Fragment key={fuel}>
                         <Line
@@ -1242,68 +1253,58 @@ export default function App() {
                           />
                           <LabelList
                             dataKey={fuel}
-                            position="top"
-                            offset={8}
-                            fontSize={9}
-                            fill={FUEL_COLORS[fuel]}
-                            content={({ x, y, value, index: pointIndex }) => {
+                            content={(props) => {
+                              const { x, y, value, index: pointIndex } = props;
                               if (!value) return null;
-                              if (pointIndex !== chartDataFinal.length - 1) return null;
+                              
+                              const lastDataPoint = chartDataFinal?.[chartDataFinal.length - 1];
+                              const currentPoint = visibleChartData?.[pointIndex];
+                              if (!lastDataPoint || !currentPoint || +currentPoint.date !== +lastDataPoint.date) return null;
 
-                              const lastPoint = chartDataFinal[chartDataFinal.length - 1];
-                              const activeFuels = selectedFuels
-                                .filter(f => lastPoint[f] !== undefined)
-                                .sort((a, b) => lastPoint[b] - lastPoint[a]);
-
-                              const priceText = `€${value.toFixed(3)}`;
-                              const nameText = fuelShortName;
-                              const textWidth = priceText.length * 7;
-                              const pillWidth = textWidth + 14;
                               const pillHeight = 30;
-                              const minGap = 2;
+                              const pillHeightWithGap = pillHeight + 12;
 
-                              // Each fuel's natural Y = its data point's Y on the chart
-                              // We need to resolve collisions across all fuels
-                              const pxPerEuro = 280 / 0.20;
-                              const naturalPositions = activeFuels.map(f => {
-                                const priceDiff = lastPoint[f] - lastPoint[fuel];
-                                return { fuel: f, naturalY: y - priceDiff * pxPerEuro };
+                              // Resolve collisions consistently across all active fuels
+                              const activeFuels = selectedFuels
+                                .filter(f => lastDataPoint[f] !== undefined)
+                                .sort((a, b) => lastDataPoint[b] - lastDataPoint[a]);
+
+                              // Use the common pxPerEuro to ensure all fuel labels calculate the same Y offsets
+                              const positions = activeFuels.map(f => {
+                                const priceDiff = lastDataPoint[f] - value;
+                                return { fuel: f, y: y - (priceDiff * pxPerEuro) };
                               });
 
-                              // Sort by naturalY (top to bottom = highest price first)
-                              naturalPositions.sort((a, b) => a.naturalY - b.naturalY);
-
-                              // Resolve overlaps: push badges down if they overlap
-                              const resolved = [];
-                              for (let i = 0; i < naturalPositions.length; i++) {
-                                let resolvedY = naturalPositions[i].naturalY - pillHeight / 2;
-                                if (i > 0) {
-                                  const prevBottom = resolved[i - 1] + pillHeight + minGap;
-                                  if (resolvedY < prevBottom) {
-                                    resolvedY = prevBottom;
+                              for (let iter = 0; iter < 50; iter++) {
+                                let changed = false;
+                                for (let i = 0; i < positions.length - 1; i++) {
+                                  const a = positions[i];
+                                  const b = positions[i+1];
+                                  const overlap = pillHeightWithGap - (b.y - a.y);
+                                  if (overlap > 0) {
+                                    a.y -= overlap / 2;
+                                    b.y += overlap / 2;
+                                    changed = true;
                                   }
                                 }
-                                resolved.push(resolvedY);
+                                if (!changed) break;
                               }
 
-                              // Find this fuel's resolved Y
-                              const myIndex = naturalPositions.findIndex(p => p.fuel === fuel);
-                              const badgeY = resolved[myIndex];
-                              const pillX = x - pillWidth - 6;
+                              const resolvedY = positions.find(p => p.fuel === fuel)?.y || y;
+                              const badgeY = resolvedY - pillHeight / 2;
+                              const textWidth = `€${value.toFixed(3)}`.length * 7;
+                              const pillWidth = textWidth + 14;
+                              const pillX = x - pillWidth - 16;
 
                               return (
                                 <g>
-                                  {/* Connector line */}
                                   <line
                                     x1={x} y1={y}
-                                    x2={pillX + pillWidth} y2={badgeY + pillHeight / 2}
+                                    x2={pillX + pillWidth + 2} y2={resolvedY}
                                     stroke={FUEL_COLORS[fuel]}
-                                    strokeWidth={2}
-                                    strokeDasharray="4 3"
-                                    opacity={0.6}
+                                    strokeWidth={1.5}
+                                    opacity={0.8}
                                   />
-                                  <circle cx={x} cy={y} r={3} fill={FUEL_COLORS[fuel]} />
-
                                   <g transform={`translate(${pillX}, ${badgeY})`}>
                                     <rect
                                       width={pillWidth}
@@ -1323,7 +1324,7 @@ export default function App() {
                                       fontWeight="700"
                                       fill={FUEL_COLORS[fuel]}
                                     >
-                                      {priceText}
+                                      €{value.toFixed(3)}
                                     </text>
                                     <text
                                       x={pillWidth / 2}
@@ -1331,11 +1332,11 @@ export default function App() {
                                       textAnchor="middle"
                                       dominantBaseline="middle"
                                       fontSize={9}
-                                      fontWeight="600"
+                                      fontWeight="500"
                                       fill={FUEL_COLORS[fuel]}
-                                      opacity={0.7}
+                                      opacity={0.6}
                                     >
-                                      {nameText}
+                                      {fuelShortName}
                                     </text>
                                   </g>
                                 </g>
