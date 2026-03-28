@@ -1361,7 +1361,9 @@ export default function App() {
             </div>
             {/* Price Change Cards */}
             <div className="mt-6 pt-6 border-t border-gray-100">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">{t('insights.title')}</p>
+              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">
+                {t('insights.title')}{selectedFuels.length > 0 ? ` — ${t(selectedFuels[0].replace('Neste ', ''))}` : ''}
+              </p>
               <PriceChangeCards
                 historyData={historyData}
                 latestPrices={latestPrices}
