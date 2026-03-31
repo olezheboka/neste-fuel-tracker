@@ -767,10 +767,10 @@ export default function App() {
 
     // Helper to get period key based on interval (using Riga timezone GMT+2)
     const getPeriodKey = (timestamp) => {
-      // Adjust to Riga timezone (GMT+2)
+      // Adjust to Riga timezone (Europe/Riga) accounting for DST
       const utcDate = new Date(timestamp);
-      const rigaOffset = 2 * 60 * 60 * 1000; // +2 hours in milliseconds
-      const d = new Date(utcDate.getTime() + rigaOffset);
+      const rigaStr = utcDate.toLocaleString('en-US', { timeZone: 'Europe/Riga' });
+      const d = new Date(rigaStr);
       if (graphInterval === 'days') {
         // Group by day: YYYY-MM-DD
         return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
