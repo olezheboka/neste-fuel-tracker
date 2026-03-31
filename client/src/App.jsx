@@ -435,7 +435,7 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
   // Format the date range label
   const startDate = data[startIndex]?.date ? new Date(data[startIndex].date) : null;
   const endDate = data[endIndex]?.date ? new Date(data[endIndex].date) : null;
-  const formatDate = (d) => d ? d.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' }) : '';
+  const formatDate = (d) => d ? d.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit' }) : '';
   const dateLabel = startDate && endDate ? `${formatDate(startDate)} - ${formatDate(endDate)}` : '';
 
 
@@ -765,49 +765,53 @@ export default function App() {
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
 
-    // Helper to get period key based on interval (using Riga timezone GMT+2)
-    const getPeriodKey = (timestamp) => {
-      // Adjust to Riga timezone (Europe/Riga) accounting for DST
+    // Helper: extract Riga timezone date components without double-parsing
+    // Uses Intl to read year/month/day/weekday directly — immune to DST shifts
+    const getRigaDateParts = (timestamp) => {
       const utcDate = new Date(timestamp);
-      const rigaStr = utcDate.toLocaleString('en-US', { timeZone: 'Europe/Riga' });
-      const d = new Date(rigaStr);
-      if (graphInterval === 'days') {
-        // Group by day: YYYY-MM-DD
-        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-      } else if (graphInterval === 'weeks') {
-        // Group by ISO week: YYYY-WXX
-        const date = new Date(d.getTime());
-        date.setHours(0, 0, 0, 0);
-        date.setDate(date.getDate() + 3 - (date.getDay() + 6) % 7);
-        const week1 = new Date(date.getFullYear(), 0, 4);
-        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getDay() + 6) % 7) / 7);
-        return `${date.getFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
-      } else if (graphInterval === 'months') {
-        // Group by month: MM.YYYY.
-        return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
-      }
-      return timestamp; // Default fallback
+      const tz = 'Europe/Riga';
+      const year  = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, year: 'numeric' }));
+      const month = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, month: 'numeric' }));
+      const day   = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, day: 'numeric' }));
+      return { year, month, day };
     };
 
-    // Helper to get a normalized timestamp for a period key (for consistent sorting)
+    // Helper to get period key based on interval (always in Latvia/Riga timezone)
+    const getPeriodKey = (timestamp) => {
+      const { year, month, day } = getRigaDateParts(timestamp);
+      if (graphInterval === 'days') {
+        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+      } else if (graphInterval === 'weeks') {
+        // ISO week calculation using UTC Date to avoid DST-related day shifts
+        const date = new Date(Date.UTC(year, month - 1, day));
+        date.setUTCDate(date.getUTCDate() + 3 - (date.getUTCDay() + 6) % 7);
+        const week1 = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
+        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getUTCDay() + 6) % 7) / 7);
+        return `${date.getUTCFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
+      } else if (graphInterval === 'months') {
+        return `${String(month).padStart(2, '0')}.${year}.`;
+      }
+      return timestamp;
+    };
+
+    // Helper to get a normalized UTC timestamp for a period key (for consistent sorting)
+    // Uses Date.UTC so timestamps are immune to local-timezone DST shifts
     const getPeriodTimestamp = (periodKey) => {
       if (graphInterval === 'days') {
-        // Parse YYYY-MM-DD
-        return new Date(periodKey + 'T12:00:00').getTime();
+        const [year, month, day] = periodKey.split('-').map(Number);
+        return Date.UTC(year, month - 1, day, 12, 0, 0);
       } else if (graphInterval === 'weeks') {
-        // Parse YYYY-WXX - use Monday of that week
         const [year, weekStr] = periodKey.split('-W');
-        const jan4 = new Date(parseInt(year), 0, 4);
+        const jan4 = new Date(Date.UTC(parseInt(year), 0, 4));
         const weekNum = parseInt(weekStr);
-        const mondayOfWeek = new Date(jan4.getTime() + (weekNum - 1) * 7 * 24 * 60 * 60 * 1000);
-        mondayOfWeek.setDate(mondayOfWeek.getDate() - (mondayOfWeek.getDay() + 6) % 7);
+        const mondayOfWeek = new Date(jan4.getTime() + (weekNum - 1) * 7 * 86400000);
+        mondayOfWeek.setUTCDate(mondayOfWeek.getUTCDate() - (mondayOfWeek.getUTCDay() + 6) % 7);
         return mondayOfWeek.getTime();
       } else if (graphInterval === 'months') {
-        // Parse MM.YYYY. - use middle of month for sorting/positioning
         const parts = periodKey.split('.');
-        const month = parts[0];
-        const year = parts[1];
-        return new Date(`${year}-${month}-15T12:00:00`).getTime();
+        const month = parseInt(parts[0]);
+        const year = parseInt(parts[1]);
+        return Date.UTC(year, month - 1, 15, 12, 0, 0);
       }
       return new Date(periodKey).getTime();
     };
@@ -846,8 +850,8 @@ export default function App() {
         const timestamp = getPeriodTimestamp(periodKey);
         const start = new Date(timestamp);
         const end = new Date(timestamp + 6 * 24 * 60 * 60 * 1000);
-        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
-        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        const startStr = start.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit', year: 'numeric' });
+        const endStr = end.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit', year: 'numeric' });
         formattedTime = `${startStr} - ${endStr}`;
       }
 
@@ -1170,19 +1174,20 @@ export default function App() {
                     dy={8}
                     tickFormatter={(unixTime) => {
                       const d = new Date(unixTime);
-                      if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { hour: '2-digit', minute: '2-digit' });
+                      const tz = 'Europe/Riga';
+                      if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
                       if (graphInterval === 'weeks') {
                         const start = new Date(d);
-                        const end = new Date(d.getTime() + 6 * 24 * 60 * 60 * 1000);
-                        const startStr = start.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
-                        const endStr = end.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
+                        const end = new Date(d.getTime() + 6 * 86400000);
+                        const startStr = start.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
+                        const endStr = end.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
                         return `${startStr} - ${endStr}`;
                       }
                       if (graphInterval === 'months') {
-                        const d = new Date(unixTime);
-                        return `${String(d.getMonth() + 1).padStart(2, '0')}.${d.getFullYear()}.`;
+                        const { month, year } = getRigaDateParts(unixTime);
+                        return `${String(month).padStart(2, '0')}.${year}.`;
                       }
-                      return d.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit' });
+                      return d.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
                     }}
                   />
                   <YAxis
@@ -1388,6 +1393,7 @@ export default function App() {
             {!loading && lastCheck && (
               <span className="text-[10px] opacity-60 font-medium">
                 {t('updated')}: {new Date(lastCheck).toLocaleString('lv-LV', {
+                  timeZone: 'Europe/Riga',
                   day: '2-digit',
                   month: '2-digit',
                   year: 'numeric',

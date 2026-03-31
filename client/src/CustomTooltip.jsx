@@ -46,9 +46,10 @@ const CustomTooltip = ({ active, payload, label, t, interval }) => {
                                                 <span>
                                                     {(() => {
                                                         const dateObj = new Date(h.timestamp);
-                                                        const timeStr = dateObj.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+                                                        const tz = 'Europe/Riga';
+                                                        const timeStr = dateObj.toLocaleTimeString('lv-LV', { timeZone: tz, hour: '2-digit', minute: '2-digit', hour12: false });
                                                         if (interval === 'days') return timeStr;
-                                                        const dateStr = dateObj.toLocaleDateString('lv-LV', { day: '2-digit', month: '2-digit', year: 'numeric' });
+                                                        const dateStr = dateObj.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit', year: 'numeric' });
                                                         return `${dateStr} ${timeStr}`;
                                                     })()}
                                                 </span>
