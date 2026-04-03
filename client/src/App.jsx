@@ -751,6 +751,17 @@ export default function App() {
   const petrolPrices = latestPrices.filter(p => !p.type.includes('D') && !p.type.includes('Diesel'));
   const dieselPrices = latestPrices.filter(p => p.type.includes('D') || p.type.includes('Diesel'));
 
+  // Helper: extract Riga timezone date components without double-parsing
+  // Uses Intl to read year/month/day/weekday directly — immune to DST shifts
+  const getRigaDateParts = (timestamp) => {
+    const utcDate = new Date(timestamp);
+    const tz = 'Europe/Riga';
+    const year  = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, year: 'numeric' }));
+    const month = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, month: 'numeric' }));
+    const day   = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, day: 'numeric' }));
+    return { year, month, day };
+  };
+
   // Filter Data based on Interval and Group by Period (Day/Week/Month)
   // We keep a larger history window (e.g. 180 days) for the Brush, but the chart will default to showing recent data
   const chartData = useMemo(() => {
@@ -764,17 +775,6 @@ export default function App() {
 
     // Filter by date first
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
-
-    // Helper: extract Riga timezone date components without double-parsing
-    // Uses Intl to read year/month/day/weekday directly — immune to DST shifts
-    const getRigaDateParts = (timestamp) => {
-      const utcDate = new Date(timestamp);
-      const tz = 'Europe/Riga';
-      const year  = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, year: 'numeric' }));
-      const month = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, month: 'numeric' }));
-      const day   = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, day: 'numeric' }));
-      return { year, month, day };
-    };
 
     // Helper to get period key based on interval (always in Latvia/Riga timezone)
     const getPeriodKey = (timestamp) => {
