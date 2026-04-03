@@ -542,13 +542,39 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
 const FUEL_KEYS = Object.keys(FUEL_COLORS);
 
 // History Table Component — flexible date range picker
-const HistoryTable = React.memo(({ historyData, t }) => {
+const HistoryTable = React.memo(({ 
+  historyData, 
+  t, 
+  startDate, 
+  endDate, 
+  onStartDateChange, 
+  onEndDateChange,
+  selectedFuels: avgSelectedFuels,
+  onFuelsChange: setAvgSelectedFuels
+}) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
 
-  // Own local state
-  const [avgSelectedFuels, setAvgSelectedFuels] = useState([allFuelTypes[0]]);
+  // Staging state for DateRangePicker UI only
+  const [localStartDate, setLocalStartDate] = useState(startDate);
+  const [localEndDate, setLocalEndDate] = useState(endDate);
   const [activePreset, setActivePreset] = useState('thisMonth');
+
+  // Sync internal staging when external props change (e.g. from URL)
+  useEffect(() => {
+    setLocalStartDate(startDate);
+    setLocalEndDate(endDate);
+  }, [startDate, endDate]);
+
+  // Filter States (the 'Staged' values actually used for UI tables/charts to prevent jumping)
+  const [filterStart, setFilterStart] = useState(startDate);
+  const [filterEnd, setFilterEnd] = useState(endDate);
+
+  // Sync filter when props change
+  useEffect(() => {
+    setFilterStart(startDate);
+    setFilterEnd(endDate);
+  }, [startDate, endDate]);
 
   // Helper for accurate local timezone dates (to avoid UTC shift)
   const fmtLocal = (d) => {
@@ -567,37 +593,25 @@ const HistoryTable = React.memo(({ historyData, t }) => {
   const lastMonthNameRaw = lastMonthDate.toLocaleString(currentLang, { month: 'long', year: 'numeric' });
   const lastMonthName = lastMonthNameRaw.charAt(0).toUpperCase() + lastMonthNameRaw.slice(1);
 
-  // Date Range State (for Display in Picker)
-  const [startDate, setStartDate] = useState(() => {
-    const end = new Date();
-    const start = new Date(end.getFullYear(), end.getMonth(), 1);
-    return fmtLocal(start);
-  });
-  const [endDate, setEndDate] = useState(() => fmtLocal(new Date()));
-
-  // Filter States (the 'Staged' values actually used for UI tables/charts to prevent jumping)
-  const [filterStart, setFilterStart] = useState(startDate);
-  const [filterEnd, setFilterEnd] = useState(endDate);
-
   // Quick preset functions
   const setPreset = (days) => {
     const end = new Date();
     const start = new Date();
     start.setDate(end.getDate() - (days - 1)); // inclusive count
-    setEndDate(fmtLocal(end));
-    setStartDate(fmtLocal(start));
-    setFilterEnd(fmtLocal(end));
-    setFilterStart(fmtLocal(start));
+    const s = fmtLocal(start);
+    const e = fmtLocal(end);
+    onStartDateChange(s);
+    onEndDateChange(e);
     setActivePreset(days.toString());
   };
 
   const setThisMonth = () => {
     const end = new Date();
     const start = new Date(end.getFullYear(), end.getMonth(), 1);
-    setEndDate(fmtLocal(end));
-    setStartDate(fmtLocal(start));
-    setFilterEnd(fmtLocal(end));
-    setFilterStart(fmtLocal(start));
+    const s = fmtLocal(start);
+    const e = fmtLocal(end);
+    onStartDateChange(s);
+    onEndDateChange(e);
     setActivePreset('thisMonth');
   };
 
@@ -605,10 +619,10 @@ const HistoryTable = React.memo(({ historyData, t }) => {
     const now = new Date();
     const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    setEndDate(fmtLocal(end));
-    setStartDate(fmtLocal(start));
-    setFilterEnd(fmtLocal(end));
-    setFilterStart(fmtLocal(start));
+    const s = fmtLocal(start);
+    const e = fmtLocal(end);
+    onStartDateChange(s);
+    onEndDateChange(e);
     setActivePreset('lastMonth');
   };
   // Optimization: use a single, cached formatter for better performance
@@ -745,17 +759,6 @@ const HistoryTable = React.memo(({ historyData, t }) => {
     );
   };
 
-  const handleFuelToggle = (fuel) => {
-    setAvgSelectedFuels(prev => {
-      if (prev.includes(fuel)) {
-        if (prev.length <= 1) return prev;
-        return prev.filter(f => f !== fuel);
-      } else {
-        if (prev.length >= 4) return prev;
-        return [...prev, fuel];
-      }
-    });
-  };
 
   return (
     <Card className="p-3 sm:p-6">
@@ -771,14 +774,16 @@ const HistoryTable = React.memo(({ historyData, t }) => {
         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
           <div className="flex items-center gap-2">
             <DateRangePicker 
-               startDate={startDate} 
-               endDate={endDate} 
+               startDate={localStartDate} 
+               endDate={localEndDate} 
                onRangeChange={(start, end) => {
-                 setStartDate(start);
-                 setEndDate(end);
+                 setLocalStartDate(start);
+                 setLocalEndDate(end);
+                 
+                 // Only update the active filter if we have a full range or both are cleared
                  if ((start && end) || (!start && !end)) {
-                   setFilterStart(start);
-                   setFilterEnd(end);
+                   onStartDateChange(start);
+                   onEndDateChange(end);
                    setActivePreset(null);
                  }
                }}
@@ -807,7 +812,12 @@ const HistoryTable = React.memo(({ historyData, t }) => {
           return (
             <button
               key={fuel}
-              onClick={() => handleFuelToggle(fuel)}
+              onClick={() => setAvgSelectedFuels(prev => {
+                const next = prev.includes(fuel) 
+                   ? (prev.length <= 1 ? prev : prev.filter(f => f !== fuel))
+                   : [...prev, fuel];
+                return next;
+              })}
               className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
             >
               {t(fuel.replace('Neste ', ''))}
@@ -978,6 +988,49 @@ export default function App() {
     if (discountParam !== null) return discountParam === 'on';
     return stored === null ? true : stored === 'true';
   });
+
+  const [historyStartDate, setHistoryStartDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hStart = params.get('h_start');
+    if (hStart) return hStart;
+    
+    // Default to start of current month
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    const y = start.getFullYear();
+    const m = String(start.getMonth() + 1).padStart(2, '0');
+    const d = String(start.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  });
+
+  const [historyEndDate, setHistoryEndDate] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hEnd = params.get('h_end');
+    if (hEnd) return hEnd;
+
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  });
+
+  const [historySelectedFuels, setHistorySelectedFuels] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    const hFuelParams = params.getAll('h_fuel');
+    const validFuelNames = Object.keys(FUEL_COLORS);
+
+    if (hFuelParams.length > 0) {
+      const keys = [];
+      hFuelParams.forEach(p => {
+        p.split(',').forEach(k => {
+          if (FUEL_URL_MAP[k]) keys.push(FUEL_URL_MAP[k]);
+        });
+      });
+      if (keys.length > 0) return keys.filter(f => validFuelNames.includes(f));
+    }
+    return [validFuelNames[0]]; // Default to first fuel
+  });
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
   const previousPricesRef = React.useRef([]);
 
@@ -1007,9 +1060,20 @@ export default function App() {
       params.delete('discounts');
     }
 
+    // Sync History Filters
+    if (historyStartDate && historyEndDate) {
+      params.set('h_start', historyStartDate);
+      params.set('h_end', historyEndDate);
+    }
+    
+    params.delete('h_fuel');
+    historySelectedFuels.forEach(f => {
+      params.append('h_fuel', FUEL_TO_URL[f] || '95');
+    });
+
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, selectedFuels, showDiscounts]);
+  }, [i18n.language, graphInterval, selectedFuels, showDiscounts, historyStartDate, historyEndDate, historySelectedFuels]);
 
   // Persist showDiscounts preference
   useEffect(() => {
@@ -1761,6 +1825,12 @@ export default function App() {
           <HistoryTable
             historyData={historyData}
             t={t}
+            startDate={historyStartDate}
+            endDate={historyEndDate}
+            onStartDateChange={setHistoryStartDate}
+            onEndDateChange={setHistoryEndDate}
+            selectedFuels={historySelectedFuels}
+            onFuelsChange={setHistorySelectedFuels}
           />
         </section>
 
