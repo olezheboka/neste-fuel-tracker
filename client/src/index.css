@@ -44,3 +44,24 @@ body {
   );
   animation: shimmer 3s infinite;
 }
+
+/* Custom DayPicker Overrides */
+.rdp-root {
+  --rdp-day-height: 34px;
+  --rdp-day-width: 34px;
+  --rdp-day_button-height: 32px;
+  --rdp-day_button-width: 32px;
+  font-size: 11px;
+}
+
+.rdp-selected {
+  font-size: 11px;
+}
+
+.rdp-month_caption {
+  font-size: 14px;
+}
+
+.rdp-today {
+  font-weight: bold;
+}

@@ -1,13 +1,15 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import "react-day-picker/src/style.css";
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
-import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
 import CustomTooltip from './CustomTooltip';
+import { DateRangePicker } from './components/ui/DatePicker';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 
@@ -536,6 +538,378 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
   );
 };
 
+// Pre-calculate fuel keys to avoid re-computations
+const FUEL_KEYS = Object.keys(FUEL_COLORS);
+
+// History Table Component — flexible date range picker
+const HistoryTable = React.memo(({ historyData, t }) => {
+  const { i18n } = useTranslation();
+  const allFuelTypes = FUEL_KEYS;
+
+  // Own local state
+  const [avgSelectedFuels, setAvgSelectedFuels] = useState([allFuelTypes[0]]);
+  const [activePreset, setActivePreset] = useState('thisMonth');
+
+  // Helper for accurate local timezone dates (to avoid UTC shift)
+  const fmtLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  // Dynamic names
+  const currentLang = i18n?.language || 'en';
+  const now = new Date();
+  const thisMonthNameRaw = now.toLocaleString(currentLang, { month: 'long', year: 'numeric' });
+  const thisMonthName = thisMonthNameRaw.charAt(0).toUpperCase() + thisMonthNameRaw.slice(1);
+  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthNameRaw = lastMonthDate.toLocaleString(currentLang, { month: 'long', year: 'numeric' });
+  const lastMonthName = lastMonthNameRaw.charAt(0).toUpperCase() + lastMonthNameRaw.slice(1);
+
+  // Date Range State (for Display in Picker)
+  const [startDate, setStartDate] = useState(() => {
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    return fmtLocal(start);
+  });
+  const [endDate, setEndDate] = useState(() => fmtLocal(new Date()));
+
+  // Filter States (the 'Staged' values actually used for UI tables/charts to prevent jumping)
+  const [filterStart, setFilterStart] = useState(startDate);
+  const [filterEnd, setFilterEnd] = useState(endDate);
+
+  // Quick preset functions
+  const setPreset = (days) => {
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1)); // inclusive count
+    setEndDate(fmtLocal(end));
+    setStartDate(fmtLocal(start));
+    setFilterEnd(fmtLocal(end));
+    setFilterStart(fmtLocal(start));
+    setActivePreset(days.toString());
+  };
+
+  const setThisMonth = () => {
+    const end = new Date();
+    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    setEndDate(fmtLocal(end));
+    setStartDate(fmtLocal(start));
+    setFilterEnd(fmtLocal(end));
+    setFilterStart(fmtLocal(start));
+    setActivePreset('thisMonth');
+  };
+
+  const setLastMonth = () => {
+    const now = new Date();
+    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const end = new Date(now.getFullYear(), now.getMonth(), 0);
+    setEndDate(fmtLocal(end));
+    setStartDate(fmtLocal(start));
+    setFilterEnd(fmtLocal(end));
+    setFilterStart(fmtLocal(start));
+    setActivePreset('lastMonth');
+  };
+  // Optimization: use a single, cached formatter for better performance
+  const rigaFormatter = React.useMemo(() => new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Europe/Riga',
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+  }), []);
+
+  // Helper: extract Riga timezone date components efficiently
+  const getRigaParts = React.useCallback((timestamp) => {
+    const utcDate = new Date(timestamp);
+    const parts = rigaFormatter.formatToParts(utcDate);
+    const getPart = (type) => parts.find(p => p.type === type)?.value;
+    
+    return { 
+      year: parseInt(getPart('year')), 
+      month: parseInt(getPart('month')), 
+      day: parseInt(getPart('day')) 
+    };
+  }, [rigaFormatter]);
+
+  const toYMD = React.useCallback((timestamp) => {
+    const { year, month, day } = getRigaParts(timestamp);
+    return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  }, [getRigaParts]);
+
+  // Pre-aggregate ALL available historical data mathematically by Day (for accurate preceding deltas)
+  const allDaysData = useMemo(() => {
+    if (!historyData || historyData.length === 0) return [];
+    
+    // Group into days
+    const dayMap = new Map();
+    historyData.forEach(e => {
+        const dateKey = toYMD(e.timestamp);
+        if (!dayMap.has(dateKey)) {
+            const { year, month, day } = getRigaParts(e.timestamp);
+            dayMap.set(dateKey, { 
+                dateKey, 
+                // Using requested shortened date format: dd.mm.yy
+                timeStr: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).slice(-2)}`, 
+                rawFuels: {} 
+            });
+        }
+        const dayData = dayMap.get(dateKey);
+        if (!dayData.rawFuels[e.type]) dayData.rawFuels[e.type] = [];
+        dayData.rawFuels[e.type].push(e.price);
+    });
+
+    // Compute stats
+    let rows = Array.from(dayMap.values()).map(dayData => {
+        const fuels = {};
+        allFuelTypes.forEach(f => {
+            if (dayData.rawFuels[f] && dayData.rawFuels[f].length > 0) {
+                const prices = dayData.rawFuels[f];
+                const sum = prices.reduce((a,b) => a+b, 0);
+                fuels[f] = {
+                    avg: sum / prices.length,
+                    min: Math.min(...prices),
+                    max: Math.max(...prices),
+                    count: prices.length
+                };
+            }
+        });
+        return { dateKey: dayData.dateKey, timeStr: dayData.timeStr, fuels };
+    });
+
+  // Sort mathematically ASCENDING to calculate previous day delta
+    rows.sort((a,b) => a.dateKey.localeCompare(b.dateKey));
+
+    // Calc Day-over-Day change
+    for (let i = 0; i < rows.length; i++) {
+        FUEL_KEYS.forEach(f => {
+            if (rows[i].fuels[f]) {
+                if (i > 0 && rows[i-1].fuels[f]) {
+                    rows[i].fuels[f].change = rows[i].fuels[f].avg - rows[i-1].fuels[f].avg;
+                } else {
+                    rows[i].fuels[f].change = null;
+                }
+            }
+        });
+    }
+    return rows;
+  }, [historyData, getRigaParts, toYMD]);
+
+  const availableDatesSet = useMemo(() => {
+    return new Set(allDaysData.map(d => d.dateKey));
+  }, [allDaysData]);
+
+  // Filter `allDaysData` into just the selected date range
+  const tableRows = useMemo(() => {
+    return allDaysData
+        .filter(r => r.dateKey >= filterStart && r.dateKey <= filterEnd)
+        .reverse(); // Newest day at top
+  }, [allDaysData, filterStart, filterEnd]);
+
+  // Calculate OVERALL summaries only over the filtered selection (used for the big cards)
+  const periodSummary = useMemo(() => {
+    const stats = {};
+    avgSelectedFuels.forEach(fuel => {
+        // Collect all daily averages for selected fuel in range
+        const values = tableRows.map(r => r.fuels[fuel]?.avg).filter(v => v !== undefined);
+        if (values.length === 0) return;
+        const sum = values.reduce((a,b) => a + b, 0);
+        stats[fuel] = {
+            avg: sum / values.length,
+            min: Math.min(...values),
+            max: Math.max(...values),
+            count: values.length // number of days
+        };
+    });
+    return stats;
+  }, [tableRows, avgSelectedFuels]);
+  
+  const renderChange = (change) => {
+    if (change === null || change === undefined) return null;
+    const cents = change * 100;
+    const isUp = cents > 0.05;
+    const isDown = cents < -0.05;
+    if (!isUp && !isDown) return null;
+    return (
+      <span className={clsx(
+        'inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold',
+        isUp && 'text-red-500',
+        isDown && 'text-green-600',
+        !isUp && !isDown && 'text-gray-400'
+      )}>
+        {isUp && <TrendingUp size={10} />}
+        {isDown && <TrendingDown size={10} />}
+        {!isUp && !isDown && <Minus size={10} />}
+        {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
+      </span>
+    );
+  };
+
+  const handleFuelToggle = (fuel) => {
+    setAvgSelectedFuels(prev => {
+      if (prev.includes(fuel)) {
+        if (prev.length <= 1) return prev;
+        return prev.filter(f => f !== fuel);
+      } else {
+        if (prev.length >= 4) return prev;
+        return [...prev, fuel];
+      }
+    });
+  };
+
+  return (
+    <Card className="p-3 sm:p-6">
+      {/* Header */}
+      <div className="flex items-center gap-2 mb-4">
+        <BarChart3 className="w-4 h-4 text-gray-400" />
+        <h2 className="text-lg font-semibold text-gray-900">{t('avg_prices.title')}</h2>
+      </div>
+
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('avg_prices.period')}</p>
+      {/* Date Pickers & Chips */}
+      <div className="mb-6 bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-100">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-center gap-2">
+            <DateRangePicker 
+               startDate={startDate} 
+               endDate={endDate} 
+               onRangeChange={(start, end) => {
+                 setStartDate(start);
+                 setEndDate(end);
+                 if ((start && end) || (!start && !end)) {
+                   setFilterStart(start);
+                   setFilterEnd(end);
+                   setActivePreset(null);
+                 }
+               }}
+               disabled={(date) => {
+                 const key = toYMD(date);
+                 return !availableDatesSet.has(key);
+               }}
+               locale={currentLang}
+            />
+          </div>
+          
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="w-px h-6 bg-gray-200 hidden sm:block mx-1"></span>
+            <button onClick={() => setPreset(7)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '7' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_7_days')}</button>
+            <button onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</button>
+            <button onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</button>
+          </div>
+        </div>
+      </div>
+
+      {/* Fuel Type Toggles */}
+      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
+      <div className="flex flex-wrap gap-2 mb-5">
+        {allFuelTypes.map(fuel => {
+          const isActive = avgSelectedFuels.includes(fuel);
+          return (
+            <button
+              key={fuel}
+              onClick={() => handleFuelToggle(fuel)}
+              className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
+            >
+              {t(fuel.replace('Neste ', ''))}
+            </button>
+          );
+        })}
+      </div>
+
+      {tableRows.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-6">{t('avg_prices.no_data')}</p>
+      ) : (
+        <>
+          {/* Summary Cards for selected period */}
+          {Object.keys(periodSummary).length > 0 && (
+            <div className={`grid gap-2 sm:gap-3 mb-5 ${avgSelectedFuels.length === 1 ? 'grid-cols-1' : avgSelectedFuels.length === 2 ? 'grid-cols-2' : avgSelectedFuels.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+              {avgSelectedFuels.map(fuel => {
+                const stats = periodSummary[fuel];
+                if (!stats) return null;
+                return (
+                  <div
+                    key={fuel}
+                    className="rounded-xl p-3 sm:p-4 border-l-4 bg-white shadow-sm ring-1 ring-gray-100"
+                    style={{ borderLeftColor: FUEL_COLORS[fuel] }}
+                  >
+                    <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                      {t(fuel.replace('Neste ', ''))}
+                    </p>
+                    <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+                      €{stats.avg.toFixed(3)}
+                    </p>
+                    <p className="text-[10px] text-gray-400 mt-1 font-medium">
+                      {t('avg_prices.avg')} · {stats.count} {t('avg_prices.days_short')}
+                    </p>
+                    <div className="flex gap-3 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-500 font-medium">
+                      <span>{t('avg_prices.min')}: €{stats.min.toFixed(3)}</span>
+                      <span>{t('avg_prices.max')}: €{stats.max.toFixed(3)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Detail Table — aggregated per day within the selected period */}
+          <div className="overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3">
+                     {t('avg_prices.period')}
+                  </th>
+                  {avgSelectedFuels.map(fuel => (
+                    <th key={fuel} className="text-right text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-3 sm:px-4 py-3" style={{ color: FUEL_COLORS[fuel] }}>
+                      {t(fuel.replace('Neste ', ''))}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {tableRows.map((row, i) => (
+                  <motion.tr
+                    key={row.dateKey}
+                    initial={{ opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: i * 0.015, duration: 0.2 }}
+                    className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/80 transition-colors"
+                  >
+                    <td className="py-3">
+                      <span className="text-[10px] sm:text-[11px] font-semibold text-gray-600 whitespace-nowrap">{row.timeStr}</span>
+                    </td>
+                    {avgSelectedFuels.map(fuel => {
+                      const data = row.fuels[fuel];
+                      if (!data) {
+                        return <td key={fuel} className="text-right px-3 sm:px-4 py-3 text-gray-300 text-[10px]">—</td>;
+                      }
+                      return (
+                        <td key={fuel} className="text-right px-3 sm:px-4 py-3">
+                          <div className="flex flex-col items-end gap-1">
+                            <span className="text-xs sm:text-sm font-bold text-gray-900">€{data.avg.toFixed(3)}</span>
+                            <div className="flex flex-col items-end gap-0.5 sm:gap-1 mt-0.5 sm:mt-0">
+                              {renderChange(data.change)}
+                              {data.min !== data.max && (
+                                <span className="text-[9px] text-gray-400 font-medium whitespace-nowrap tracking-tight">
+                                  {data.min.toFixed(3)}–{data.max.toFixed(3)}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                      );
+                    })}
+                  </motion.tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </Card>
+  );
+});
+
 export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState([]);
@@ -915,12 +1289,16 @@ export default function App() {
       const prev = sorted[i - 1];
       const curr = sorted[i];
       // Check that ALL available fuel types dropped in price
+      // Use min price to catch intra-day discounts where the last price
+      // reverts to normal but a discount happened during the day
       const allDropped = fuelTypes.every(fuel => {
         const prevPrice = prev[fuel];
         const currPrice = curr[fuel];
+        const currMinPrice = curr[`${fuel}_min`];
         // If either is missing, skip this fuel (don't block the discount flag)
         if (prevPrice === undefined || currPrice === undefined) return true;
-        return currPrice < prevPrice - 0.0001;
+        // Either the last price dropped OR the min price dropped (intra-day discount)
+        return currPrice < prevPrice - 0.0001 || (currMinPrice !== undefined && currMinPrice < prevPrice - 0.0001);
       });
       sorted[i].isDiscount = allDropped;
     }
@@ -1376,6 +1754,14 @@ export default function App() {
               />
             </div>
           </Card>
+        </section>
+
+        {/* History Table Section */}
+        <section>
+          <HistoryTable
+            historyData={historyData}
+            t={t}
+          />
         </section>
 
         {/* Floating Refresh Button */}

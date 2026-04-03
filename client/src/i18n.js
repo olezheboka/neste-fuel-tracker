@@ -7,7 +7,7 @@ const resources = {
             app_title: "Fuel Prices",
             price: 'Price',
             latest: 'Latest',
-            history: 'History',
+            history: 'Graph',
             loading: 'Loading...',
             loading_initial: 'Loading...',
 
@@ -61,7 +61,23 @@ const resources = {
                 item_unchanged: "{{fuel}} price has not changed"
             },
             discounts: 'Discounts',
-            all_stations_same_price: 'Same price at all stations'
+            all_stations_same_price: 'Same price at all stations',
+            avg_prices: {
+                title: 'History',
+                period: 'Period',
+                avg: 'Avg',
+                min: 'Min',
+                max: 'Max',
+                overall_avg: 'Overall Avg',
+                range: 'Range',
+                no_data: 'No data for this period',
+                vs_prev: 'vs prev',
+                last_7_days: 'Last 7 Days',
+                last_30_days: 'Last 30 Days',
+                this_month: 'This Month',
+                last_month: 'Last Month',
+                days_short: 'd'
+            }
         }
     },
     lv: {
@@ -69,7 +85,7 @@ const resources = {
             app_title: "Degvielas cenas",
             price: 'Cena',
             latest: 'Jaunākie',
-            history: 'Vēsture',
+            history: 'Grafiks',
             loading: 'Ielādē...',
             loading_initial: 'Ielādē...',
 
@@ -122,7 +138,23 @@ const resources = {
                 item_unchanged: "{{fuel}} cena nav mainījusies"
             },
             discounts: 'Atlaides',
-            all_stations_same_price: 'Visās stacijās cenas vienādas'
+            all_stations_same_price: 'Visās stacijās cenas vienādas',
+            avg_prices: {
+                title: 'Vēsture',
+                period: 'Periods',
+                avg: 'Vid.',
+                min: 'Min',
+                max: 'Max',
+                overall_avg: 'Kopējā vid.',
+                range: 'Diapazons',
+                no_data: 'Nav datu šim periodam',
+                vs_prev: 'pret iepr.',
+                last_7_days: 'Pēdējās 7 dienas',
+                last_30_days: 'Pēdējās 30 dienas',
+                this_month: 'Šis mēnesis',
+                last_month: 'Iepriekšējais mēnesis',
+                days_short: 'd'
+            }
         }
     },
     ru: {
@@ -130,7 +162,7 @@ const resources = {
             app_title: "Цены на топливо",
             price: 'Цена',
             latest: 'Последние',
-            history: 'История',
+            history: 'График',
             loading: 'Загрузка...',
             loading_initial: 'Загрузка...',
 
@@ -183,7 +215,23 @@ const resources = {
                 item_unchanged: "Цена {{fuel}} не изменилась"
             },
             discounts: 'Скидки',
-            all_stations_same_price: 'Одинаковая цена на всех станциях'
+            all_stations_same_price: 'Одинаковая цена на всех станциях',
+            avg_prices: {
+                title: 'История',
+                period: 'Период',
+                avg: 'Сред.',
+                min: 'Мин',
+                max: 'Макс',
+                overall_avg: 'Общая сред.',
+                range: 'Диапазон',
+                no_data: 'Нет данных за этот период',
+                vs_prev: 'к пред.',
+                last_7_days: 'Последние 7 дней',
+                last_30_days: 'Последние 30 дней',
+                this_month: 'Этот месяц',
+                last_month: 'Прошлый месяц',
+                days_short: 'д'
+            }
         }
     }
 };
