@@ -101,6 +101,7 @@ export function DateRangePicker({
           weekStartsOn={1}
           disabled={disabled}
           initialFocus
+          required
         />
       </PopoverContent>
     </Popover>
