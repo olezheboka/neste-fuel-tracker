@@ -817,9 +817,9 @@ const HistoryTable = React.memo(({
           
           <div className="flex flex-wrap items-center gap-2">
             <span className="w-px h-6 bg-gray-200 hidden sm:block mx-1"></span>
-            <button onClick={() => setPreset(7)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '7' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_7_days')}</button>
-            <button onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</button>
-            <button onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setPreset(7)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '7' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_7_days')}</motion.button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</motion.button>
+            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</motion.button>
           </div>
         </div>
       </div>
@@ -891,7 +891,7 @@ const HistoryTable = React.memo(({
                   </th>
                   {avgSelectedFuels.map(fuel => (
                     <th key={fuel} className="text-right text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-3 sm:px-4 py-3" style={{ color: FUEL_COLORS[fuel] }}>
-                      {t(fuel.replace('Neste ', ''))}
+                      <motion.div layout>{t(fuel.replace('Neste ', ''))}</motion.div>
                     </th>
                   ))}
                 </tr>
@@ -899,14 +899,20 @@ const HistoryTable = React.memo(({
               <tbody>
                 {tableRows.map((row, i) => (
                   <motion.tr
+                    layout
                     key={row.dateKey}
-                    initial={{ opacity: 0, y: 4 }}
+                    initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: i * 0.015, duration: 0.2 }}
-                    className="border-b border-gray-50 last:border-b-0 hover:bg-gray-50/80 transition-colors"
+                    transition={{ 
+                      type: "spring",
+                      stiffness: 400,
+                      damping: 30,
+                      delay: i * 0.01
+                    }}
+                    className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
                   >
-                    <td className="py-3">
-                      <span className="text-[10px] sm:text-[11px] font-semibold text-gray-600 whitespace-nowrap">{row.timeStr}</span>
+                    <td className="py-3 px-2">
+                      <span className="text-xs sm:text-sm font-normal text-gray-500 whitespace-nowrap">{row.timeStr}</span>
                     </td>
                     {avgSelectedFuels.map(fuel => {
                       const data = row.fuels[fuel];
@@ -915,7 +921,7 @@ const HistoryTable = React.memo(({
                       }
                       return (
                         <td key={fuel} className="text-right px-3 sm:px-4 py-3">
-                          <div className="flex flex-col items-end gap-1">
+                          <motion.div layout className="flex flex-col items-end gap-1">
                             <span className="text-xs sm:text-sm font-bold text-gray-900">€{data.avg.toFixed(3)}</span>
                             <div className="flex flex-col items-end gap-0.5 sm:gap-1 mt-0.5 sm:mt-0">
                               {renderChange(data.change)}
@@ -925,7 +931,7 @@ const HistoryTable = React.memo(({
                                 </span>
                               )}
                             </div>
-                          </div>
+                          </motion.div>
                         </td>
                       );
                     })}
