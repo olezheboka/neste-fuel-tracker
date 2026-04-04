@@ -1,17 +1,77 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
-// const cron = require('node-cron'); // Disable cron for Vercel
 const { initDb, openDb } = require('./db');
 const { scrapePrices } = require('./scraper');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
 
-console.log('[Server] Startup... Environment:', process.env.NODE_ENV);
+if (!IS_PRODUCTION) {
+    console.log('[Server] Startup... Environment:', process.env.NODE_ENV);
+}
 
-app.use(cors());
+// --- Security: CORS whitelist ---
+const ALLOWED_ORIGINS = [
+    'https://neste-fuel-tracker.vercel.app',
+    'https://neste-fuel-tracker-olezhebokas-projects.vercel.app',
+];
+if (!IS_PRODUCTION) {
+    ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3000');
+}
+
+app.use(cors({
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. cron, server-to-server, curl)
+        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
+            callback(null, true);
+        } else {
+            callback(new Error('Not allowed by CORS'));
+        }
+    },
+    methods: ['GET'],
+}));
+
 app.use(express.json());
+
+// --- Security: Basic rate limiting (in-memory, per-instance) ---
+const rateLimitMap = new Map();
+const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
+const RATE_LIMIT_MAX = 60; // 60 requests per minute per IP
+
+const rateLimiter = (req, res, next) => {
+    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    const now = Date.now();
+
+    if (!rateLimitMap.has(ip)) {
+        rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+        return next();
+    }
+
+    const entry = rateLimitMap.get(ip);
+    if (now > entry.resetAt) {
+        entry.count = 1;
+        entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+        return next();
+    }
+
+    entry.count++;
+    if (entry.count > RATE_LIMIT_MAX) {
+        return res.status(429).json({ error: 'Too many requests. Please try again later.' });
+    }
+    next();
+};
+
+app.use('/api', rateLimiter);
+
+// Periodic cleanup of stale rate limit entries (every 5 minutes)
+setInterval(() => {
+    const now = Date.now();
+    for (const [ip, entry] of rateLimitMap) {
+        if (now > entry.resetAt) rateLimitMap.delete(ip);
+    }
+}, 5 * 60 * 1000);
 
 // Initialize DB and start server logic (Serverless compatible)
 let dbReady = false;
@@ -24,13 +84,13 @@ async function initializeDatabase() {
 
     initPromise = (async () => {
         try {
-            console.log('[Server] Initializing DB...');
+            if (!IS_PRODUCTION) console.log('[Server] Initializing DB...');
             await initDb();
             dbReady = true;
-            console.log('[Server] Database initialized');
+            if (!IS_PRODUCTION) console.log('[Server] Database initialized');
             return { success: true };
         } catch (e) {
-            console.error('[Server] Failed to initialize DB:', e);
+            console.error('[Server] Failed to initialize DB:', e.message);
             initPromise = null; // Allow retry
             throw e;
         }
@@ -38,137 +98,132 @@ async function initializeDatabase() {
     return initPromise;
 }
 
-// Middleware to ensure DB is ready - WITH TIMEOUT BYPASS
+// Middleware to ensure DB is ready
 const ensureDb = async (req, res, next) => {
-    // Check for relative paths since this middleware is mounted at /api
-    if (req.path === '/debug' || req.path === '/init') {
-        return next();
-    }
-
     if (!dbReady) {
         try {
             await initializeDatabase();
         } catch (e) {
-            console.error('[Server] DB init failed during request:', e);
-            return res.status(503).json({ error: 'Database initialization failed', details: e.message });
+            console.error('[Server] DB init failed during request:', e.message);
+            return res.status(503).json({ error: 'Service temporarily unavailable' });
         }
     }
     next();
 };
 
-// Debug routes to diagnose 404s - Placed BEFORE ensureDb to always work
-app.get('/debug', (req, res) => {
-    res.json({ message: 'Root /debug hit', url: req.url, originalUrl: req.originalUrl, headers: req.headers });
-});
-
-app.get('/api/debug', async (req, res) => {
-    try {
-        console.log('[Debug] /api/debug hit');
-        let dbError = null;
-        let last = null;
-        let count = null;
-        let dbType = 'Unknown';
-
-        try {
-            // Race openDb with 2s timeout to prevent hanging
-            const dbPromise = openDb();
-            const timeoutPromise = new Promise((_, reject) => setTimeout(() => reject(new Error('DB Connection Timeout (2s)')), 2000));
-            const db = await Promise.race([dbPromise, timeoutPromise]);
-
-            dbType = process.env.POSTGRES_URL ? 'Postgres' : 'SQLite (Local/Fallback)';
-
-            // Just check generic query to ensure table usage works
-            try {
-                const cRow = await db.get('SELECT count(*) as c FROM fuel_prices');
-                count = cRow ? cRow.c : 0;
-            } catch (err) {
-                // Table might not exist if scraper never ran
-                console.warn('[Debug] Count query failed:', err);
-                if (err.message.includes('relation "fuel_prices" does not exist')) {
-                    count = 'Table Missing';
-                } else {
-                    throw err;
-                }
-            }
-
-        } catch (e) {
-            dbError = { message: e.message, stack: e.stack, code: e.code };
-            console.error('[Debug] DB Error inside /api/debug:', e);
+// --- Security: Auth middleware for protected endpoints ---
+const requireCronAuth = (req, res, next) => {
+    // In production, require CRON_SECRET via Authorization header or query param
+    if (IS_PRODUCTION) {
+        const cronSecret = process.env.CRON_SECRET;
+        if (!cronSecret) {
+            console.error('[Security] CRON_SECRET not configured in production');
+            return res.status(500).json({ error: 'Server misconfiguration' });
         }
 
-        res.json({
-            status: 'ok',
-            env: process.env.NODE_ENV,
-            vercel: process.env.VERCEL,
-            hasPostgres: !!process.env.POSTGRES_URL,
-            postgresUrlPrefix: process.env.POSTGRES_URL ? process.env.POSTGRES_URL.substring(0, 10) + '...' : 'N/A',
-            dbReady,
-            lastRecord: last,
-            totalRows: count,
-            dbType,
-            dbError
-        });
-    } catch (e) {
-        res.status(500).json({ error: 'Critical Debug Error', details: e.message });
+        const authHeader = req.headers.authorization;
+        const queryToken = req.query.token;
+
+        const isAuthorized =
+            (authHeader && authHeader === `Bearer ${cronSecret}`) ||
+            (queryToken && queryToken === cronSecret);
+
+        if (!isAuthorized) {
+            return res.status(401).json({ error: 'Unauthorized' });
+        }
     }
-});
+    next();
+};
+
+// --- Debug routes: Development only ---
+if (!IS_PRODUCTION) {
+    app.get('/debug', (req, res) => {
+        res.json({ message: 'Debug endpoint (dev only)', url: req.url });
+    });
+
+    app.get('/api/debug', async (req, res) => {
+        try {
+            let count = null;
+            let dbType = 'Unknown';
+            let dbError = null;
+
+            try {
+                const dbPromise = openDb();
+                const timeoutPromise = new Promise((_, reject) =>
+                    setTimeout(() => reject(new Error('DB Connection Timeout (2s)')), 2000)
+                );
+                const db = await Promise.race([dbPromise, timeoutPromise]);
+                dbType = process.env.POSTGRES_URL ? 'Postgres' : 'SQLite';
+
+                try {
+                    const cRow = await db.get('SELECT count(*) as c FROM fuel_prices');
+                    count = cRow ? cRow.c : 0;
+                } catch (err) {
+                    if (err.message.includes('does not exist')) {
+                        count = 'Table Missing';
+                    } else {
+                        throw err;
+                    }
+                }
+            } catch (e) {
+                dbError = e.message;
+            }
+
+            res.json({
+                status: 'ok',
+                dbReady,
+                totalRows: count,
+                dbType,
+                dbError
+            });
+        } catch (e) {
+            res.status(500).json({ error: 'Debug error' });
+        }
+    });
+
+    // Manual init — dev only
+    app.get('/api/init', async (req, res) => {
+        console.log('[Debug] Manual /api/init triggered');
+        const result = await initializeDatabase();
+        res.json(result);
+    });
+}
 
 app.use('/api', ensureDb);
 
-// Helper: Ensure data exists, otherwise scrape (Blocking) - DISABLED FOR DIAGNOSIS
 // Helper: Ensure data exists, otherwise scrape (Blocking)
 async function ensureDataExists() {
     try {
         const db = await openDb();
         const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
         if (!last) {
-            console.log('[Server] No data found (cold start). Scraping synchronously...');
-            // Force blocking scrape so user gets data
+            if (!IS_PRODUCTION) console.log('[Server] No data found (cold start). Scraping...');
             await scrapePrices();
-            console.log('[Server] Cold start scrape complete.');
+            if (!IS_PRODUCTION) console.log('[Server] Cold start scrape complete.');
         }
     } catch (e) {
-        console.error('[Server] Cold start scrape failed:', e);
+        console.error('[Server] Cold start scrape failed:', e.message);
     }
 }
 
-// Schedule scraping (ONLY in local development or persistent server)
-// In Vercel serverless, cron jobs should be configured via vercel.json (crons), not node-cron.
-/*
-if (process.env.NODE_ENV !== 'production' && !process.env.VERCEL) {
-    cron.schedule('0 * * * *', () => {
-        console.log('Running scheduled scrape...');
-        scrapePrices();
-    });
-}
-*/
-
-// API Endpoints
+// --- API Endpoints ---
 
 // Get latest prices
 app.get('/api/prices/latest', async (req, res) => {
     try {
-        // Ensure we have data before querying
         await ensureDataExists();
-
         const db = await openDb();
 
-        // Get all prices from the latest timestamp using a subquery
-        // This avoids round-trip Date object precision issues
         const prices = await db.all(`
             SELECT type, price, location, timestamp 
             FROM fuel_prices 
             WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
         `);
 
-        if (prices.length === 0) {
-            return res.json([]);
-        }
-
-        res.json(prices);
-
+        res.json(prices.length === 0 ? [] : prices);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('[API] /prices/latest error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch latest prices' });
     }
 });
 
@@ -187,47 +242,35 @@ app.get('/api/prices/history', async (req, res) => {
             params.push(type);
         }
 
-        query += ' ORDER BY timestamp ASC'; // Ascending for graphs
-
-        // If we want to limit data points, we might need smart sampling, 
-        // but for now let's just return all or a hard limit if needed.
-        // query += ' LIMIT ?';
-        // params.push(limit);
+        query += ' ORDER BY timestamp ASC';
 
         const data = await db.all(query, params);
         res.json(data);
     } catch (error) {
-        res.status(500).json({ error: error.message });
+        console.error('[API] /prices/history error:', error.message);
+        res.status(500).json({ error: 'Failed to fetch price history' });
     }
 });
 
-// Manual Initialization Endpoint
-app.get('/api/init', async (req, res) => {
-    console.log('[Debug] Manual /api/init triggered');
-    const result = await initializeDatabase();
-    res.json(result);
-});
-
-// Manual trigger for testing
-app.get('/api/scrape', async (req, res) => {
+// Scrape endpoint — protected by CRON_SECRET in production
+app.get('/api/scrape', requireCronAuth, async (req, res) => {
     try {
-        console.log('Manual scrape triggered');
+        if (!IS_PRODUCTION) console.log('Scrape triggered');
         const results = await scrapePrices();
-        res.json({ status: 'ok', count: results.length, results });
+        res.json({ status: 'ok', count: results.length });
     } catch (error) {
-        console.error('Manual scrape failed:', error);
-        res.status(500).json({ error: 'Scrape failed: ' + error.message });
+        console.error('Scrape failed:', error.message);
+        res.status(500).json({ error: 'Scrape failed' });
     }
 });
 
 app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', uptime: process.uptime(), dbReady, env: process.env.NODE_ENV });
+    res.json({ status: 'ok', dbReady });
 });
 
-// Catch-all info for unhandled API routes (Must be last)
+// Catch-all for unhandled API routes (must be last)
 app.use('/api', (req, res) => {
-    console.log('[Warning] Unhandled API route:', req.originalUrl);
-    res.status(404).json({ error: 'API Route Not Found', path: req.originalUrl, method: req.method });
+    res.status(404).json({ error: 'Not found' });
 });
 
 if (require.main === module) {
