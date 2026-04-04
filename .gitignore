@@ -1,11 +1,37 @@
 node_modules/
 dist/
 build/
+
+# Environment files
 .env
+.env.*
 .env.local
-.DS_Store
+.env.production
+.env.staging
+
+# Database files
 prices.db
 prices.db-journal
 *.db
 *.db-journal
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Keys & certificates
+*.pem
+*.key
+*.p12
+
+# Vercel
 .vercel
+
+# Debug/test artifacts
+test-bug.js
