@@ -111,29 +111,6 @@ const ensureDb = async (req, res, next) => {
     next();
 };
 
-// --- Security: Auth middleware for protected endpoints ---
-const requireCronAuth = (req, res, next) => {
-    // In production, require CRON_SECRET via Authorization header or query param
-    if (IS_PRODUCTION) {
-        const cronSecret = process.env.CRON_SECRET;
-        if (!cronSecret) {
-            console.error('[Security] CRON_SECRET not configured in production');
-            return res.status(500).json({ error: 'Server misconfiguration' });
-        }
-
-        const authHeader = req.headers.authorization;
-        const queryToken = req.query.token;
-
-        const isAuthorized =
-            (authHeader && authHeader === `Bearer ${cronSecret}`) ||
-            (queryToken && queryToken === cronSecret);
-
-        if (!isAuthorized) {
-            return res.status(401).json({ error: 'Unauthorized' });
-        }
-    }
-    next();
-};
 
 // --- Debug routes: Development only ---
 if (!IS_PRODUCTION) {
@@ -252,11 +229,21 @@ app.get('/api/prices/history', async (req, res) => {
     }
 });
 
-// Scrape endpoint — protected by CRON_SECRET in production
-app.get('/api/scrape', requireCronAuth, async (req, res) => {
+// Scrape endpoint — now uses a 5 minute debounce instead of auth to allow UI refresh
+let lastScrapeTime = 0;
+const SCRAPE_DEBOUNCE_MS = 5 * 60 * 1000;
+
+app.get('/api/scrape', async (req, res) => {
     try {
+        const now = Date.now();
+        if (now - lastScrapeTime < SCRAPE_DEBOUNCE_MS) {
+            if (!IS_PRODUCTION) console.log('Scrape skipped (debounced)');
+            return res.json({ status: 'ok', count: 0, debounced: true });
+        }
+        
         if (!IS_PRODUCTION) console.log('Scrape triggered');
         const results = await scrapePrices();
+        lastScrapeTime = Date.now();
         res.json({ status: 'ok', count: results.length });
     } catch (error) {
         console.error('Scrape failed:', error.message);
