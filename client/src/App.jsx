@@ -1018,11 +1018,14 @@ export default function App() {
   const [historyStartDate, setHistoryStartDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const hStart = params.get('h_start');
+    const storedStart = localStorage.getItem('historyStartDate');
     if (hStart) return hStart;
+    if (storedStart) return storedStart;
     
-    // Default to start of current month
+    // Default to last 30 days
     const end = new Date();
-    const start = new Date(end.getFullYear(), end.getMonth(), 1);
+    const start = new Date();
+    start.setDate(end.getDate() - 30);
     const y = start.getFullYear();
     const m = String(start.getMonth() + 1).padStart(2, '0');
     const d = String(start.getDate()).padStart(2, '0');
@@ -1032,7 +1035,9 @@ export default function App() {
   const [historyEndDate, setHistoryEndDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const hEnd = params.get('h_end');
+    const storedEnd = localStorage.getItem('historyEndDate');
     if (hEnd) return hEnd;
+    if (storedEnd) return storedEnd;
 
     const d = new Date();
     const year = d.getFullYear();
@@ -1044,6 +1049,7 @@ export default function App() {
   const [historySelectedFuels, setHistorySelectedFuels] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const hFuelParams = params.getAll('h_fuel');
+    const storedFuels = localStorage.getItem('historySelectedFuels');
     const validFuelNames = Object.keys(FUEL_COLORS);
 
     if (hFuelParams.length > 0) {
@@ -1055,7 +1061,16 @@ export default function App() {
       });
       if (keys.length > 0) return keys.filter(f => validFuelNames.includes(f));
     }
-    return [validFuelNames[0]]; // Default to first fuel
+    if (storedFuels) {
+      try {
+        const parsed = JSON.parse(storedFuels);
+        if (Array.isArray(parsed)) {
+          const filtered = parsed.filter(f => validFuelNames.includes(f));
+          if (filtered.length > 0) return filtered;
+        }
+      } catch { /* ignore */ }
+    }
+    return [...validFuelNames]; // Default to ALL fuel types
   });
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
   const previousPricesRef = React.useRef([]);
@@ -1090,12 +1105,15 @@ export default function App() {
     if (historyStartDate && historyEndDate) {
       params.set('h_start', historyStartDate);
       params.set('h_end', historyEndDate);
+      localStorage.setItem('historyStartDate', historyStartDate);
+      localStorage.setItem('historyEndDate', historyEndDate);
     }
     
     params.delete('h_fuel');
     historySelectedFuels.forEach(f => {
       params.append('h_fuel', FUEL_TO_URL[f] || '95');
     });
+    localStorage.setItem('historySelectedFuels', JSON.stringify(historySelectedFuels));
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
