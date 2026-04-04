@@ -558,7 +558,37 @@ const HistoryTable = React.memo(({
   // Staging state for DateRangePicker UI only
   const [localStartDate, setLocalStartDate] = useState(startDate);
   const [localEndDate, setLocalEndDate] = useState(endDate);
-  const [activePreset, setActivePreset] = useState('thisMonth');
+
+  // Helper for accurate local timezone dates (to avoid UTC shift)
+  const fmtLocal = (d) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  };
+
+  const activePreset = useMemo(() => {
+    if (!localStartDate || !localEndDate) return null;
+    
+    const endToday = new Date();
+    const eTodayStr = fmtLocal(endToday);
+    
+    // Check 7 Days
+    const start7 = new Date();
+    start7.setDate(endToday.getDate() - 6);
+    if (localStartDate === fmtLocal(start7) && localEndDate === eTodayStr) return '7';
+
+    // Check This Month
+    const startThis = new Date(endToday.getFullYear(), endToday.getMonth(), 1);
+    if (localStartDate === fmtLocal(startThis) && localEndDate === eTodayStr) return 'thisMonth';
+
+    // Check Last Month
+    const startLast = new Date(endToday.getFullYear(), endToday.getMonth() - 1, 1);
+    const endLast = new Date(endToday.getFullYear(), endToday.getMonth(), 0);
+    if (localStartDate === fmtLocal(startLast) && localEndDate === fmtLocal(endLast)) return 'lastMonth';
+
+    return null;
+  }, [localStartDate, localEndDate]);
 
   // Sync internal staging when external props change (e.g. from URL)
   useEffect(() => {
@@ -576,13 +606,7 @@ const HistoryTable = React.memo(({
     setFilterEnd(endDate);
   }, [startDate, endDate]);
 
-  // Helper for accurate local timezone dates (to avoid UTC shift)
-  const fmtLocal = (d) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+
 
   // Dynamic names
   const currentLang = i18n?.language || 'en';
@@ -602,7 +626,6 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
-    setActivePreset(days.toString());
   };
 
   const setThisMonth = () => {
@@ -612,7 +635,6 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
-    setActivePreset('thisMonth');
   };
 
   const setLastMonth = () => {
@@ -623,7 +645,6 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
-    setActivePreset('lastMonth');
   };
   // Optimization: use a single, cached formatter for better performance
   const rigaFormatter = React.useMemo(() => new Intl.DateTimeFormat('en-US', {
@@ -784,7 +805,6 @@ const HistoryTable = React.memo(({
                  if ((start && end) || (!start && !end)) {
                    onStartDateChange(start);
                    onEndDateChange(end);
-                   setActivePreset(null);
                  }
                }}
                disabled={(date) => {
