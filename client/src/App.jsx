@@ -542,15 +542,16 @@ const TimelineSlider = ({ data, startIndex, endIndex, onChange, graphInterval })
 const FUEL_KEYS = Object.keys(FUEL_COLORS);
 
 // History Table Component — flexible date range picker
-const HistoryTable = React.memo(({ 
-  historyData, 
-  t, 
-  startDate, 
-  endDate, 
-  onStartDateChange, 
+const HistoryTable = React.memo(({
+  historyData,
+  t,
+  startDate,
+  endDate,
+  onStartDateChange,
   onEndDateChange,
   selectedFuels: avgSelectedFuels,
-  onFuelsChange: setAvgSelectedFuels
+  onFuelsChange: setAvgSelectedFuels,
+  onPresetChange
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
@@ -626,6 +627,7 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
+    onPresetChange?.(String(days));
   };
 
   const setThisMonth = () => {
@@ -635,6 +637,7 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
+    onPresetChange?.('thisMonth');
   };
 
   const setLastMonth = () => {
@@ -645,6 +648,7 @@ const HistoryTable = React.memo(({
     const e = fmtLocal(end);
     onStartDateChange(s);
     onEndDateChange(e);
+    onPresetChange?.('lastMonth');
   };
   // Optimization: use a single, cached formatter for better performance
   const rigaFormatter = React.useMemo(() => new Intl.DateTimeFormat('en-US', {
@@ -800,11 +804,12 @@ const HistoryTable = React.memo(({
                onRangeChange={(start, end) => {
                  setLocalStartDate(start);
                  setLocalEndDate(end);
-                 
+
                  // Only update the active filter if we have a full range or both are cleared
                  if ((start && end) || (!start && !end)) {
                    onStartDateChange(start);
                    onEndDateChange(end);
+                   onPresetChange?.(null); // Custom date range, clear preset
                  }
                }}
                disabled={(date) => {
@@ -1015,13 +1020,60 @@ export default function App() {
     return stored === null ? true : stored === 'true';
   });
 
+  // Helper to compute date range from a preset name relative to today
+  const computePresetDates = (preset) => {
+    const fmt = (d) => {
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    };
+    const now = new Date();
+    if (preset === '7') {
+      const start = new Date();
+      start.setDate(now.getDate() - 6);
+      return { start: fmt(start), end: fmt(now) };
+    }
+    if (preset === '30') {
+      const start = new Date();
+      start.setDate(now.getDate() - 30);
+      return { start: fmt(start), end: fmt(now) };
+    }
+    if (preset === 'thisMonth') {
+      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+      return { start: fmt(start), end: fmt(now) };
+    }
+    if (preset === 'lastMonth') {
+      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const end = new Date(now.getFullYear(), now.getMonth(), 0);
+      return { start: fmt(start), end: fmt(end) };
+    }
+    return null;
+  };
+
+  const [historyPreset, setHistoryPreset] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    // If URL has explicit date params, no preset
+    if (params.get('h_start') || params.get('h_end')) return null;
+    const stored = localStorage.getItem('historyPreset');
+    if (stored && ['7', '30', 'thisMonth', 'lastMonth'].includes(stored)) return stored;
+    return '30'; // default preset
+  });
+
   const [historyStartDate, setHistoryStartDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const hStart = params.get('h_start');
-    const storedStart = localStorage.getItem('historyStartDate');
     if (hStart) return hStart;
+
+    // If a preset is active, compute fresh dates from it
+    const storedPreset = localStorage.getItem('historyPreset');
+    const preset = (!params.get('h_start') && !params.get('h_end') && storedPreset && ['7', '30', 'thisMonth', 'lastMonth'].includes(storedPreset)) ? storedPreset : '30';
+    const dates = computePresetDates(preset);
+    if (dates) return dates.start;
+
+    const storedStart = localStorage.getItem('historyStartDate');
     if (storedStart) return storedStart;
-    
+
     // Default to last 30 days
     const end = new Date();
     const start = new Date();
@@ -1035,8 +1087,15 @@ export default function App() {
   const [historyEndDate, setHistoryEndDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const hEnd = params.get('h_end');
-    const storedEnd = localStorage.getItem('historyEndDate');
     if (hEnd) return hEnd;
+
+    // If a preset is active, compute fresh dates from it
+    const storedPreset = localStorage.getItem('historyPreset');
+    const preset = (!params.get('h_start') && !params.get('h_end') && storedPreset && ['7', '30', 'thisMonth', 'lastMonth'].includes(storedPreset)) ? storedPreset : '30';
+    const dates = computePresetDates(preset);
+    if (dates) return dates.end;
+
+    const storedEnd = localStorage.getItem('historyEndDate');
     if (storedEnd) return storedEnd;
 
     const d = new Date();
@@ -1108,6 +1167,13 @@ export default function App() {
       localStorage.setItem('historyStartDate', historyStartDate);
       localStorage.setItem('historyEndDate', historyEndDate);
     }
+
+    // Sync History Preset
+    if (historyPreset) {
+      localStorage.setItem('historyPreset', historyPreset);
+    } else {
+      localStorage.removeItem('historyPreset');
+    }
     
     params.delete('h_fuel');
     historySelectedFuels.forEach(f => {
@@ -1117,7 +1183,7 @@ export default function App() {
 
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, selectedFuels, showDiscounts, historyStartDate, historyEndDate, historySelectedFuels]);
+  }, [i18n.language, graphInterval, selectedFuels, showDiscounts, historyStartDate, historyEndDate, historySelectedFuels, historyPreset]);
 
   // Persist showDiscounts preference
   useEffect(() => {
@@ -1875,6 +1941,7 @@ export default function App() {
             onEndDateChange={setHistoryEndDate}
             selectedFuels={historySelectedFuels}
             onFuelsChange={setHistorySelectedFuels}
+            onPresetChange={setHistoryPreset}
           />
         </section>
 
