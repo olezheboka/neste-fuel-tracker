@@ -1211,7 +1211,11 @@ export default function App() {
         await axios.get(`${API_BASE}/scrape`);
       }
 
-      const latestRes = await axios.get(`${API_BASE}/prices/latest`);
+      const [latestRes, historyRes] = await Promise.all([
+        axios.get(`${API_BASE}/prices/latest`),
+        axios.get(`${API_BASE}/prices/history`),
+      ]);
+
       const newPrices = latestRes.data;
 
       // Compare prices if we have previous data and notification is requested
@@ -1229,7 +1233,7 @@ export default function App() {
             }
             // Always add to changes array
             changes.push({
-              fuel: newPrice.type.replace('Neste ', '').replace('Futura ', ''), // Clean up names further if needed, or keep as is. User asked for "95", "98".
+              fuel: newPrice.type.replace('Neste ', '').replace('Futura ', ''),
               oldPrice: oldPrice.price,
               newPrice: newPrice.price,
               diff: diff
@@ -1237,9 +1241,6 @@ export default function App() {
           }
         });
 
-        // Filter/Map names to be cleaner:
-        // Current names: "Futura 95", "Futura 98", "Futura D", "Pro Diesel"
-        // User wants: "95", "98", "Diesel", "Pro Diesel"
         const cleanName = (name) => {
           return name.replace('Futura D', 'Diesel').replace('Futura ', '');
         };
@@ -1272,7 +1273,6 @@ export default function App() {
         setLastCheck(newPrices[0].timestamp);
       }
 
-      const historyRes = await axios.get(`${API_BASE}/prices/history`);
       setHistoryData(historyRes.data);
 
     } catch (err) {
