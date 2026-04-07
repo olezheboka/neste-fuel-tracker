@@ -65,6 +65,10 @@ const resources = {
             avg_prices: {
                 title: 'History',
                 period: 'Period',
+                day: 'Day',
+                avg_for_period: 'Avg. for period',
+                avg_for_days: 'Average price for {{count}} d.',
+                latest_disclaimer: 'Latest recorded price for the day',
                 avg: 'Avg',
                 min: 'Min',
                 max: 'Max',
@@ -76,7 +80,9 @@ const resources = {
                 last_30_days: 'Last 30 Days',
                 this_month: 'This Month',
                 last_month: 'Last Month',
-                days_short: 'd'
+                days_short: 'd',
+                show_more: 'Show more',
+                showing_of: 'Showing {{visible}} of {{total}} days'
             }
         }
     },
@@ -142,6 +148,10 @@ const resources = {
             avg_prices: {
                 title: 'Vēsture',
                 period: 'Periods',
+                day: 'Diena',
+                avg_for_period: 'Vid. par periodu',
+                avg_for_days: 'Vidējā cena par {{count}} d.',
+                latest_disclaimer: 'Pēdējā reģistrētā cena par dienu',
                 avg: 'Vid.',
                 min: 'Min',
                 max: 'Max',
@@ -153,7 +163,9 @@ const resources = {
                 last_30_days: 'Pēdējās 30 dienas',
                 this_month: 'Šis mēnesis',
                 last_month: 'Iepriekšējais mēnesis',
-                days_short: 'd'
+                days_short: 'd',
+                show_more: 'Rādīt vairāk',
+                showing_of: 'Rāda {{visible}} no {{total}} dienām'
             }
         }
     },
@@ -219,6 +231,10 @@ const resources = {
             avg_prices: {
                 title: 'История',
                 period: 'Период',
+                day: 'День',
+                avg_for_period: 'Сред. за период',
+                avg_for_days: 'Средняя цена за {{count}} д.',
+                latest_disclaimer: 'Последняя зафиксированная цена за день',
                 avg: 'Сред.',
                 min: 'Мин',
                 max: 'Макс',
@@ -230,7 +246,9 @@ const resources = {
                 last_30_days: 'Последние 30 дней',
                 this_month: 'Этот месяц',
                 last_month: 'Прошлый месяц',
-                days_short: 'д'
+                days_short: 'д',
+                show_more: 'Показать ещё',
+                showing_of: 'Показано {{visible}} из {{total}} дней'
             }
         }
     }

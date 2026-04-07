@@ -551,10 +551,18 @@ const HistoryTable = React.memo(({
   onEndDateChange,
   selectedFuels: avgSelectedFuels,
   onFuelsChange: setAvgSelectedFuels,
-  onPresetChange
+  onPresetChange,
+  activePreset
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
+  const PAGE_SIZE = 30;
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  // Reset visible rows when date range changes
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [startDate, endDate]);
 
   // Staging state for DateRangePicker UI only
   const [localStartDate, setLocalStartDate] = useState(startDate);
@@ -567,29 +575,6 @@ const HistoryTable = React.memo(({
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
   };
-
-  const activePreset = useMemo(() => {
-    if (!localStartDate || !localEndDate) return null;
-    
-    const endToday = new Date();
-    const eTodayStr = fmtLocal(endToday);
-    
-    // Check 7 Days
-    const start7 = new Date();
-    start7.setDate(endToday.getDate() - 6);
-    if (localStartDate === fmtLocal(start7) && localEndDate === eTodayStr) return '7';
-
-    // Check This Month
-    const startThis = new Date(endToday.getFullYear(), endToday.getMonth(), 1);
-    if (localStartDate === fmtLocal(startThis) && localEndDate === eTodayStr) return 'thisMonth';
-
-    // Check Last Month
-    const startLast = new Date(endToday.getFullYear(), endToday.getMonth() - 1, 1);
-    const endLast = new Date(endToday.getFullYear(), endToday.getMonth(), 0);
-    if (localStartDate === fmtLocal(startLast) && localEndDate === fmtLocal(endLast)) return 'lastMonth';
-
-    return null;
-  }, [localStartDate, localEndDate]);
 
   // Sync internal staging when external props change (e.g. from URL)
   useEffect(() => {
@@ -686,16 +671,16 @@ const HistoryTable = React.memo(({
         const dateKey = toYMD(e.timestamp);
         if (!dayMap.has(dateKey)) {
             const { year, month, day } = getRigaParts(e.timestamp);
-            dayMap.set(dateKey, { 
-                dateKey, 
+            dayMap.set(dateKey, {
+                dateKey,
                 // Using requested shortened date format: dd.mm.yy
-                timeStr: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).slice(-2)}`, 
-                rawFuels: {} 
+                timeStr: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).slice(-2)}`,
+                rawFuels: {}
             });
         }
         const dayData = dayMap.get(dateKey);
         if (!dayData.rawFuels[e.type]) dayData.rawFuels[e.type] = [];
-        dayData.rawFuels[e.type].push(e.price);
+        dayData.rawFuels[e.type].push({ price: e.price, timestamp: e.timestamp });
     });
 
     // Compute stats
@@ -703,9 +688,13 @@ const HistoryTable = React.memo(({
         const fuels = {};
         allFuelTypes.forEach(f => {
             if (dayData.rawFuels[f] && dayData.rawFuels[f].length > 0) {
-                const prices = dayData.rawFuels[f];
+                const entries = dayData.rawFuels[f];
+                const prices = entries.map(e => e.price);
                 const sum = prices.reduce((a,b) => a+b, 0);
+                // Most recent price for the day
+                const latest = entries.reduce((a, b) => new Date(a.timestamp) > new Date(b.timestamp) ? a : b);
                 fuels[f] = {
+                    latest: latest.price,
                     avg: sum / prices.length,
                     min: Math.min(...prices),
                     max: Math.max(...prices),
@@ -724,7 +713,7 @@ const HistoryTable = React.memo(({
         FUEL_KEYS.forEach(f => {
             if (rows[i].fuels[f]) {
                 if (i > 0 && rows[i-1].fuels[f]) {
-                    rows[i].fuels[f].change = rows[i].fuels[f].avg - rows[i-1].fuels[f].avg;
+                    rows[i].fuels[f].change = rows[i].fuels[f].latest - rows[i-1].fuels[f].latest;
                 } else {
                     rows[i].fuels[f].change = null;
                 }
@@ -749,8 +738,8 @@ const HistoryTable = React.memo(({
   const periodSummary = useMemo(() => {
     const stats = {};
     avgSelectedFuels.forEach(fuel => {
-        // Collect all daily averages for selected fuel in range
-        const values = tableRows.map(r => r.fuels[fuel]?.avg).filter(v => v !== undefined);
+        // Collect all daily latest prices for selected fuel in range
+        const values = tableRows.map(r => r.fuels[fuel]?.latest).filter(v => v !== undefined);
         if (values.length === 0) return;
         const sum = values.reduce((a,b) => a + b, 0);
         stats[fuel] = {
@@ -873,8 +862,16 @@ const HistoryTable = React.memo(({
                     <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
                       €{stats.avg.toFixed(3)}
                     </p>
-                    <p className="text-[10px] text-gray-400 mt-1 font-medium">
-                      {t('avg_prices.avg')} · {stats.count} {t('avg_prices.days_short')}
+                    <p className="mt-1.5">
+                      <span
+                        className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full"
+                        style={{
+                          color: FUEL_COLORS[fuel],
+                          backgroundColor: FUEL_COLORS[fuel] + '15'
+                        }}
+                      >
+                        {t('avg_prices.avg_for_days', { count: stats.count })}
+                      </span>
                     </p>
                     <div className="flex gap-3 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-500 font-medium">
                       <span>{t('avg_prices.min')}: €{stats.min.toFixed(3)}</span>
@@ -886,23 +883,29 @@ const HistoryTable = React.memo(({
             </div>
           )}
 
-          {/* Detail Table — aggregated per day within the selected period */}
-          <div className="overflow-x-auto -mx-3 sm:-mx-6 px-3 sm:px-6">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-100">
-                  <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3">
-                     {t('avg_prices.period')}
-                  </th>
-                  {avgSelectedFuels.map(fuel => (
-                    <th key={fuel} className="text-right text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-3 sm:px-4 py-3" style={{ color: FUEL_COLORS[fuel] }}>
-                      <motion.div layout>{t(fuel.replace('Neste ', ''))}</motion.div>
+          {/* Detail Table — latest price per day within the selected period */}
+          <div className="rounded-xl border border-slate-200 overflow-hidden">
+            {/* Table heading */}
+            <div className="py-2.5 px-4 bg-slate-50 border-b border-slate-200">
+              <p className="text-xs sm:text-sm font-semibold text-gray-700 text-center">{t('avg_prices.latest_disclaimer')}</p>
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-3 sm:pl-4">
+                       {t('avg_prices.day')}
                     </th>
-                  ))}
-                </tr>
-              </thead>
+                    {avgSelectedFuels.map(fuel => (
+                      <th key={fuel} className="text-right text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-3 sm:px-4 py-3" style={{ color: FUEL_COLORS[fuel] }}>
+                        <motion.div layout>{t(fuel.replace('Neste ', ''))}</motion.div>
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
               <tbody>
-                {tableRows.map((row, i) => (
+                {tableRows.slice(0, visibleCount).map((row, i) => (
                   <motion.tr
                     layout
                     key={row.dateKey}
@@ -912,22 +915,22 @@ const HistoryTable = React.memo(({
                       type: "spring",
                       stiffness: 400,
                       damping: 30,
-                      delay: i * 0.01
+                      delay: Math.min(i * 0.01, 0.3)
                     }}
                     className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
                   >
-                    <td className="py-3 px-2">
+                    <td className="py-3 pl-3 sm:pl-4 pr-2 align-top">
                       <span className="text-xs sm:text-sm font-normal text-gray-500 whitespace-nowrap">{row.timeStr}</span>
                     </td>
                     {avgSelectedFuels.map(fuel => {
                       const data = row.fuels[fuel];
                       if (!data) {
-                        return <td key={fuel} className="text-right px-3 sm:px-4 py-3 text-gray-300 text-[10px]">—</td>;
+                        return <td key={fuel} className="text-right px-3 sm:px-4 py-3 align-top text-gray-300 text-[10px]">—</td>;
                       }
                       return (
-                        <td key={fuel} className="text-right px-3 sm:px-4 py-3">
+                        <td key={fuel} className="text-right px-3 sm:px-4 py-3 align-top">
                           <motion.div layout className="flex flex-col items-end gap-1">
-                            <span className="text-xs sm:text-sm font-bold text-gray-900">€{data.avg.toFixed(3)}</span>
+                            <span className="text-xs sm:text-sm font-bold text-gray-900">€{data.latest.toFixed(3)}</span>
                             <div className="flex flex-col items-end gap-0.5 sm:gap-1 mt-0.5 sm:mt-0">
                               {renderChange(data.change)}
                               {data.min !== data.max && (
@@ -943,7 +946,27 @@ const HistoryTable = React.memo(({
                   </motion.tr>
                 ))}
               </tbody>
-            </table>
+              </table>
+            </div>
+
+            {/* Show more / row count */}
+            {tableRows.length > PAGE_SIZE && (
+              <div className="flex flex-col items-center gap-2 py-3 px-4 border-t border-slate-100">
+                <span className="text-[11px] text-gray-400 font-medium">
+                  {t('avg_prices.showing_of', { visible: Math.min(visibleCount, tableRows.length), total: tableRows.length })}
+                </span>
+                {visibleCount < tableRows.length && (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                    className="w-full sm:w-auto px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors"
+                  >
+                    {t('avg_prices.show_more')}
+                  </motion.button>
+                )}
+              </div>
+            )}
           </div>
         </>
       )}
@@ -1943,6 +1966,7 @@ export default function App() {
             selectedFuels={historySelectedFuels}
             onFuelsChange={setHistorySelectedFuels}
             onPresetChange={setHistoryPreset}
+            activePreset={historyPreset}
           />
         </section>
 
