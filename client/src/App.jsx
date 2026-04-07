@@ -1051,58 +1051,60 @@ export default function App() {
     return null;
   };
 
+  const VALID_PRESETS = ['7', '30', 'thisMonth', 'lastMonth'];
+
   const [historyPreset, setHistoryPreset] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    // If URL has explicit date params, no preset
+    // URL preset takes priority
+    const urlPreset = params.get('h_preset');
+    if (urlPreset && VALID_PRESETS.includes(urlPreset)) return urlPreset;
+    // Explicit date params mean no preset
     if (params.get('h_start') || params.get('h_end')) return null;
     const stored = localStorage.getItem('historyPreset');
-    if (stored && ['7', '30', 'thisMonth', 'lastMonth'].includes(stored)) return stored;
+    if (stored && VALID_PRESETS.includes(stored)) return stored;
     return '30'; // default preset
   });
 
   const [historyStartDate, setHistoryStartDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
+    // URL preset takes priority
+    const urlPreset = params.get('h_preset');
+    if (urlPreset && VALID_PRESETS.includes(urlPreset)) {
+      return computePresetDates(urlPreset).start;
+    }
     const hStart = params.get('h_start');
     if (hStart) return hStart;
 
-    // If a preset is active, compute fresh dates from it
+    // localStorage preset or stored dates
     const storedPreset = localStorage.getItem('historyPreset');
-    const preset = (!params.get('h_start') && !params.get('h_end') && storedPreset && ['7', '30', 'thisMonth', 'lastMonth'].includes(storedPreset)) ? storedPreset : '30';
-    const dates = computePresetDates(preset);
-    if (dates) return dates.start;
-
+    if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
+      return computePresetDates(storedPreset).start;
+    }
     const storedStart = localStorage.getItem('historyStartDate');
     if (storedStart) return storedStart;
 
-    // Default to last 30 days
-    const end = new Date();
-    const start = new Date();
-    start.setDate(end.getDate() - 30);
-    const y = start.getFullYear();
-    const m = String(start.getMonth() + 1).padStart(2, '0');
-    const d = String(start.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
+    return computePresetDates('30').start;
   });
 
   const [historyEndDate, setHistoryEndDate] = useState(() => {
     const params = new URLSearchParams(window.location.search);
+    // URL preset takes priority
+    const urlPreset = params.get('h_preset');
+    if (urlPreset && VALID_PRESETS.includes(urlPreset)) {
+      return computePresetDates(urlPreset).end;
+    }
     const hEnd = params.get('h_end');
     if (hEnd) return hEnd;
 
-    // If a preset is active, compute fresh dates from it
+    // localStorage preset or stored dates
     const storedPreset = localStorage.getItem('historyPreset');
-    const preset = (!params.get('h_start') && !params.get('h_end') && storedPreset && ['7', '30', 'thisMonth', 'lastMonth'].includes(storedPreset)) ? storedPreset : '30';
-    const dates = computePresetDates(preset);
-    if (dates) return dates.end;
-
+    if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
+      return computePresetDates(storedPreset).end;
+    }
     const storedEnd = localStorage.getItem('historyEndDate');
     if (storedEnd) return storedEnd;
 
-    const d = new Date();
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    return computePresetDates('30').end;
   });
 
   const [historySelectedFuels, setHistorySelectedFuels] = useState(() => {
@@ -1160,20 +1162,19 @@ export default function App() {
       params.delete('discounts');
     }
 
-    // Sync History Filters
-    if (historyStartDate && historyEndDate) {
-      params.set('h_start', historyStartDate);
-      params.set('h_end', historyEndDate);
-      localStorage.setItem('historyStartDate', historyStartDate);
-      localStorage.setItem('historyEndDate', historyEndDate);
-    }
-
-    // Sync History Preset
+    // Sync History Filters — use preset param when active, concrete dates otherwise
     if (historyPreset) {
+      params.set('h_preset', historyPreset);
       localStorage.setItem('historyPreset', historyPreset);
     } else {
       localStorage.removeItem('historyPreset');
+      if (historyStartDate && historyEndDate) {
+        params.set('h_start', historyStartDate);
+        params.set('h_end', historyEndDate);
+      }
     }
+    localStorage.setItem('historyStartDate', historyStartDate);
+    localStorage.setItem('historyEndDate', historyEndDate);
     
     params.delete('h_fuel');
     historySelectedFuels.forEach(f => {
