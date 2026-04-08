@@ -919,19 +919,19 @@ const HistoryTable = React.memo(({
                     }}
                     className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
                   >
-                    <td className="py-3 pl-3 sm:pl-4 pr-2 align-top">
+                    <td className="py-2 pl-3 sm:pl-4 pr-2 align-top">
                       <span className="text-xs sm:text-sm font-normal text-gray-500 whitespace-nowrap">{row.timeStr}</span>
                     </td>
                     {avgSelectedFuels.map(fuel => {
                       const data = row.fuels[fuel];
                       if (!data) {
-                        return <td key={fuel} className="text-right px-3 sm:px-4 py-3 align-top text-gray-300 text-[10px]">—</td>;
+                        return <td key={fuel} className="text-right px-3 sm:px-4 py-2 align-top text-gray-300 text-[10px]">—</td>;
                       }
                       return (
-                        <td key={fuel} className="text-right px-3 sm:px-4 py-3 align-top">
-                          <motion.div layout className="flex flex-col items-end gap-1">
-                            <span className="text-xs sm:text-sm font-bold text-gray-900">€{data.latest.toFixed(3)}</span>
-                            <div className="flex flex-col items-end gap-0.5 sm:gap-1 mt-0.5 sm:mt-0">
+                        <td key={fuel} className="text-right px-3 sm:px-4 py-2 align-top">
+                          <motion.div layout className="flex flex-col items-end gap-0">
+                            <span className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">€{data.latest.toFixed(3)}</span>
+                            <div className="flex flex-col items-end">
                               {renderChange(data.change)}
                               {data.min !== data.max && (
                                 <span className="text-[9px] text-gray-400 font-medium whitespace-nowrap tracking-tight">
