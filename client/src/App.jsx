@@ -164,6 +164,34 @@ const Card = ({ children, className }) => (
   </div>
 );
 
+const Skeleton = ({ className }) => (
+  <div className={twMerge("animate-pulse rounded-md bg-gray-200", className)} />
+);
+
+const FuelCardSkeleton = () => (
+  <Card className="bg-white shadow-md border-l-4 border-l-gray-200">
+    <Skeleton className="h-3 w-12 mb-2" />
+    <div className="flex items-baseline gap-1 mb-3">
+      <Skeleton className="h-8 w-24" />
+      <Skeleton className="h-4 w-8" />
+    </div>
+    <div className="text-xs">
+      <Skeleton className="h-3 w-16 mb-2" />
+      <div className="pl-3">
+        <Skeleton className="h-3 w-40" />
+      </div>
+    </div>
+  </Card>
+);
+
+const ChartSkeleton = () => (
+  <div className="w-full h-[300px] flex items-end gap-1 px-8 pb-8 pt-4">
+    {[40, 55, 45, 65, 50, 70, 60, 75, 55, 80, 65, 70, 60, 85, 75, 90].map((h, i) => (
+      <Skeleton key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%` }} />
+    ))}
+  </div>
+);
+
 // Toast Notification Component - Apple Liquid Style
 
 const Toast = ({ notification, onDismiss, t }) => {
@@ -1595,33 +1623,35 @@ export default function App() {
       <main className="max-w-5xl mx-auto px-3 sm:px-6 py-10 space-y-8">
 
 
-        {/* Loading State */}
-        {loading && latestPrices.length === 0 && (
-          <div className="text-center py-20">
-            <RefreshCw className="w-8 h-8 animate-spin text-blue-600 mx-auto mb-4" />
-            <p className="text-gray-500 font-medium">{t('loading_initial') || t('loading')}</p>
-          </div>
-        )}
-
         {/* Fuel Prices */}
         <section>
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.petrol')}</h2>
-          {petrolPrices.length > 0 && (
+          {loading && latestPrices.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+              <FuelCardSkeleton />
+              <FuelCardSkeleton />
+            </div>
+          ) : petrolPrices.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
               {petrolPrices.map((item) => (
                 <FuelCard key={item.type} {...item} />
               ))}
             </div>
-          )}
+          ) : null}
 
           <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.diesel')}</h2>
-          {dieselPrices.length > 0 && (
+          {loading && latestPrices.length === 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <FuelCardSkeleton />
+              <FuelCardSkeleton />
+            </div>
+          ) : dieselPrices.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {dieselPrices.map((item) => (
                 <FuelCard key={item.type} {...item} />
               ))}
             </div>
-          )}
+          ) : null}
 
           {latestPrices.length === 0 && !loading && (
             <div className="text-center text-gray-400 py-10">
@@ -1722,6 +1752,9 @@ export default function App() {
 
             {/* Chart container — stretch to card edges on mobile */}
             <div className="h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
+              {loading && historyData.length === 0 ? (
+                <ChartSkeleton />
+              ) : (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={visibleChartData}
@@ -1939,6 +1972,7 @@ export default function App() {
                   })}
                 </LineChart>
               </ResponsiveContainer>
+              )}
             </div>
             {/* Price Change Cards */}
             <div className="mt-6 pt-6 border-t border-gray-100">
