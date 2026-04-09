@@ -1235,8 +1235,8 @@ export default function App() {
       }
 
       const [latestRes, historyRes] = await Promise.all([
-        axios.get(`${API_BASE}/prices/latest`),
-        axios.get(`${API_BASE}/prices/history`),
+        axios.get(`${API_BASE}/prices/latest`, { timeout: 15000 }),
+        axios.get(`${API_BASE}/prices/history`, { timeout: 15000 }),
       ]);
 
       const newPrices = latestRes.data;

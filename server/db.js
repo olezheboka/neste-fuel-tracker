@@ -131,49 +131,24 @@ async function openDb() {
 
     // 1. Production / Vercel with Postgres
     if (process.env.POSTGRES_URL) {
-        // Log masked URL for debugging
         const maskedUrl = process.env.POSTGRES_URL.replace(/:([^:@]+)@/, ':***@');
-        console.log(`[DB] Connecting to Postgres via 'pg' native driver... URL: ${maskedUrl}`);
+        console.log(`[DB] Connecting to Postgres... URL: ${maskedUrl}`);
 
         try {
-            // Use standard pg driver to avoid Vercel wrapper validation issues
-            const { Pool, Client } = require('pg');
+            const { Pool } = require('pg');
+            const pool = new Pool({
+                connectionString: process.env.POSTGRES_URL,
+                ssl: { rejectUnauthorized: false },
+                max: 3,
+                connectionTimeoutMillis: 10000,
+                idleTimeoutMillis: 30000,
+            });
 
-            // Try Pool first
-            try {
-                const pool = new Pool({
-                    connectionString: process.env.POSTGRES_URL,
-                    ssl: { rejectUnauthorized: false },
-                    max: 1 // Limit pool size for serverless to avoid exhaustion
-                });
-
-                // Validate connection immediately
-                const client = await pool.connect();
-                client.release(); // release back to pool
-
-                console.log('[DB] pg.Pool connected successfully.');
-                dbInstance = new PostgresDatabase(pool);
-                return dbInstance;
-            } catch (poolErr) {
-                console.warn('[DB] pg.Pool failed. Switching to single pg.Client fallback.', poolErr.message);
-
-                // Fallback for direct connection strings (no pool)
-                try {
-                    const client = new Client({
-                        connectionString: process.env.POSTGRES_URL,
-                        ssl: { rejectUnauthorized: false }
-                    });
-                    await client.connect();
-                    console.log('[DB] pg.Client connected successfully.');
-                    dbInstance = new PostgresDatabase(client);
-                    return dbInstance;
-                } catch (clientErr) {
-                    console.error('[DB] Failed to connect with pg.Client:', clientErr);
-                    throw clientErr;
-                }
-            }
+            console.log('[DB] pg.Pool created.');
+            dbInstance = new PostgresDatabase(pool);
+            return dbInstance;
         } catch (e) {
-            console.error('[DB] Failed to load pg or connect:', e);
+            console.error('[DB] Failed to create pg pool:', e.message);
             throw e;
         }
     }

@@ -168,27 +168,11 @@ if (!IS_PRODUCTION) {
 
 app.use('/api', ensureDb);
 
-// Helper: Ensure data exists, otherwise scrape (Blocking)
-async function ensureDataExists() {
-    try {
-        const db = await openDb();
-        const last = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-        if (!last) {
-            if (!IS_PRODUCTION) console.log('[Server] No data found (cold start). Scraping...');
-            await scrapePrices();
-            if (!IS_PRODUCTION) console.log('[Server] Cold start scrape complete.');
-        }
-    } catch (e) {
-        console.error('[Server] Cold start scrape failed:', e.message);
-    }
-}
-
 // --- API Endpoints ---
 
 // Get latest prices
 app.get('/api/prices/latest', async (req, res) => {
     try {
-        await ensureDataExists();
         const db = await openDb();
 
         const prices = await db.all(`
@@ -207,7 +191,6 @@ app.get('/api/prices/latest', async (req, res) => {
 // Get history
 app.get('/api/prices/history', async (req, res) => {
     try {
-        await ensureDataExists();
         const { type } = req.query;
         const db = await openDb();
 
