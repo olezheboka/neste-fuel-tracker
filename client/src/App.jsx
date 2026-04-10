@@ -1503,18 +1503,21 @@ export default function App() {
 
     const sorted = result.sort((a, b) => a.date - b.date);
 
-    // Second pass: finalize isDiscount by checking price drop vs previous period
+    // Second pass: finalize isDiscount by checking price drop ≥ €0.05 vs previous period
+    // Both conditions must be met:
+    //   1. Location contains "Visās stacijās cenas vienādas" (hasDiscountLocation)
+    //   2. ALL available fuel types dropped by at least 5 cents
+    const MIN_DISCOUNT_DROP = 0.05;
     const fuelTypes = Object.keys(FUEL_COLORS);
     for (let i = 0; i < sorted.length; i++) {
       if (!sorted[i].hasDiscountLocation) continue;
       if (i === 0) {
-        // No previous period to compare — still mark as discount since location says so
-        sorted[i].isDiscount = true;
+        // No previous period to compare — can't verify price drop, don't mark
         continue;
       }
       const prev = sorted[i - 1];
       const curr = sorted[i];
-      // Check that ALL available fuel types dropped in price
+      // Check that ALL available fuel types dropped by at least MIN_DISCOUNT_DROP
       // Use min price to catch intra-day discounts where the last price
       // reverts to normal but a discount happened during the day
       const allDropped = fuelTypes.every(fuel => {
@@ -1523,8 +1526,8 @@ export default function App() {
         const currMinPrice = curr[`${fuel}_min`];
         // If either is missing, skip this fuel (don't block the discount flag)
         if (prevPrice === undefined || currPrice === undefined) return true;
-        // Either the last price dropped OR the min price dropped (intra-day discount)
-        return currPrice < prevPrice - 0.0001 || (currMinPrice !== undefined && currMinPrice < prevPrice - 0.0001);
+        // Either the last price dropped by ≥5¢ OR the min price dropped by ≥5¢ (intra-day discount)
+        return prevPrice - currPrice >= MIN_DISCOUNT_DROP || (currMinPrice !== undefined && prevPrice - currMinPrice >= MIN_DISCOUNT_DROP);
       });
       sorted[i].isDiscount = allDropped;
     }
