@@ -61,8 +61,8 @@ async function scrapePrices() {
                     .replace(/<!--[\s\S]*?-->/g, '')   // HTML comments
                     .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '') // CDATA sections
                     .replace(/\/\*[\s\S]*?\*\//g, '')  // CSS comments
-                    .replace(/\/\*[^*]*$/gm, '')       // unclosed CSS comment starts
-                    .replace(/^[^/]*\*\//gm, '')       // orphaned CSS comment ends
+                    .replace(/\/\*[^*]*/g, '')         // unclosed CSS comment starts
+                    .replace(/\*\//g, '')              // orphaned CSS comment ends
                     .replace(/<[^>]+>/g, ' ')           // remaining HTML tags
                     .replace(/&nbsp;/g, ' ')            // HTML entities
                     .replace(/[\t\n\r]+/g, ' ')

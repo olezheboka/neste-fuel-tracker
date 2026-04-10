@@ -4,6 +4,22 @@ const cors = require('cors');
 const { initDb, openDb } = require('./db');
 const { scrapePrices } = require('./scraper');
 
+// Sanitize location strings that may contain MSO/CDATA artifacts from Neste's website
+function cleanLocation(loc) {
+    if (!loc || typeof loc !== 'string') return loc;
+    return loc
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/\/\*[^*]*/g, '')
+        .replace(/\*\//g, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/\s*\|\s*/g, ' | ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 const IS_PRODUCTION = process.env.NODE_ENV === 'production' || !!process.env.VERCEL;
@@ -181,7 +197,7 @@ app.get('/api/prices/latest', async (req, res) => {
             WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
         `);
 
-        res.json(prices.length === 0 ? [] : prices);
+        res.json(prices.length === 0 ? [] : prices.map(p => ({ ...p, location: cleanLocation(p.location) })));
     } catch (error) {
         console.error('[API] /prices/latest error:', error.message);
         res.status(500).json({ error: 'Failed to fetch latest prices' });
@@ -205,7 +221,7 @@ app.get('/api/prices/history', async (req, res) => {
         query += ' ORDER BY timestamp ASC';
 
         const data = await db.all(query, params);
-        res.json(data);
+        res.json(data.map(p => ({ ...p, location: cleanLocation(p.location) })));
     } catch (error) {
         console.error('[API] /prices/history error:', error.message);
         res.status(500).json({ error: 'Failed to fetch price history' });
