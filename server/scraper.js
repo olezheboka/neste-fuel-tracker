@@ -55,7 +55,20 @@ async function scrapePrices() {
                 // Clean up text - remove tabs, newlines, extra whitespace
                 const fuelNameRaw = $(cells[0]).text().replace(/[\t\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
                 const priceRaw = $(cells[1]).text().trim().replace(',', '.');
-                const dusRaw = $(cells[2]).text().replace(/[\t\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
+                // Strip MSO/CDATA artifacts that Neste injects (copy-pasted from Excel)
+                const dusHtml = $(cells[2]).html() || '';
+                const dusClean = dusHtml
+                    .replace(/<!--[\s\S]*?-->/g, '')   // HTML comments
+                    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '') // CDATA sections
+                    .replace(/\/\*[\s\S]*?\*\//g, '')  // CSS comments
+                    .replace(/\/\*[^*]*$/gm, '')       // unclosed CSS comment starts
+                    .replace(/^[^/]*\*\//gm, '')       // orphaned CSS comment ends
+                    .replace(/<[^>]+>/g, ' ')           // remaining HTML tags
+                    .replace(/&nbsp;/g, ' ')            // HTML entities
+                    .replace(/[\t\n\r]+/g, ' ')
+                    .replace(/\s+/g, ' ')
+                    .trim();
+                const dusRaw = dusClean;
 
                 // Match to known fuel types (handle non-breaking spaces)
                 const fuelName = fuelNameRaw.replace(/\u00A0/g, ' ');
