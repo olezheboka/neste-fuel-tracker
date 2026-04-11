@@ -745,9 +745,9 @@ const HistoryTable = React.memo(({
       </div>
 
       <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('avg_prices.period')}</p>
-      {/* Date Pickers & Chips */}
+      {/* Date Pickers & Preset Selector */}
       <div className="mb-6 bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-100">
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3">
           <DateRangePicker
              startDate={localStartDate}
              endDate={localEndDate}
@@ -767,10 +767,23 @@ const HistoryTable = React.memo(({
                return !availableDatesSet.has(key);
              }}
              locale={currentLang}
+             className={!activePreset ? "border-blue-500/50 bg-blue-50/50" : ""}
           />
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setPreset(30)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '30' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_30_days')}</motion.button>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</motion.button>
-          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</motion.button>
+          <SegmentedControl
+            options={[
+              { value: '30', label: t('avg_prices.last_30_days') },
+              { value: 'lastMonth', label: lastMonthName },
+              { value: 'thisMonth', label: thisMonthName },
+            ]}
+            value={activePreset}
+            onChange={(val) => {
+              if (val === '30') setPreset(30);
+              else if (val === 'lastMonth') setLastMonth();
+              else if (val === 'thisMonth') setThisMonth();
+            }}
+            layoutId="active-history-preset"
+            size="small"
+          />
         </div>
       </div>
 
