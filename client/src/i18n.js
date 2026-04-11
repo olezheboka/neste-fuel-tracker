@@ -39,11 +39,11 @@ const resources = {
             hide_map: 'Hide Map',
 
             insights: {
-                title: "Price Insights",
-                period_24h: "24 hours",
-                period_7d: "7 days",
-                period_30d: "30 days",
-                period_3m: "90 days"
+                title: "Dynamics",
+                period_24h: "24h",
+                period_7d: "7d",
+                period_30d: "30d",
+                period_3m: "90d"
             },
             intervals: {
                 hours: "Hours",
@@ -67,7 +67,7 @@ const resources = {
                 period: 'Period',
                 day: 'Day',
                 avg_for_period: 'Avg. for period',
-                avg_for_days: 'Average price for {{count}} d.',
+                avg_for_days: 'Ø price for {{count}} d.',
                 latest_disclaimer: 'Latest recorded price for the day',
                 avg: 'Avg',
                 min: 'Min',
@@ -122,11 +122,11 @@ const resources = {
             hide_map: 'Slēpt Karti',
 
             insights: {
-                title: "Tirgus analīze",
-                period_24h: "24 stundas",
-                period_7d: "7 dienas",
-                period_30d: "30 dienas",
-                period_3m: "90 dienas"
+                title: "Dinamika",
+                period_24h: "24st",
+                period_7d: "7d",
+                period_30d: "30d",
+                period_3m: "90d"
             },
             intervals: {
                 hours: "Stundas",
@@ -150,7 +150,7 @@ const resources = {
                 period: 'Periods',
                 day: 'Diena',
                 avg_for_period: 'Vid. par periodu',
-                avg_for_days: 'Vidējā cena par {{count}} d.',
+                avg_for_days: 'Ø cena par {{count}} d.',
                 latest_disclaimer: 'Pēdējā reģistrētā cena par dienu',
                 avg: 'Vid.',
                 min: 'Min',
@@ -205,11 +205,11 @@ const resources = {
             hide_map: 'Скрыть карту',
 
             insights: {
-                title: "Анализ цен",
-                period_24h: "24 часа",
-                period_7d: "7 дней",
-                period_30d: "30 дней",
-                period_3m: "90 дней"
+                title: "Динамика",
+                period_24h: "24ч",
+                period_7d: "7д",
+                period_30d: "30д",
+                period_3m: "90д"
             },
             intervals: {
                 hours: "Часы",
@@ -233,7 +233,7 @@ const resources = {
                 period: 'Период',
                 day: 'День',
                 avg_for_period: 'Сред. за период',
-                avg_for_days: 'Средняя цена за {{count}} д.',
+                avg_for_days: 'Ø цена за {{count}} д.',
                 latest_disclaimer: 'Последняя зафиксированная цена за день',
                 avg: 'Сред.',
                 min: 'Мин',

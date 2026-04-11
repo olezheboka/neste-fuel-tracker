@@ -148,17 +148,15 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
         }
 
         return (
-            <div className={`p-3 sm:p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
-                <div className="flex flex-col items-center mb-1 sm:mb-2">
-                    <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide">{t(`insights.${periodKey}`)}</span>
-                </div>
+            <div className={`p-2.5 sm:p-4 rounded-xl flex flex-col items-center text-center ${bgClass}`}>
+                <span className="text-[10px] sm:text-xs text-gray-400 uppercase tracking-wide mb-1 sm:mb-2">{t(`insights.${periodKey}`)}</span>
                 <div className="flex items-center gap-0.5 sm:gap-1 whitespace-nowrap">
-                    <span className={`text-base sm:text-xl font-semibold ${colorClass}`}>
+                    <span className={`text-sm sm:text-xl font-semibold tabular-nums ${colorClass}`}>
                         {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
                     </span>
-                    <Icon size={16} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
+                    <Icon size={14} className={`${colorClass} sm:w-[18px] sm:h-[18px]`} strokeWidth={2} />
                 </div>
-                <span className={`text-[9px] sm:text-[10px] ${colorClass} opacity-70 mt-0.5`}>
+                <span className={`text-[9px] sm:text-[10px] tabular-nums ${colorClass} opacity-70 mt-0.5`}>
                     ({pctNum > 0 ? '+' : ''}{pctNum.toFixed(2)}%)
                 </span>
             </div>
@@ -166,7 +164,7 @@ export default function PriceChangeCards({ historyData, latestPrices, selectedFu
     };
 
     return (
-        <div className="grid grid-cols-4 gap-2 sm:gap-3">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
             {renderTrend(filteredAnalysis.avgChange24h, filteredAnalysis.avgPct24h, 'period_24h')}
             {renderTrend(filteredAnalysis.avgChange7d, filteredAnalysis.avgPct7d, 'period_7d')}
             {renderTrend(filteredAnalysis.avgChange30d, filteredAnalysis.avgPct30d, 'period_30d')}

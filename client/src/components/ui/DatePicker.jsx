@@ -56,7 +56,7 @@ export function DateRangePicker({
         <button
           className={twMerge(
             clsx(
-              "flex items-center gap-2 px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-xs font-semibold shadow-sm w-full sm:w-auto",
+              "flex items-center gap-2 px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg border border-gray-200 text-gray-700 bg-white hover:bg-gray-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all text-xs font-semibold shadow-sm",
               (!startDate || !endDate) && "text-gray-400",
               className
             )

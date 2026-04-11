@@ -22,33 +22,6 @@ const FUEL_COLORS = {
 
 const DISCOUNT_COLOR = '#44D62C'; // Vibrant Pantone Green for discounts
 
-const FUEL_STYLES = {
-  'Neste Futura 95': {
-    active: 'bg-green-500 text-white',
-    inactive: 'bg-green-50 text-green-700 hover:bg-green-100',
-    border: 'border-l-green-500',
-    icon: 'text-green-500'
-  },
-  'Neste Futura 98': {
-    active: 'bg-cyan-500 text-white',
-    inactive: 'bg-cyan-50 text-cyan-700 hover:bg-cyan-100',
-    border: 'border-l-cyan-500',
-    icon: 'text-cyan-500'
-  },
-  'Neste Futura D': {
-    active: 'bg-gray-900 text-white',
-    inactive: 'bg-gray-100 text-gray-900 hover:bg-gray-200',
-    border: 'border-l-gray-900',
-    icon: 'text-gray-900'
-  },
-  'Neste Pro Diesel': {
-    active: 'bg-yellow-500 text-white',
-    inactive: 'bg-yellow-50 text-yellow-700 hover:bg-yellow-100',
-    border: 'border-l-yellow-500',
-    icon: 'text-yellow-500'
-  }
-};
-
 const lngs = {
   lv: { nativeName: 'Latviešu', flag: '🇱🇻' },
   ru: { nativeName: 'Русский', flag: '🇷🇺' },
@@ -78,7 +51,7 @@ const SegmentedControl = ({ options, value, onChange, layoutId, className, size 
           onClick={() => onChange(opt.value)}
           className={clsx(
             "relative rounded-lg transition-all duration-200 z-10 flex items-center justify-center gap-1.5",
-            size === 'small' ? "px-3 py-1.5 text-xs font-semibold" : "px-4 py-2 text-sm font-semibold",
+            size === 'small' ? "px-2 sm:px-3 py-1.5 text-xs font-semibold" : "px-4 py-2 text-sm font-semibold",
             isActive ? "text-gray-900" : "text-gray-500 hover:text-gray-700"
           )}
         >
@@ -169,19 +142,11 @@ const Skeleton = ({ className }) => (
 );
 
 const FuelCardSkeleton = () => (
-  <Card className="bg-white shadow-md border-l-4 border-l-gray-200">
-    <Skeleton className="h-3 w-12 mb-2" />
-    <div className="flex items-baseline gap-1 mb-3">
-      <Skeleton className="h-8 w-24" />
-      <Skeleton className="h-4 w-8" />
-    </div>
-    <div className="text-xs">
-      <Skeleton className="h-3 w-16 mb-2" />
-      <div className="pl-3">
-        <Skeleton className="h-3 w-40" />
-      </div>
-    </div>
-  </Card>
+  <div className="rounded-xl p-3 sm:p-4 border-l-4 border-l-gray-200 bg-white shadow-sm ring-1 ring-gray-100">
+    <Skeleton className="h-3 w-12 mb-1" />
+    <Skeleton className="h-6 w-20 mb-1.5" />
+    <Skeleton className="h-3 w-28" />
+  </div>
 );
 
 const ChartSkeleton = () => (
@@ -331,75 +296,45 @@ const FuelCard = ({ type, price, location }) => {
     addressList = location.split(/\|/).map(s => s.trim()).filter(s => s.length > 0);
   }
 
-  // Determine accent color style based on specific fuel type
-  const style = FUEL_STYLES[type] || FUEL_STYLES['Neste Futura 95'];
-
-  const isPremium = type.includes('98') || type.includes('Pro Diesel');
+  const color = FUEL_COLORS[type] || FUEL_COLORS['Neste Futura 95'];
 
   return (
-    <Card className={`bg-white shadow-md border-l-4 ${style.border} relative overflow-hidden`}>
-      <div className="flex items-center gap-2 mb-1">
-        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide">
-          {t(type.replace('Neste ', ''))}
-        </p>
-        {isPremium && (
-          <span className="bg-blue-100 text-blue-600 text-[9px] font-bold px-2 py-0.5 rounded-md uppercase tracking-wide">
-            Premium
-          </span>
+    <div
+      className="rounded-xl p-3 sm:p-4 border-l-4 bg-white shadow-sm ring-1 ring-gray-100"
+      style={{ borderLeftColor: color }}
+    >
+      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide mb-1" style={{ color }}>
+        {t(type.replace('Neste ', ''))}
+      </p>
+      <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
+        €{price.toFixed(3)}
+        <span className="text-xs sm:text-sm text-gray-400 font-medium ml-1">/ l</span>
+      </p>
+      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-500 font-medium">
+        {addressList.length > 0 ? (
+          addressList.map((addr, i) => {
+            const url = isAllStationsSamePrice
+              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Neste DUS, Rīga, Latvia')}`
+              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Neste ${addr}, Rīga, Latvia`)}`;
+            return (
+              <a
+                key={i}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-gray-500 hover:text-blue-600 transition-colors"
+              >
+                <MapPin size={10} className="text-green-500 shrink-0 inline-block align-middle mr-1" />
+                <span className="underline">{addr}</span>
+                <ExternalLink size={8} className="inline-block align-middle ml-0.5" />
+              </a>
+            );
+          })
+        ) : (
+          <span className="text-gray-400 italic">{t('location')}</span>
         )}
       </div>
-      <div className="flex items-baseline gap-1 mb-3">
-        <span className="text-3xl font-bold text-gray-900 tracking-tight">
-          {price.toFixed(3)}
-        </span>
-        <span className="text-sm text-gray-400 font-medium">€/l</span>
-      </div>
-      <div className="text-xs text-gray-400">
-        <div className="flex items-center gap-1.5 mb-2">
-          <span>{t('station', { count: addressList.length })}</span>
-        </div>
-        <div className="pl-3 space-y-2 mt-1">
-          {addressList.length > 0 ? (
-            addressList.map((addr, i) => {
-              // Discount days: show translated text + link to all Neste stations in Rīga
-              if (isAllStationsSamePrice) {
-                const allStationsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Neste DUS, Rīga, Latvia')}`;
-                return (
-                  <a
-                    key={i}
-                    href={allStationsUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer leading-tight"
-                  >
-                    <MapPin size={12} className="text-green-500 shrink-0" />
-                    <span className="font-medium tracking-tight underline">{addr}</span>
-                    <ExternalLink size={10} className="translate-y-[-1px]" />
-                  </a>
-                );
-              }
-              // Add "Rīga" for Google Maps search since these are the lowest prices in Rīga
-              const mapUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Neste ${addr}, Rīga, Latvia`)}`;
-              return (
-                <a
-                  key={i}
-                  href={mapUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-2 text-gray-500 hover:text-blue-600 transition-colors cursor-pointer leading-tight"
-                >
-                  <MapPin size={12} className="text-green-500 shrink-0" />
-                  <span className="font-medium tracking-tight underline">{addr}</span>
-                  <ExternalLink size={10} className="translate-y-[-1px]" />
-                </a>
-              );
-            })
-          ) : (
-            <span className="text-gray-400 italic">{t('location')}</span>
-          )}
-        </div>
-      </div>
-    </Card>
+    </div>
   );
 };
 
@@ -577,13 +512,12 @@ const HistoryTable = React.memo(({
   endDate,
   onStartDateChange,
   onEndDateChange,
-  selectedFuels: avgSelectedFuels,
-  onFuelsChange: setAvgSelectedFuels,
   onPresetChange,
   activePreset
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
+  const avgSelectedFuels = allFuelTypes;
   const PAGE_SIZE = 30;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -788,7 +722,7 @@ const HistoryTable = React.memo(({
     if (!isUp && !isDown) return null;
     return (
       <span className={clsx(
-        'inline-flex items-center gap-0.5 text-[10px] sm:text-[11px] font-semibold',
+        'inline-flex items-center gap-0.5 text-[9px] sm:text-[11px] font-semibold',
         isUp && 'text-red-500',
         isDown && 'text-green-600',
         !isUp && !isDown && 'text-gray-400'
@@ -813,59 +747,31 @@ const HistoryTable = React.memo(({
       <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('avg_prices.period')}</p>
       {/* Date Pickers & Chips */}
       <div className="mb-6 bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-100">
-        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
-          <div className="flex items-center gap-2">
-            <DateRangePicker 
-               startDate={localStartDate} 
-               endDate={localEndDate} 
-               onRangeChange={(start, end) => {
-                 setLocalStartDate(start);
-                 setLocalEndDate(end);
+        <div className="flex flex-wrap items-center gap-3">
+          <DateRangePicker
+             startDate={localStartDate}
+             endDate={localEndDate}
+             onRangeChange={(start, end) => {
+               setLocalStartDate(start);
+               setLocalEndDate(end);
 
-                 // Only update the active filter if we have a full range or both are cleared
-                 if ((start && end) || (!start && !end)) {
-                   onStartDateChange(start);
-                   onEndDateChange(end);
-                   onPresetChange?.(null); // Custom date range, clear preset
-                 }
-               }}
-               disabled={(date) => {
-                 const key = toYMD(date);
-                 return !availableDatesSet.has(key);
-               }}
-               locale={currentLang}
-            />
-          </div>
-          
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="w-px h-6 bg-gray-200 hidden sm:block mx-1"></span>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setPreset(30)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '30' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_30_days')}</motion.button>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</motion.button>
-            <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</motion.button>
-          </div>
+               // Only update the active filter if we have a full range or both are cleared
+               if ((start && end) || (!start && !end)) {
+                 onStartDateChange(start);
+                 onEndDateChange(end);
+                 onPresetChange?.(null); // Custom date range, clear preset
+               }
+             }}
+             disabled={(date) => {
+               const key = toYMD(date);
+               return !availableDatesSet.has(key);
+             }}
+             locale={currentLang}
+          />
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={() => setPreset(30)} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === '30' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{t('avg_prices.last_30_days')}</motion.button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setLastMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'lastMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{lastMonthName}</motion.button>
+          <motion.button whileHover={{ scale: 1.02 }} whileTap={{ scale: 0.98 }} onClick={setThisMonth} className={`px-3 py-1.5 h-[32px] sm:h-[34px] rounded-lg text-[11px] sm:text-xs font-semibold border transition-colors shadow-sm ${activePreset === 'thisMonth' ? 'bg-blue-800 text-white border-blue-800' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900'}`}>{thisMonthName}</motion.button>
         </div>
-      </div>
-
-      {/* Fuel Type Toggles */}
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
-      <div className="flex flex-wrap gap-2 mb-5">
-        {allFuelTypes.map(fuel => {
-          const isActive = avgSelectedFuels.includes(fuel);
-          return (
-            <button
-              key={fuel}
-              onClick={() => setAvgSelectedFuels(prev => {
-                const next = prev.includes(fuel) 
-                   ? (prev.length <= 1 ? prev : prev.filter(f => f !== fuel))
-                   : [...prev, fuel];
-                return next;
-              })}
-              className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-            >
-              {t(fuel.replace('Neste ', ''))}
-            </button>
-          );
-        })}
       </div>
 
       {tableRows.length === 0 ? (
@@ -874,7 +780,7 @@ const HistoryTable = React.memo(({
         <>
           {/* Summary Cards for selected period */}
           {Object.keys(periodSummary).length > 0 && (
-            <div className={`grid gap-2 sm:gap-3 mb-5 ${avgSelectedFuels.length === 1 ? 'grid-cols-1' : avgSelectedFuels.length === 2 ? 'grid-cols-2' : avgSelectedFuels.length === 3 ? 'grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
               {avgSelectedFuels.map(fuel => {
                 const stats = periodSummary[fuel];
                 if (!stats) return null;
@@ -884,7 +790,7 @@ const HistoryTable = React.memo(({
                     className="rounded-xl p-3 sm:p-4 border-l-4 bg-white shadow-sm ring-1 ring-gray-100"
                     style={{ borderLeftColor: FUEL_COLORS[fuel] }}
                   >
-                    <p className="text-[10px] sm:text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1">
+                    <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: FUEL_COLORS[fuel] }}>
                       {t(fuel.replace('Neste ', ''))}
                     </p>
                     <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
@@ -922,14 +828,21 @@ const HistoryTable = React.memo(({
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-gray-100">
-                    <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-3 sm:pl-4">
+                    <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4">
                        {t('avg_prices.day')}
                     </th>
-                    {avgSelectedFuels.map(fuel => (
-                      <th key={fuel} className="text-right text-[10px] sm:text-xs font-semibold uppercase tracking-wide px-3 sm:px-4 py-3" style={{ color: FUEL_COLORS[fuel] }}>
-                        <motion.div layout>{t(fuel.replace('Neste ', ''))}</motion.div>
-                      </th>
-                    ))}
+                    {avgSelectedFuels.map(fuel => {
+                      const label = t(fuel.replace('Neste ', ''));
+                      const shortLabel = label === 'Pro Diesel' ? 'Pro D' : label;
+                      return (
+                        <th key={fuel} className="text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap" style={{ color: FUEL_COLORS[fuel] }}>
+                          <motion.div layout>
+                            <span className="sm:hidden">{shortLabel}</span>
+                            <span className="hidden sm:inline">{label}</span>
+                          </motion.div>
+                        </th>
+                      );
+                    })}
                   </tr>
                 </thead>
               <tbody>
@@ -947,22 +860,22 @@ const HistoryTable = React.memo(({
                     }}
                     className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
                   >
-                    <td className="py-2 pl-3 sm:pl-4 pr-2 align-top">
-                      <span className="text-xs sm:text-sm font-normal text-gray-500 whitespace-nowrap">{row.timeStr}</span>
+                    <td className="py-2 pl-2 sm:pl-4 pr-1 sm:pr-2 align-top">
+                      <span className="block text-[10px] sm:text-sm font-normal text-gray-500 whitespace-nowrap tabular-nums leading-tight">{row.timeStr}</span>
                     </td>
                     {avgSelectedFuels.map(fuel => {
                       const data = row.fuels[fuel];
                       if (!data) {
-                        return <td key={fuel} className="text-right px-3 sm:px-4 py-2 align-top text-gray-300 text-[10px]">—</td>;
+                        return <td key={fuel} className="text-right px-1 sm:px-4 py-2 align-top text-gray-300 text-[10px]">—</td>;
                       }
                       return (
-                        <td key={fuel} className="text-right px-3 sm:px-4 py-2 align-top">
+                        <td key={fuel} className="text-right px-1 sm:px-4 py-2 align-top">
                           <motion.div layout className="flex flex-col items-end gap-0">
-                            <span className="text-xs sm:text-sm font-bold text-gray-900 leading-tight">€{data.latest.toFixed(3)}</span>
+                            <span className="text-[11px] sm:text-sm font-bold text-gray-900 leading-tight tabular-nums">€{data.latest.toFixed(3)}</span>
                             <div className="flex flex-col items-end">
                               {renderChange(data.change)}
                               {data.min !== data.max && (
-                                <span className="text-[9px] text-gray-400 font-medium whitespace-nowrap tracking-tight">
+                                <span className="text-[8px] sm:text-[9px] text-gray-400 font-medium whitespace-nowrap tracking-tighter sm:tracking-tight tabular-nums">
                                   {data.min.toFixed(3)}–{data.max.toFixed(3)}
                                 </span>
                               )}
@@ -1014,34 +927,18 @@ export default function App() {
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
-  // URL and Storage Initialization - Priority: URL params > localStorage > defaults
-  const [selectedFuels, setSelectedFuels] = useState(() => {
+  // Insights fuel selector — single fuel for Price Insights section
+  const [insightsFuel, setInsightsFuel] = useState(() => {
     const params = new URLSearchParams(window.location.search);
-    const fuelParams = params.getAll('fuel');
-    const storedFuels = localStorage.getItem('selectedFuels');
+    const fuelParam = params.get('fuel');
+    const stored = localStorage.getItem('insightsFuel');
     const validFuelNames = Object.keys(FUEL_COLORS);
 
-    // URL params take priority, then localStorage, then default
-    if (fuelParams.length > 0) {
-      // Handle both comma-separated (backward compat) and multiple params
-      const keys = [];
-      fuelParams.forEach(p => {
-        p.split(',').forEach(k => {
-          if (FUEL_URL_MAP[k]) keys.push(FUEL_URL_MAP[k]);
-        });
-      });
-      if (keys.length > 0) return keys.filter(f => validFuelNames.includes(f));
+    if (fuelParam && FUEL_URL_MAP[fuelParam] && validFuelNames.includes(FUEL_URL_MAP[fuelParam])) {
+      return FUEL_URL_MAP[fuelParam];
     }
-    if (storedFuels) {
-      try {
-        const parsed = JSON.parse(storedFuels);
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter(f => validFuelNames.includes(f));
-          if (filtered.length > 0) return filtered;
-        }
-      } catch { /* ignore */ }
-    }
-    return [...validFuelNames]; // Default to ALL fuel types
+    if (stored && validFuelNames.includes(stored)) return stored;
+    return validFuelNames[0]; // Default to first fuel type
   });
 
   const [graphInterval, setGraphInterval] = useState(() => {
@@ -1158,32 +1055,6 @@ export default function App() {
     return computePresetDates('30').end;
   });
 
-  const [historySelectedFuels, setHistorySelectedFuels] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const hFuelParams = params.getAll('h_fuel');
-    const storedFuels = localStorage.getItem('historySelectedFuels');
-    const validFuelNames = Object.keys(FUEL_COLORS);
-
-    if (hFuelParams.length > 0) {
-      const keys = [];
-      hFuelParams.forEach(p => {
-        p.split(',').forEach(k => {
-          if (FUEL_URL_MAP[k]) keys.push(FUEL_URL_MAP[k]);
-        });
-      });
-      if (keys.length > 0) return keys.filter(f => validFuelNames.includes(f));
-    }
-    if (storedFuels) {
-      try {
-        const parsed = JSON.parse(storedFuels);
-        if (Array.isArray(parsed)) {
-          const filtered = parsed.filter(f => validFuelNames.includes(f));
-          if (filtered.length > 0) return filtered;
-        }
-      } catch { /* ignore */ }
-    }
-    return [...validFuelNames]; // Default to ALL fuel types
-  });
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
   const previousPricesRef = React.useRef([]);
 
@@ -1199,12 +1070,13 @@ export default function App() {
       localStorage.setItem('i18nextLng', currentLang);
     }
 
-    // Sync Fuel (used for both chart and change cards)
-    params.delete('fuel'); // Clear existing to avoid duplicates or old formats
-    selectedFuels.forEach(f => {
-      params.append('fuel', FUEL_TO_URL[f] || '95');
-    });
-    localStorage.setItem('selectedFuels', JSON.stringify(selectedFuels));
+    // Sync Graph interval
+    params.set('period', graphInterval);
+    localStorage.setItem('graphInterval', graphInterval);
+
+    // Sync Insights fuel selector
+    params.set('fuel', FUEL_TO_URL[insightsFuel] || '95');
+    localStorage.setItem('insightsFuel', insightsFuel);
 
     // Sync Discounts (only in day view)
     if (graphInterval === 'days') {
@@ -1227,15 +1099,9 @@ export default function App() {
     localStorage.setItem('historyStartDate', historyStartDate);
     localStorage.setItem('historyEndDate', historyEndDate);
     
-    params.delete('h_fuel');
-    historySelectedFuels.forEach(f => {
-      params.append('h_fuel', FUEL_TO_URL[f] || '95');
-    });
-    localStorage.setItem('historySelectedFuels', JSON.stringify(historySelectedFuels));
-
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, selectedFuels, showDiscounts, historyStartDate, historyEndDate, historySelectedFuels, historyPreset]);
+  }, [i18n.language, graphInterval, insightsFuel, showDiscounts, historyStartDate, historyEndDate, historyPreset]);
 
   // Persist showDiscounts preference
   useEffect(() => {
@@ -1348,8 +1214,6 @@ export default function App() {
 
 
 
-  const petrolPrices = latestPrices.filter(p => !p.type.includes('D') && !p.type.includes('Diesel'));
-  const dieselPrices = latestPrices.filter(p => p.type.includes('D') || p.type.includes('Diesel'));
 
   // Helper: extract Riga timezone date components without double-parsing
   // Uses Intl to read year/month/day/weekday directly — immune to DST shifts
@@ -1545,7 +1409,7 @@ export default function App() {
     // Deep copy objects to avoid mutating memoized chartData
     let data = chartData.map(item => ({ ...item }));
 
-    selectedFuels.forEach(fuel => {
+    FUEL_KEYS.forEach(fuel => {
       const trend = calculateTrendLine(data, fuel);
       if (trend) {
         // Merge trend data back into main data array
@@ -1556,7 +1420,7 @@ export default function App() {
     });
 
     return data;
-  }, [chartData, selectedFuels]);
+  }, [chartData]);
 
   // No smoothing - use raw daily aggregation (High-Low)
   const chartDataFinal = chartDataWithTrend;
@@ -1628,35 +1492,20 @@ export default function App() {
 
         {/* Fuel Prices */}
         <section>
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.petrol')}</h2>
           {loading && latestPrices.length === 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <FuelCardSkeleton />
+              <FuelCardSkeleton />
               <FuelCardSkeleton />
               <FuelCardSkeleton />
             </div>
-          ) : petrolPrices.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-              {petrolPrices.map((item) => (
+          ) : latestPrices.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              {latestPrices.map((item) => (
                 <FuelCard key={item.type} {...item} />
               ))}
             </div>
-          ) : null}
-
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">{t('fuel_group.diesel')}</h2>
-          {loading && latestPrices.length === 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <FuelCardSkeleton />
-              <FuelCardSkeleton />
-            </div>
-          ) : dieselPrices.length > 0 ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {dieselPrices.map((item) => (
-                <FuelCard key={item.type} {...item} />
-              ))}
-            </div>
-          ) : null}
-
-          {latestPrices.length === 0 && !loading && (
+          ) : (
             <div className="text-center text-gray-400 py-10">
               {t('no_data')}
             </div>
@@ -1667,10 +1516,10 @@ export default function App() {
         <section>
           <Card className="p-3 sm:p-6">
             {/* Header with Time Period Pills */}
-            <div className="flex items-center justify-between mb-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2">
-                <Calendar className="w-4 h-4 text-gray-400" />
-                <h2 className="text-lg font-semibold text-gray-900">{t('history')}</h2>
+                <Calendar className="w-4 h-4 text-gray-400 shrink-0" />
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900">{t('history')}</h2>
               </div>
               <SegmentedControl
                 options={['days', 'weeks', 'months'].map(step => ({
@@ -1683,36 +1532,6 @@ export default function App() {
                 size="small"
                 className="z-10"
               />
-            </div>
-
-            {/* Fuel Type Section */}
-            <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('fuel_type')}</p>
-            <div className="flex flex-wrap gap-2 mb-6">
-              {Object.keys(FUEL_COLORS).map(fuel => {
-                const isActive = selectedFuels.includes(fuel);
-                const handleToggle = () => {
-                  setSelectedFuels(prev => {
-                    if (isActive) {
-                      // Don't deselect the last one
-                      if (prev.length <= 1) return prev;
-                      return prev.filter(f => f !== fuel);
-                    } else {
-                      // Max 4
-                      if (prev.length >= 4) return prev;
-                      return [...prev, fuel];
-                    }
-                  });
-                };
-                return (
-                  <button
-                    key={fuel}
-                    onClick={handleToggle}
-                    className={`px-2.5 py-1.5 sm:px-4 sm:py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${isActive ? 'bg-blue-800 text-white' : 'bg-gray-100 text-gray-600 hover:bg-gray-200'}`}
-                  >
-                    {t(fuel.replace('Neste ', ''))}
-                  </button>
-                );
-              })}
             </div>
 
             {/* Discount Toggle — only in day view */}
@@ -1838,11 +1657,11 @@ export default function App() {
                     return areas;
                   }, [])}
 
-                  {selectedFuels.map((fuel) => {
+                  {FUEL_KEYS.map((fuel) => {
                     const fuelShortName = t(fuel.replace('Neste ', ''));
-                    
+
                     // Calculate precise scale for this specific chart view to ensure perfect badge positioning
-                    const allValues = visibleChartData.flatMap(d => selectedFuels.map(f => d[f]).filter(v => typeof v === 'number'));
+                    const allValues = visibleChartData.flatMap(d => FUEL_KEYS.map(f => d[f]).filter(v => typeof v === 'number'));
                     const dMin = Math.min(...allValues);
                     const dMax = Math.max(...allValues);
                     const chartDomainHeight = (dMax + 0.10) - (dMin - 0.02);
@@ -1879,7 +1698,7 @@ export default function App() {
                               const pillHeightWithGap = pillHeight + 12;
 
                               // Resolve collisions consistently across all active fuels
-                              const activeFuels = selectedFuels
+                              const activeFuels = FUEL_KEYS
                                 .filter(f => lastDataPoint[f] !== undefined)
                                 .sort((a, b) => lastDataPoint[b] - lastDataPoint[a]);
 
@@ -1977,17 +1796,35 @@ export default function App() {
               </ResponsiveContainer>
               )}
             </div>
-            {/* Price Change Cards */}
-            <div className="mt-6 pt-6 border-t border-gray-100">
-              <p className="text-xs text-gray-500 uppercase tracking-wide mb-3">
-                {t('insights.title')}{selectedFuels.length > 0 ? ` — ${t(selectedFuels[0].replace('Neste ', ''))}` : ''}
-              </p>
-              <PriceChangeCards
-                historyData={historyData}
-                latestPrices={latestPrices}
-                selectedFuel={selectedFuels[0]} // Use first selected as primary for cards
+          </Card>
+        </section>
+
+        {/* Price Changes Section */}
+        <section>
+          <Card className="p-3 sm:p-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="w-4 h-4 text-gray-400 shrink-0" />
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+                  {t('insights.title')}
+                </h2>
+              </div>
+              <SegmentedControl
+                options={FUEL_KEYS.map(fuel => ({
+                  value: fuel,
+                  label: t(fuel.replace('Neste ', ''))
+                }))}
+                value={insightsFuel}
+                onChange={setInsightsFuel}
+                layoutId="active-insights-fuel"
+                size="small"
               />
             </div>
+            <PriceChangeCards
+              historyData={historyData}
+              latestPrices={latestPrices}
+              selectedFuel={insightsFuel}
+            />
           </Card>
         </section>
 
@@ -2000,8 +1837,6 @@ export default function App() {
             endDate={historyEndDate}
             onStartDateChange={setHistoryStartDate}
             onEndDateChange={setHistoryEndDate}
-            selectedFuels={historySelectedFuels}
-            onFuelsChange={setHistorySelectedFuels}
             onPresetChange={setHistoryPreset}
             activePreset={historyPreset}
           />
