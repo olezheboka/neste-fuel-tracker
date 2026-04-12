@@ -4,7 +4,7 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
 import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
-import { Calendar, RefreshCw, MapPin, ExternalLink, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import PriceChangeCards from './InsightsPanel';
@@ -343,6 +343,79 @@ const ChartLegend = ({ selectedFuel, fuelColors, t }) => {
   );
 };
 
+// Copy-to-clipboard helper with fallback for non-secure contexts
+const copyToClipboard = (text) => {
+  if (navigator.clipboard?.writeText) {
+    return navigator.clipboard.writeText(text).catch(() => {
+      const ta = Object.assign(document.createElement('textarea'), { value: text });
+      ta.style.cssText = 'position:fixed;opacity:0';
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand('copy');
+      document.body.removeChild(ta);
+    });
+  }
+  const ta = Object.assign(document.createElement('textarea'), { value: text });
+  ta.style.cssText = 'position:fixed;opacity:0';
+  document.body.appendChild(ta);
+  ta.select();
+  document.execCommand('copy');
+  document.body.removeChild(ta);
+  return Promise.resolve();
+};
+
+const AddressChip = ({ addr, url }) => {
+  const [copied, setCopied] = useState(false);
+  const { t } = useTranslation();
+
+  const handleCopy = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    copyToClipboard(addr).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    });
+  };
+
+  return (
+    <span className="relative inline-flex items-center gap-0.5">
+      <a
+        href={url}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex items-center text-gray-500 hover:text-blue-600 transition-colors"
+      >
+        <MapPin size={10} className="text-green-500 shrink-0 mr-1" />
+        <span className="underline underline-offset-2">{addr}</span>
+      </a>
+      <button
+        onClick={handleCopy}
+        className={clsx(
+          "ml-1 p-0.5 rounded transition-all",
+          copied
+            ? "text-green-600"
+            : "text-gray-300 hover:text-gray-600 active:scale-90"
+        )}
+        aria-label={`Copy ${addr}`}
+      >
+        {copied ? <Check size={10} /> : <Copy size={10} />}
+      </button>
+      <AnimatePresence>
+        {copied && (
+          <motion.span
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -4 }}
+            className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap pointer-events-none z-10"
+          >
+            {t('copied')}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </span>
+  );
+};
+
 const FuelCard = ({ type, price, location }) => {
   const { t } = useTranslation();
 
@@ -375,19 +448,7 @@ const FuelCard = ({ type, price, location }) => {
             const url = isAllStationsSamePrice
               ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Neste DUS, Rīga, Latvia')}`
               : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Neste ${addr}, Rīga, Latvia`)}`;
-            return (
-              <a
-                key={i}
-                href={url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-gray-500 hover:text-blue-600 transition-colors"
-              >
-                <MapPin size={10} className="text-green-500 shrink-0 inline-block align-middle mr-1" />
-                <span className="underline">{addr}</span>
-                <ExternalLink size={8} className="inline-block align-middle ml-0.5" />
-              </a>
-            );
+            return <AddressChip key={i} addr={addr} url={url} />;
           })
         ) : (
           <span className="text-gray-400 italic">{t('location')}</span>
