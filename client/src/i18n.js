@@ -11,6 +11,7 @@ const resources = {
             loading: 'Loading...',
             loading_initial: 'Loading...',
 
+            liter_short: 'l',
             refresh: 'Refresh Data',
             updated: 'Updated',
             no_data: 'No data',
@@ -95,6 +96,7 @@ const resources = {
             loading: 'Ielādē...',
             loading_initial: 'Ielādē...',
 
+            liter_short: 'l',
             refresh: 'Atjaunot datus',
             updated: 'Atjaunots',
             no_data: 'Nav datu',
@@ -178,6 +180,7 @@ const resources = {
             loading: 'Загрузка...',
             loading_initial: 'Загрузка...',
 
+            liter_short: 'л',
             refresh: 'Обновить данные',
             updated: 'Обновлено',
             no_data: 'Нет данных',
