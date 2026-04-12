@@ -1769,6 +1769,7 @@ export default function App() {
                   <Tooltip
                     content={<CustomTooltip t={t} interval={graphInterval} />}
                     cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
+                    wrapperStyle={{ zIndex: 50 }}
                   />
 
 
