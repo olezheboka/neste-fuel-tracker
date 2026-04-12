@@ -619,10 +619,10 @@ const HistoryTable = React.memo(({
   // Dynamic names
   const currentLang = i18n?.language || 'en';
   const now = new Date();
-  const thisMonthNameRaw = now.toLocaleString(currentLang, { month: 'long', year: 'numeric' });
+  const thisMonthNameRaw = now.toLocaleString(currentLang, { month: 'long' });
   const thisMonthName = thisMonthNameRaw.charAt(0).toUpperCase() + thisMonthNameRaw.slice(1);
   const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthNameRaw = lastMonthDate.toLocaleString(currentLang, { month: 'long', year: 'numeric' });
+  const lastMonthNameRaw = lastMonthDate.toLocaleString(currentLang, { month: 'long' });
   const lastMonthName = lastMonthNameRaw.charAt(0).toUpperCase() + lastMonthNameRaw.slice(1);
 
   // Quick preset functions
@@ -798,16 +798,13 @@ const HistoryTable = React.memo(({
 
   return (
     <Card className="p-3 sm:p-6">
-      {/* Header */}
-      <div className="flex items-center gap-2 mb-4">
-        <BarChart3 className="w-4 h-4 text-gray-400" />
-        <h2 className="text-lg font-semibold text-gray-900">{t('avg_prices.title')}</h2>
-      </div>
-
-      <p className="text-xs text-gray-500 uppercase tracking-wide mb-2">{t('avg_prices.period')}</p>
-      {/* Date Pickers & Preset Selector */}
-      <div className="mb-6 bg-gray-50 p-3 sm:p-4 rounded-xl border border-gray-100">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      {/* Header with period controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="w-4 h-4 text-gray-400 shrink-0" />
+          <h2 className="text-base sm:text-lg font-semibold text-gray-900">{t('avg_prices.title')}</h2>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
           <DateRangePicker
              startDate={localStartDate}
              endDate={localEndDate}
