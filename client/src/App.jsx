@@ -1879,10 +1879,9 @@ export default function App() {
                                       width={pillWidth}
                                       height={pillHeight}
                                       rx={8}
-                                      fill="white"
-                                      stroke="#f3f4f6"
+                                      fill="rgba(255, 255, 255, 0.85)"
+                                      stroke="rgba(243, 244, 246, 0.7)"
                                       strokeWidth={1}
-                                      style={{ filter: 'drop-shadow(0 2px 4px rgba(0,0,0,0.05))' }}
                                     />
                                     <text
                                       x={pillWidth / 2}
