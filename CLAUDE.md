@@ -78,8 +78,15 @@ Server expects `POSTGRES_URL` in `server/.env` for production database. SQLite i
 
 All optional, used for deep linking and state sharing:
 ```
-?fuel=95,98,diesel,pro&period=days&lang=en&discounts=on&h_preset=30&h_start=2026-01-01&h_end=2026-04-09&h_fuel=95,98
+?fuel=95&period=days&lang=en&discounts=on&h_preset=30&h_start=2026-01-01&h_end=2026-04-09
 ```
+- `fuel` — single fuel shorthand for Dynamics section (`95`, `98`, `diesel`, `pro`)
+- `period` — graph interval (`days`, `weeks`, `months`)
+- `lang` — UI language (`en`, `lv`, `ru`)
+- `discounts` — discount toggle, only in day view (`on`, `off`)
+- `h_preset` — history period preset (`7`, `30`, `thisMonth`, `lastMonth`); mutually exclusive with `h_start`/`h_end`
+- `h_start`, `h_end` — custom history date range (`YYYY-MM-DD`); only present when no preset is active
+
 Fuel shorthand mapping: `95` → `Neste Futura 95`, `98` → `Neste Futura 98`, `diesel` → `Neste Futura D`, `pro` → `Neste Pro Diesel`. State priority: URL params > localStorage > hardcoded defaults.
 
 ## Fuel Types

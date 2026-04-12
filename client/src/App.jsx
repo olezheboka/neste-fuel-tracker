@@ -33,7 +33,6 @@ const FUEL_URL_MAP = {
   '98': 'Neste Futura 98',
   'diesel': 'Neste Futura D',
   'pro': 'Neste Pro Diesel',
-  'all': 'all'
 };
 
 const FUEL_TO_URL = Object.fromEntries(
@@ -154,6 +153,66 @@ const ChartSkeleton = () => (
     {[40, 55, 45, 65, 50, 70, 60, 75, 55, 80, 65, 70, 60, 85, 75, 90].map((h, i) => (
       <Skeleton key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%` }} />
     ))}
+  </div>
+);
+
+const InsightsSkeleton = () => (
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+    {[1, 2, 3, 4].map(i => (
+      <div key={i} className="p-2.5 sm:p-4 rounded-xl bg-gray-50 flex flex-col items-center gap-2">
+        <Skeleton className="h-3 w-8" />
+        <Skeleton className="h-5 sm:h-6 w-16" />
+        <Skeleton className="h-2.5 w-12" />
+      </div>
+    ))}
+  </div>
+);
+
+const HistorySummarySkeleton = () => (
+  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
+    {[1, 2, 3, 4].map(i => (
+      <div key={i} className="rounded-xl p-3 sm:p-4 border-l-4 border-l-gray-200 bg-white shadow-sm ring-1 ring-gray-100">
+        <Skeleton className="h-3 w-12 mb-1" />
+        <Skeleton className="h-7 w-24 mb-1.5" />
+        <Skeleton className="h-4 w-20 rounded-full mb-2" />
+        <div className="flex gap-3 pt-2 border-t border-gray-50">
+          <Skeleton className="h-3 w-16" />
+          <Skeleton className="h-3 w-16" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const HistoryTableSkeleton = () => (
+  <div className="rounded-xl border border-slate-200 overflow-hidden">
+    <div className="py-2.5 px-4 bg-slate-50 border-b border-slate-200">
+      <Skeleton className="h-4 w-48 mx-auto" />
+    </div>
+    <div className="p-1">
+      {/* Header row */}
+      <div className="flex items-center py-3 px-2 sm:px-4 border-b border-gray-100">
+        <Skeleton className="h-3 w-10" />
+        <div className="flex-1 flex justify-end gap-4 sm:gap-8">
+          <Skeleton className="h-3 w-6" />
+          <Skeleton className="h-3 w-6" />
+          <Skeleton className="h-3 w-12" />
+          <Skeleton className="h-3 w-10" />
+        </div>
+      </div>
+      {/* Data rows */}
+      {[1, 2, 3, 4, 5, 6, 7, 8].map(i => (
+        <div key={i} className="flex items-center py-2.5 px-2 sm:px-4 border-b border-gray-50 last:border-b-0">
+          <Skeleton className="h-3.5 w-16" />
+          <div className="flex-1 flex justify-end gap-4 sm:gap-8">
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-14" />
+            <Skeleton className="h-4 w-14" />
+          </div>
+        </div>
+      ))}
+    </div>
   </div>
 );
 
@@ -513,7 +572,8 @@ const HistoryTable = React.memo(({
   onStartDateChange,
   onEndDateChange,
   onPresetChange,
-  activePreset
+  activePreset,
+  loading
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
@@ -787,7 +847,12 @@ const HistoryTable = React.memo(({
         </div>
       </div>
 
-      {tableRows.length === 0 ? (
+      {loading && historyData.length === 0 ? (
+        <>
+          <HistorySummarySkeleton />
+          <HistoryTableSkeleton />
+        </>
+      ) : tableRows.length === 0 ? (
         <p className="text-sm text-gray-400 text-center py-6">{t('avg_prices.no_data')}</p>
       ) : (
         <>
@@ -1833,11 +1898,15 @@ export default function App() {
                 size="small"
               />
             </div>
-            <PriceChangeCards
-              historyData={historyData}
-              latestPrices={latestPrices}
-              selectedFuel={insightsFuel}
-            />
+            {loading && historyData.length === 0 ? (
+              <InsightsSkeleton />
+            ) : (
+              <PriceChangeCards
+                historyData={historyData}
+                latestPrices={latestPrices}
+                selectedFuel={insightsFuel}
+              />
+            )}
           </Card>
         </section>
 
@@ -1852,6 +1921,7 @@ export default function App() {
             onEndDateChange={setHistoryEndDate}
             onPresetChange={setHistoryPreset}
             activePreset={historyPreset}
+            loading={loading}
           />
         </section>
 
