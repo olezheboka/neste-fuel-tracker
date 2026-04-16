@@ -967,11 +967,12 @@ const HistoryTable = React.memo(({
                     <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4">
                        {t('avg_prices.day')}
                     </th>
-                    {avgSelectedFuels.map(fuel => {
+                    {avgSelectedFuels.map((fuel, idx) => {
                       const label = t(fuel.replace('Neste ', ''));
                       const shortLabel = label === 'Pro Diesel' ? 'Pro D' : label;
+                      const isLast = idx === avgSelectedFuels.length - 1;
                       return (
-                        <th key={fuel} className="text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap" style={{ color: FUEL_COLORS[fuel] }}>
+                        <th key={fuel} className={clsx("text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
                           <motion.div layout>
                             <span className="sm:hidden">{shortLabel}</span>
                             <span className="hidden sm:inline">{label}</span>
@@ -996,16 +997,17 @@ const HistoryTable = React.memo(({
                     }}
                     className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
                   >
-                    <td className="py-2 pl-2 sm:pl-4 pr-1 sm:pr-2 align-top">
+                    <td className="py-2 pl-2 sm:pl-4 pr-0 sm:pr-2 align-top">
                       <span className="block text-[10px] sm:text-sm font-normal text-gray-500 whitespace-nowrap tabular-nums leading-tight">{row.timeStr}</span>
                     </td>
-                    {avgSelectedFuels.map(fuel => {
+                    {avgSelectedFuels.map((fuel, idx) => {
+                      const isLast = idx === avgSelectedFuels.length - 1;
                       const data = row.fuels[fuel];
                       if (!data) {
-                        return <td key={fuel} className="text-right px-1 sm:px-4 py-2 align-top text-gray-300 text-[10px]">—</td>;
+                        return <td key={fuel} className={clsx("text-right px-1 sm:px-4 py-2 align-top text-gray-300 text-[10px]", isLast && "pr-2 sm:pr-4")}>—</td>;
                       }
                       return (
-                        <td key={fuel} className="text-right px-1 sm:px-4 py-2 align-top">
+                        <td key={fuel} className={clsx("text-right px-1 sm:px-4 py-2 align-top", isLast && "pr-2 sm:pr-4")}>
                           <motion.div layout className="flex flex-col items-end gap-0">
                             <span className="text-[11px] sm:text-sm font-bold text-gray-900 leading-tight tabular-nums">€{data.latest.toFixed(3)}</span>
                             <div className="flex flex-col items-end">
