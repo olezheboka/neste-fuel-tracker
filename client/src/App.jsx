@@ -1510,6 +1510,7 @@ export default function App() {
     //   1. Location contains "Visās stacijās cenas vienādas" (hasDiscountLocation)
     //   2. ALL available fuel types dropped by at least 5 cents
     const MIN_DISCOUNT_DROP = 0.05;
+    const EPSILON = 0.001; // Guard against floating-point rounding (e.g. 1.797-1.747 = 0.04999…)
     const fuelTypes = Object.keys(FUEL_COLORS);
     for (let i = 0; i < sorted.length; i++) {
       if (!sorted[i].hasDiscountLocation) continue;
@@ -1529,7 +1530,7 @@ export default function App() {
         // If either is missing, skip this fuel (don't block the discount flag)
         if (prevPrice === undefined || currPrice === undefined) return true;
         // Either the last price dropped by ≥5¢ OR the min price dropped by ≥5¢ (intra-day discount)
-        return prevPrice - currPrice >= MIN_DISCOUNT_DROP || (currMinPrice !== undefined && prevPrice - currMinPrice >= MIN_DISCOUNT_DROP);
+        return prevPrice - currPrice >= MIN_DISCOUNT_DROP - EPSILON || (currMinPrice !== undefined && prevPrice - currMinPrice >= MIN_DISCOUNT_DROP - EPSILON);
       });
       sorted[i].isDiscount = allDropped;
     }
