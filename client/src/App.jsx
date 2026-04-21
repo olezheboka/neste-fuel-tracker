@@ -1029,7 +1029,9 @@ const HistoryTable = React.memo(({
                       damping: 30,
                       delay: Math.min(i * 0.01, 0.3)
                     }}
-                    style={highlighted ? { backgroundColor: `${DISCOUNT_COLOR}33` } : undefined}
+                    // 1A (~10%) matches the chart's effective opacity: ReferenceArea applies
+                    // Recharts' default fillOpacity: 0.5 on top of the 33 (20%) fill, yielding ~10%.
+                    style={highlighted ? { backgroundColor: `${DISCOUNT_COLOR}1A` } : undefined}
                     className={clsx(
                       "border-b border-gray-50 last:border-b-0 transition-colors",
                       !highlighted && "hover:bg-slate-100/60"
