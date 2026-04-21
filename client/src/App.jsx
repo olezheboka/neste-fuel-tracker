@@ -421,7 +421,7 @@ const FuelCard = ({ type, price, location }) => {
 
   // Parse addresses from pipe-separated string
   let addressList = [];
-  const isAllStationsSamePrice = location && location.includes('Visās stacijās cenas vienādas');
+  const isAllStationsSamePrice = location && /vienād/i.test(location);
   if (isAllStationsSamePrice) {
     addressList = [t('all_stations_same_price')];
   } else if (location && location.trim().length > 0) {
@@ -1457,10 +1457,12 @@ export default function App() {
         formattedTime = `${startStr} - ${endStr}`;
       }
 
-      // Detect discount location: any fuel type in this period has "Visās stacijās cenas vienādas"
+      // Detect discount location: any fuel type in this period has the "all stations same price" marker.
+      // Match on the "vienād" root (case-insensitive) to survive phrasing changes on neste.lv
+      // (e.g. "Visās stacijās cenas vienādas" vs "visās degvielas uzpildes stacijās cena vienāda").
       const hasDiscountLocation = Object.values(data).some(fuelData =>
         fuelData.prices.some(p =>
-          p.location && p.location.includes('Visās stacijās cenas vienādas')
+          p.location && /vienād/i.test(p.location)
         )
       );
 
