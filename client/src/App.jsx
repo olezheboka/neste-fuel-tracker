@@ -634,7 +634,8 @@ const HistoryTable = React.memo(({
   onEndDateChange,
   onPresetChange,
   activePreset,
-  loading
+  loading,
+  showDiscounts
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
@@ -758,12 +759,16 @@ const HistoryTable = React.memo(({
                 dateKey,
                 // Using requested shortened date format: dd.mm.yy
                 timeStr: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).slice(-2)}`,
-                rawFuels: {}
+                rawFuels: {},
+                hasDiscountLocation: false
             });
         }
         const dayData = dayMap.get(dateKey);
         if (!dayData.rawFuels[e.type]) dayData.rawFuels[e.type] = [];
         dayData.rawFuels[e.type].push({ price: e.price, timestamp: e.timestamp });
+        if (!dayData.hasDiscountLocation && e.location && /vienād/i.test(e.location)) {
+            dayData.hasDiscountLocation = true;
+        }
     });
 
     // Compute stats
@@ -785,7 +790,13 @@ const HistoryTable = React.memo(({
                 };
             }
         });
-        return { dateKey: dayData.dateKey, timeStr: dayData.timeStr, fuels };
+        return {
+            dateKey: dayData.dateKey,
+            timeStr: dayData.timeStr,
+            fuels,
+            hasDiscountLocation: dayData.hasDiscountLocation,
+            isDiscount: false
+        };
     });
 
   // Sort mathematically ASCENDING to calculate previous day delta
@@ -803,6 +814,27 @@ const HistoryTable = React.memo(({
             }
         });
     }
+
+    // Finalize isDiscount — mirrors the chart's 2-condition rule (see processData):
+    //   1. Marker text present on at least one entry (hasDiscountLocation)
+    //   2. Every fuel type with data on both days dropped ≥ €0.05 (latest OR min vs prev.latest)
+    const MIN_DISCOUNT_DROP = 0.05;
+    const EPSILON = 0.001;
+    for (let i = 1; i < rows.length; i++) {
+        if (!rows[i].hasDiscountLocation) continue;
+        const prev = rows[i - 1];
+        const curr = rows[i];
+        const allDropped = FUEL_KEYS.every(f => {
+            const prevFuel = prev.fuels[f];
+            const currFuel = curr.fuels[f];
+            if (!prevFuel || !currFuel) return true; // missing data doesn't block
+            const dropLatest = prevFuel.latest - currFuel.latest;
+            const dropMin = prevFuel.latest - currFuel.min;
+            return dropLatest >= MIN_DISCOUNT_DROP - EPSILON || dropMin >= MIN_DISCOUNT_DROP - EPSILON;
+        });
+        rows[i].isDiscount = allDropped;
+    }
+
     return rows;
   }, [historyData, getRigaParts, toYMD]);
 
@@ -983,19 +1015,25 @@ const HistoryTable = React.memo(({
                   </tr>
                 </thead>
               <tbody>
-                {tableRows.slice(0, visibleCount).map((row, i) => (
+                {tableRows.slice(0, visibleCount).map((row, i) => {
+                  const highlighted = showDiscounts && row.isDiscount;
+                  return (
                   <motion.tr
                     layout
                     key={row.dateKey}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
-                    transition={{ 
+                    transition={{
                       type: "spring",
                       stiffness: 400,
                       damping: 30,
                       delay: Math.min(i * 0.01, 0.3)
                     }}
-                    className="border-b border-gray-50 last:border-b-0 hover:bg-slate-100/60 transition-colors"
+                    style={highlighted ? { backgroundColor: `${DISCOUNT_COLOR}33` } : undefined}
+                    className={clsx(
+                      "border-b border-gray-50 last:border-b-0 transition-colors",
+                      !highlighted && "hover:bg-slate-100/60"
+                    )}
                   >
                     <td className="py-2 pl-2 sm:pl-4 pr-0 sm:pr-2 align-top">
                       <span className="block text-[10px] sm:text-sm font-normal text-gray-500 whitespace-nowrap tabular-nums leading-tight">{row.timeStr}</span>
@@ -1023,7 +1061,8 @@ const HistoryTable = React.memo(({
                       );
                     })}
                   </motion.tr>
-                ))}
+                  );
+                })}
               </tbody>
               </table>
             </div>
@@ -1985,6 +2024,7 @@ export default function App() {
             onPresetChange={setHistoryPreset}
             activePreset={historyPreset}
             loading={loading}
+            showDiscounts={showDiscounts}
           />
         </section>
 
