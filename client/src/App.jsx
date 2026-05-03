@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import "react-day-picker/src/style.css";
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
@@ -7,9 +7,9 @@ import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line 
 import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import PriceChangeCards from './InsightsPanel';
-import CustomTooltip from './CustomTooltip';
+const PriceChangeCards = lazy(() => import('./InsightsPanel'));
 import { DateRangePicker } from './components/ui/DatePicker';
+import CustomTooltip from './CustomTooltip';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 
@@ -154,11 +154,12 @@ const FuelCardSkeleton = () => (
   </div>
 );
 
-const ChartSkeleton = () => (
-  <div className="w-full h-[300px] flex items-end gap-1 px-8 pb-8 pt-4">
-    {[40, 55, 45, 65, 50, 70, 60, 75, 55, 80, 65, 70, 60, 85, 75, 90].map((h, i) => (
-      <Skeleton key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%` }} />
-    ))}
+const ChartLoadingOverlay = () => (
+  <div className="absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-[2px] rounded z-10 pointer-events-none">
+    <svg className="animate-spin w-8 h-8 text-gray-400" viewBox="0 0 24 24" fill="none">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" />
+      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+    </svg>
   </div>
 );
 
@@ -860,7 +861,7 @@ const HistoryTable = React.memo(({
     }
 
     return rows;
-  }, [historyData, getRigaParts, toYMD]);
+  }, [historyData, getRigaParts, toYMD, allFuelTypes]);
 
   const availableDatesSet = useMemo(() => {
     return new Set(allDaysData.map(d => d.dateKey));
@@ -1160,6 +1161,7 @@ export default function App() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(true);
   const [lastCheck, setLastCheck] = useState(null);
   const [notification, setNotification] = useState(null);
   const [showDiscounts, setShowDiscounts] = useState(() => {
@@ -1321,99 +1323,104 @@ export default function App() {
     if (lngs[initialLang] && i18n.language !== initialLang) {
       i18n.changeLanguage(initialLang);
     }
-  }, []);
+  }, [i18n]);
 
-  const fetchData = async (forceScrape = false, showNotification = false) => {
-    try {
-      setLoading(true);
+  const fetchData = useCallback(async (forceScrape = false, showNotification = false) => {
+    setLoading(true);
+    setHistoryLoading(true);
 
-      if (forceScrape) {
+    if (forceScrape) {
+      try {
         await axios.get(`${API_BASE}/scrape`);
+      } catch (err) {
+        console.error(err);
       }
+    }
 
-      const [latestRes, historyRes] = await Promise.all([
-        axios.get(`${API_BASE}/prices/latest`, { timeout: 15000 }),
-        axios.get(`${API_BASE}/prices/history`, { timeout: 15000 }),
-      ]);
+    const latestPromise = axios
+      .get(`${API_BASE}/prices/latest`, { timeout: 15000 })
+      .then(latestRes => {
+        const newPrices = latestRes.data;
 
-      const newPrices = latestRes.data;
+        // Compare prices if we have previous data and notification is requested
+        if (showNotification && previousPricesRef.current.length > 0) {
+          const changes = [];
+          let hasAnyChange = false;
 
-      // Compare prices if we have previous data and notification is requested
-      if (showNotification && previousPricesRef.current.length > 0) {
-        const changes = [];
-        let hasAnyChange = false;
-
-        newPrices.forEach(newPrice => {
-          const oldPrice = previousPricesRef.current.find(p => p.type === newPrice.type);
-          if (oldPrice) {
-            const diff = newPrice.price - oldPrice.price;
-            // Check if there is a significant change
-            if (Math.abs(diff) >= 0.001) {
-              hasAnyChange = true;
+          newPrices.forEach(newPrice => {
+            const oldPrice = previousPricesRef.current.find(p => p.type === newPrice.type);
+            if (oldPrice) {
+              const diff = newPrice.price - oldPrice.price;
+              if (Math.abs(diff) >= 0.001) {
+                hasAnyChange = true;
+              }
+              changes.push({
+                fuel: newPrice.type.replace('Neste ', '').replace('Futura ', ''),
+                oldPrice: oldPrice.price,
+                newPrice: newPrice.price,
+                diff: diff
+              });
             }
-            // Always add to changes array
-            changes.push({
-              fuel: newPrice.type.replace('Neste ', '').replace('Futura ', ''),
-              oldPrice: oldPrice.price,
-              newPrice: newPrice.price,
-              diff: diff
+          });
+
+          const cleanName = (name) => {
+            return name.replace('Futura D', 'Diesel').replace('Futura ', '');
+          };
+
+          const processedChanges = changes.map(c => ({
+            ...c,
+            fuel: cleanName(c.fuel)
+          }));
+
+          if (hasAnyChange) {
+            setNotification({
+              hasChanges: true,
+              title: t('notification.prices_changed'),
+              changes: processedChanges
+            });
+          } else {
+            setNotification({
+              hasChanges: false,
+              title: t('notification.data_refreshed'),
+              message: t('notification.no_changes')
             });
           }
-        });
-
-        const cleanName = (name) => {
-          return name.replace('Futura D', 'Diesel').replace('Futura ', '');
-        };
-
-        const processedChanges = changes.map(c => ({
-          ...c,
-          fuel: cleanName(c.fuel)
-        }));
-
-        if (hasAnyChange) {
-          setNotification({
-            hasChanges: true,
-            title: t('notification.prices_changed'),
-            changes: processedChanges
-          });
-        } else {
-          setNotification({
-            hasChanges: false,
-            title: t('notification.data_refreshed'),
-            message: t('notification.no_changes')
-          });
         }
-      }
 
-      // Store current prices for future comparison
-      previousPricesRef.current = newPrices;
+        previousPricesRef.current = newPrices;
 
-      setLatestPrices(newPrices);
-      if (newPrices.length > 0) {
-        setLastCheck(newPrices[0].timestamp);
-      }
+        setLatestPrices(newPrices);
+        if (newPrices.length > 0) {
+          setLastCheck(newPrices[0].timestamp);
+        }
+      })
+      .catch(err => console.error(err))
+      .finally(() => setLoading(false));
 
-      setHistoryData(historyRes.data);
+    const historyPromise = axios
+      .get(`${API_BASE}/prices/history`, { timeout: 15000 })
+      .then(historyRes => {
+        setHistoryData(historyRes.data);
+      })
+      .catch(err => console.error(err))
+      .finally(() => setHistoryLoading(false));
 
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+    await Promise.all([latestPromise, historyPromise]);
+  }, [t]);
 
   const handleRefresh = () => {
     fetchData(true, true);
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     fetchData();
     // Auto-refresh data every 15 minutes to catch automated backend updates
     const interval = setInterval(() => {
       fetchData();
     }, 15 * 60 * 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [fetchData]);
 
 
 
@@ -1607,7 +1614,7 @@ export default function App() {
     }
 
     return sorted;
-  }, [historyData, graphInterval, isMobile]);
+  }, [historyData, graphInterval]);
 
 
 
@@ -1641,19 +1648,21 @@ export default function App() {
     return chartDataFinal.slice(brushIndices.startIndex, brushIndices.endIndex + 1);
   }, [chartDataFinal, brushIndices]);
 
-  // Reset Brush indices when data or interval changes
-  useEffect(() => {
-    if (chartDataFinal && chartDataFinal.length > 0) {
-      let defaultVisibleCount = 30; // default for days
-      if (graphInterval === 'weeks') defaultVisibleCount = 4;
-      if (graphInterval === 'months') defaultVisibleCount = 3;
+  // Sync Brush indices when data or interval changes during render
+  // This avoids extra render cycles and lint errors associated with useEffect
+  const [lastConfig, setLastConfig] = useState({ length: 0, interval: '' });
+  if (chartDataFinal && (chartDataFinal.length !== lastConfig.length || graphInterval !== lastConfig.interval)) {
+    setLastConfig({ length: chartDataFinal.length, interval: graphInterval });
 
-      setBrushIndices({
-        startIndex: Math.max(0, chartDataFinal.length - defaultVisibleCount),
-        endIndex: chartDataFinal.length - 1
-      });
-    }
-  }, [chartDataFinal, graphInterval]);
+    let defaultVisibleCount = 30; // default for days
+    if (graphInterval === 'weeks') defaultVisibleCount = 4;
+    if (graphInterval === 'months') defaultVisibleCount = 3;
+
+    setBrushIndices({
+      startIndex: Math.max(0, chartDataFinal.length - defaultVisibleCount),
+      endIndex: chartDataFinal.length - 1
+    });
+  }
 
   const handleBrushChange = (newIndex) => {
     if (newIndex && newIndex.startIndex !== undefined) {
@@ -1784,10 +1793,9 @@ export default function App() {
             )}
 
             {/* Chart container — stretch to card edges on mobile */}
-            <div className="h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
-              {loading && historyData.length === 0 ? (
-                <ChartSkeleton />
-              ) : (
+            <div className="relative h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
+              {historyLoading && <ChartLoadingOverlay />}
+              {historyData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart
                   data={visibleChartData}
@@ -2005,7 +2013,7 @@ export default function App() {
                   })}
                 </LineChart>
               </ResponsiveContainer>
-              )}
+              ) : null}
             </div>
           </Card>
         </section>
@@ -2031,14 +2039,16 @@ export default function App() {
                 size="small"
               />
             </div>
-            {loading && historyData.length === 0 ? (
+            {historyLoading && historyData.length === 0 ? (
               <InsightsSkeleton />
             ) : (
-              <PriceChangeCards
-                historyData={historyData}
-                latestPrices={latestPrices}
-                selectedFuel={insightsFuel}
-              />
+              <Suspense fallback={<InsightsSkeleton />}>
+                <PriceChangeCards
+                  historyData={historyData}
+                  latestPrices={latestPrices}
+                  selectedFuel={insightsFuel}
+                />
+              </Suspense>
             )}
           </Card>
         </section>
@@ -2054,7 +2064,7 @@ export default function App() {
             onEndDateChange={setHistoryEndDate}
             onPresetChange={setHistoryPreset}
             activePreset={historyPreset}
-            loading={loading}
+            loading={historyLoading}
             showDiscounts={showDiscounts}
           />
         </section>

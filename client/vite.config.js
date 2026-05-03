@@ -6,5 +6,15 @@ export default defineConfig({
   plugins: [react()],
   build: {
     chunkSizeWarningLimit: 1000,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          recharts: ['recharts'],
+          motion: ['framer-motion'],
+          radix: ['@radix-ui/react-popover'],
+          i18n: ['i18next', 'react-i18next'],
+        },
+      },
+    },
   },
 })

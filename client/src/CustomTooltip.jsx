@@ -23,7 +23,6 @@ const CustomTooltip = ({ active, payload, label, t, interval }) => {
                     {items.map((entry, index) => {
                         const historyKey = `${entry.name}_history`;
                         const history = entry.payload[historyKey];
-                        const hasHistory = history && history.length > 1;
 
                         // Limit history entries based on interval
                         const maxHistory = interval === 'months' ? 0 : interval === 'weeks' ? 5 : Infinity;
