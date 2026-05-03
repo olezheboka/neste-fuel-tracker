@@ -114,6 +114,10 @@ async function initializeDatabase() {
     return initPromise;
 }
 
+// Kick off DB init at module load so the cold-start cost is paid during
+// function boot rather than during the first user-visible request.
+initializeDatabase().catch(() => { /* surfaced again via ensureDb on request */ });
+
 // Middleware to ensure DB is ready
 const ensureDb = async (req, res, next) => {
     if (!dbReady) {
@@ -192,10 +196,18 @@ app.get('/api/prices/latest', async (req, res) => {
         const db = await openDb();
 
         const prices = await db.all(`
-            SELECT type, price, location, timestamp 
-            FROM fuel_prices 
+            SELECT type, price, location, timestamp
+            FROM fuel_prices
             WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
         `);
+
+        if (prices.length > 0) {
+            const lastModified = new Date(prices[0].timestamp).toUTCString();
+            res.set('Last-Modified', lastModified);
+            if (req.headers['if-modified-since'] === lastModified) {
+                return res.status(304).end();
+            }
+        }
 
         res.json(prices.length === 0 ? [] : prices.map(p => ({ ...p, location: cleanLocation(p.location) })));
     } catch (error) {
@@ -209,6 +221,18 @@ app.get('/api/prices/history', async (req, res) => {
     try {
         const { type } = req.query;
         const db = await openDb();
+
+        // Cheap freshness check before SELECT *: if the client has the latest
+        // timestamp, reply 304 without paying the cost of fetching/serialising
+        // the full history.
+        const latest = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
+        if (latest && latest.timestamp) {
+            const lastModified = new Date(latest.timestamp).toUTCString();
+            res.set('Last-Modified', lastModified);
+            if (req.headers['if-modified-since'] === lastModified) {
+                return res.status(304).end();
+            }
+        }
 
         let query = 'SELECT * FROM fuel_prices';
         const params = [];
