@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { initDb, openDb } = require('./db');
 const { scrapePrices } = require('./scraper');
+const { writeSnapshot, hydrateFromBlob, getMemory } = require('./snapshot');
 
 // Sanitize location strings that may contain MSO/CDATA artifacts from Neste's website
 function cleanLocation(loc) {
@@ -118,6 +119,72 @@ async function initializeDatabase() {
 // function boot rather than during the first user-visible request.
 initializeDatabase().catch(() => { /* surfaced again via ensureDb on request */ });
 
+// Kick off Blob hydration in parallel with DB init (non-blocking).
+// Resolves to true if memory was populated from CDN, false otherwise.
+const hydratePromise = hydrateFromBlob().catch(() => false);
+
+// ---------------------------------------------------------------------------
+// Helpers for deduplication and snapshot refresh
+// ---------------------------------------------------------------------------
+
+// Convert a timestamp (Date object or ISO string) to a 'YYYY-MM-DD' key in
+// Europe/Riga timezone, matching the client's toYMD() / getRigaParts() logic.
+const rigaDateFormatter = new Intl.DateTimeFormat('sv-SE', {
+    timeZone: 'Europe/Riga',
+    year: 'numeric', month: '2-digit', day: '2-digit',
+});
+
+function toRigaDateKey(timestamp) {
+    const date = timestamp instanceof Date ? timestamp : new Date(timestamp);
+    return rigaDateFormatter.format(date); // 'YYYY-MM-DD'
+}
+
+// Keep the latest entry per (Riga-date, fuel-type) so the client receives
+// ~1 row/day/fuel instead of ~24 hourly duplicates.
+// Input rows must be sorted ASC by timestamp (later entry wins via Map overwrite).
+function deduplicateHistory(rows) {
+    const seen = new Map();
+    for (const row of rows) {
+        const key = `${toRigaDateKey(row.timestamp)}::${row.type}`;
+        seen.set(key, row); // later (ASC) overwrites earlier
+    }
+    return Array.from(seen.values()).sort((a, b) => {
+        const ta = a.timestamp instanceof Date ? a.timestamp.toISOString() : String(a.timestamp);
+        const tb = b.timestamp instanceof Date ? b.timestamp.toISOString() : String(b.timestamp);
+        return ta < tb ? -1 : 1;
+    });
+}
+
+// Query DB for the current snapshot data and persist it to memory + Blob.
+// Called after every successful scrape.
+async function updateSnapshot() {
+    try {
+        const db = await openDb();
+
+        const latest = await db.all(`
+            SELECT type, price, location, timestamp
+            FROM fuel_prices
+            WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
+        `);
+
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - 1);
+        const raw = await db.all(
+            'SELECT type, price, location, timestamp FROM fuel_prices WHERE timestamp > ? ORDER BY timestamp ASC',
+            [cutoff.toISOString()]
+        );
+        const history = deduplicateHistory(raw);
+
+        await writeSnapshot(
+            latest.map(p => ({ ...p, location: cleanLocation(p.location) })),
+            history.map(p => ({ ...p, location: cleanLocation(p.location) }))
+        );
+        console.log(`[API] Snapshot updated: ${latest.length} latest, ${history.length} history rows.`);
+    } catch (e) {
+        console.error('[API] updateSnapshot failed:', e.message);
+    }
+}
+
 // Middleware to ensure DB is ready
 const ensureDb = async (req, res, next) => {
     if (!dbReady) {
@@ -193,8 +260,22 @@ app.use('/api', ensureDb);
 // Get latest prices
 app.get('/api/prices/latest', async (req, res) => {
     try {
-        const db = await openDb();
+        // 1. Memory / Blob snapshot (warm instances: <1ms; cold with Blob: ~50ms)
+        let snap = getMemory();
+        if (!snap) { await hydratePromise; snap = getMemory(); }
 
+        if (snap) {
+            const prices = snap.latest;
+            if (prices.length > 0) {
+                const lastModified = new Date(prices[0].timestamp).toUTCString();
+                res.set('Last-Modified', lastModified);
+                if (req.headers['if-modified-since'] === lastModified) return res.status(304).end();
+            }
+            return res.json(prices);
+        }
+
+        // 2. DB fallback (cold start without Blob, or before first scrape)
+        const db = await openDb();
         const prices = await db.all(`
             SELECT type, price, location, timestamp
             FROM fuel_prices
@@ -204,9 +285,7 @@ app.get('/api/prices/latest', async (req, res) => {
         if (prices.length > 0) {
             const lastModified = new Date(prices[0].timestamp).toUTCString();
             res.set('Last-Modified', lastModified);
-            if (req.headers['if-modified-since'] === lastModified) {
-                return res.status(304).end();
-            }
+            if (req.headers['if-modified-since'] === lastModified) return res.status(304).end();
         }
 
         res.json(prices.length === 0 ? [] : prices.map(p => ({ ...p, location: cleanLocation(p.location) })));
@@ -216,35 +295,47 @@ app.get('/api/prices/latest', async (req, res) => {
     }
 });
 
-// Get history
+// Get history — returns deduplicated daily rows (~1 per day/fuel, not hourly)
 app.get('/api/prices/history', async (req, res) => {
     try {
         const { type } = req.query;
+
+        // 1. Memory / Blob snapshot
+        let snap = getMemory();
+        if (!snap) { await hydratePromise; snap = getMemory(); }
+
+        if (snap) {
+            let history = snap.history;
+            if (type) history = history.filter(p => p.type === type);
+            if (history.length > 0) {
+                const lastModified = new Date(history[history.length - 1].timestamp).toUTCString();
+                res.set('Last-Modified', lastModified);
+                if (req.headers['if-modified-since'] === lastModified) return res.status(304).end();
+            }
+            return res.json(history);
+        }
+
+        // 2. DB fallback — deduplicate to one row per (Riga-date, fuel) and
+        //    limit to the last 365 days so the query stays fast.
         const db = await openDb();
 
-        // Cheap freshness check before SELECT *: if the client has the latest
-        // timestamp, reply 304 without paying the cost of fetching/serialising
-        // the full history.
-        const latest = await db.get('SELECT timestamp FROM fuel_prices ORDER BY id DESC LIMIT 1');
-        if (latest && latest.timestamp) {
-            const lastModified = new Date(latest.timestamp).toUTCString();
-            res.set('Last-Modified', lastModified);
-            if (req.headers['if-modified-since'] === lastModified) {
-                return res.status(304).end();
-            }
-        }
+        const cutoff = new Date();
+        cutoff.setFullYear(cutoff.getFullYear() - 1);
 
-        let query = 'SELECT * FROM fuel_prices';
-        const params = [];
-
-        if (type) {
-            query += ' WHERE type = ?';
-            params.push(type);
-        }
-
+        let query = 'SELECT type, price, location, timestamp FROM fuel_prices WHERE timestamp > ?';
+        const params = [cutoff.toISOString()];
+        if (type) { query += ' AND type = ?'; params.push(type); }
         query += ' ORDER BY timestamp ASC';
 
-        const data = await db.all(query, params);
+        const raw = await db.all(query, params);
+        const data = deduplicateHistory(raw);
+
+        if (data.length > 0) {
+            const lastModified = new Date(data[data.length - 1].timestamp).toUTCString();
+            res.set('Last-Modified', lastModified);
+            if (req.headers['if-modified-since'] === lastModified) return res.status(304).end();
+        }
+
         res.json(data.map(p => ({ ...p, location: cleanLocation(p.location) })));
     } catch (error) {
         console.error('[API] /prices/history error:', error.message);
@@ -263,10 +354,17 @@ app.get('/api/scrape', async (req, res) => {
             if (!IS_PRODUCTION) console.log('Scrape skipped (debounced)');
             return res.json({ status: 'ok', count: 0, debounced: true });
         }
-        
+
         if (!IS_PRODUCTION) console.log('Scrape triggered');
         const results = await scrapePrices();
         lastScrapeTime = Date.now();
+
+        // Refresh memory + Blob snapshot after every successful scrape.
+        // Fire-and-forget: don't block the response.
+        if (results.length > 0) {
+            updateSnapshot().catch(e => console.warn('[API] updateSnapshot:', e.message));
+        }
+
         res.json({ status: 'ok', count: results.length });
     } catch (error) {
         console.error('Scrape failed:', error.message);
