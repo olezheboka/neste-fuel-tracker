@@ -35,19 +35,12 @@ const ALLOWED_ORIGINS = [
     'https://neste-fuel-tracker-olezhebokas-projects.vercel.app',
 ];
 if (!IS_PRODUCTION) {
-    ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:3000');
+    ALLOWED_ORIGINS.push('http://localhost:5173', 'http://localhost:5174', 'http://localhost:3000');
 }
 
 app.use(cors({
-    origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. cron, server-to-server, curl)
-        if (!origin || ALLOWED_ORIGINS.some(o => origin.startsWith(o))) {
-            callback(null, true);
-        } else {
-            callback(new Error('Not allowed by CORS'));
-        }
-    },
-    methods: ['GET'],
+    origin: true,
+    credentials: true
 }));
 
 app.use(express.json());
