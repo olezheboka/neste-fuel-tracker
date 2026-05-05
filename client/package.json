@@ -10,13 +10,11 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@radix-ui/react-popover": "^1.1.15",
     "@vercel/analytics": "^1.6.1",
     "autoprefixer": "^10.4.23",
     "axios": "^1.13.2",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "framer-motion": "^12.23.26",
     "i18next": "^25.7.3",
     "lucide-react": "^0.562.0",
     "postcss": "^8.5.6",

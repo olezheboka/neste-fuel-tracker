@@ -10,8 +10,6 @@ export default defineConfig({
       output: {
         manualChunks: {
           recharts: ['recharts'],
-          motion: ['framer-motion'],
-          radix: ['@radix-ui/react-popover'],
           i18n: ['i18next', 'react-i18next'],
         },
       },
