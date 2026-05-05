@@ -3,7 +3,7 @@ import "react-day-picker/src/style.css";
 import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
-import { motion, AnimatePresence } from 'framer-motion'; // eslint-disable-line no-unused-vars
+// framer-motion removed
 import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, AlertTriangle } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -12,6 +12,7 @@ import { DateRangePicker } from './components/ui/DatePicker';
 import CustomTooltip from './CustomTooltip';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
+console.log('[DEBUG] API_BASE:', API_BASE, 'PROD:', import.meta.env.PROD);
 
 const FUEL_COLORS = {
   'Neste Futura 95': '#22c55e', // green-500
@@ -46,94 +47,115 @@ const FUEL_TO_URL = Object.fromEntries(
 );
 
 // Apple-style Segmented Control
-const SegmentedControl = ({ options, value, onChange, layoutId, className, size = 'default' }) => (
-  <div className={twMerge("inline-flex bg-gray-100/80 p-1 rounded-xl relative", className)}>
-    {options.map((opt) => {
-      const isActive = value === opt.value;
-      return (
+const SegmentedControl = ({ options, value, onChange, className, size = 'default' }) => {
+  const [styles, setStyles] = useState({ left: 0, width: 0, opacity: 0 });
+  const buttonsRef = React.useRef([]);
+
+  React.useLayoutEffect(() => {
+    const update = () => {
+      const activeIndex = options.findIndex(opt => opt.value === value);
+      if (activeIndex !== -1 && buttonsRef.current[activeIndex]) {
+        const btn = buttonsRef.current[activeIndex];
+        setStyles({
+          left: btn.offsetLeft,
+          width: btn.offsetWidth,
+          opacity: 1
+        });
+      } else {
+        setStyles(prev => ({ ...prev, opacity: 0 }));
+      }
+    };
+    update();
+    window.addEventListener('resize', update);
+    return () => window.removeEventListener('resize', update);
+  }, [value, options]);
+
+  return (
+    <div className={twMerge("inline-flex bg-gray-100/80 p-1 rounded-xl relative", className)}>
+      <div
+        className="absolute top-1 bottom-1 bg-white rounded-lg shadow-sm transition-all duration-300 ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{
+          left: styles.left,
+          width: styles.width,
+          opacity: styles.opacity
+        }}
+      />
+      {options.map((opt, idx) => (
         <button
           key={opt.value}
+          ref={el => buttonsRef.current[idx] = el}
           onClick={() => onChange(opt.value)}
           className={clsx(
-            "relative rounded-lg transition-all duration-200 z-10 flex items-center justify-center gap-1.5",
-            size === 'small' ? "px-2 sm:px-3 py-1.5 text-xs font-semibold" : "px-4 py-2 text-sm font-semibold",
-            isActive ? "text-gray-900" : "text-gray-500 hover:text-gray-700"
+            "relative rounded-lg transition-all duration-200 z-10 flex items-center justify-center gap-1.5 whitespace-nowrap",
+            size === 'small' ? "px-2.5 sm:px-3.5 py-1.5 text-xs font-semibold" : "px-4 py-2 text-sm font-semibold",
+            value === opt.value ? "text-gray-900" : "text-gray-500 hover:text-gray-700"
           )}
         >
-          {isActive && (
-            <motion.div
-              layoutId={layoutId}
-              className="absolute inset-0 bg-white rounded-lg shadow-sm"
-              transition={{ type: "spring", stiffness: 500, damping: 35 }}
-              style={{ zIndex: -1 }}
-            />
-          )}
           {opt.label}
         </button>
-      );
-    })}
-  </div>
-);
+      ))}
+    </div>
+  );
+};
  
- // Language Dropdown Component
- const LanguageDropdown = ({ lngs, currentLng, onChange }) => {
-   const [isOpen, setIsOpen] = useState(false);
+  // Language Dropdown Component
+  const LanguageDropdown = ({ lngs, currentLng, onChange }) => {
+    const [isOpen, setIsOpen] = useState(false);
+    const containerRef = React.useRef(null);
  
-   return (
-     <div className="relative">
-       <button
-         onClick={() => setIsOpen(!isOpen)}
-         className="flex items-center gap-2 px-3 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl transition-all duration-200 text-sm font-semibold text-gray-900 border border-transparent active:scale-95 shadow-sm"
-       >
-         <span>{lngs[currentLng].flag}</span>
-         <span className="uppercase">{currentLng}</span>
-         {isOpen ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
-       </button>
+    useEffect(() => {
+      const handleClickOutside = (e) => {
+        if (containerRef.current && !containerRef.current.contains(e.target)) {
+          setIsOpen(false);
+        }
+      };
+      if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+      return () => document.removeEventListener('mousedown', handleClickOutside);
+    }, [isOpen]);
  
-       <AnimatePresence>
-         {isOpen && (
-           <>
-             {/* Backdrop to close when clicking outside */}
-             <div
-               className="fixed inset-0 z-40"
-               onClick={() => setIsOpen(false)}
-             />
-             <motion.div
-               initial={{ opacity: 0, y: 8, scale: 0.95 }}
-               animate={{ opacity: 1, y: 0, scale: 1 }}
-               exit={{ opacity: 0, y: 4, scale: 0.95 }}
-               transition={{ type: "spring", stiffness: 400, damping: 30 }}
-               className="absolute right-0 mt-2 w-40 bg-white/95 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-50 overflow-hidden p-1.5"
-             >
-               {Object.keys(lngs).map((lng) => {
-                 const isActive = currentLng === lng;
-                 return (
-                   <button
-                     key={lng}
-                     onClick={() => {
-                       onChange(lng);
-                       setIsOpen(false);
-                     }}
-                     className={clsx(
-                       "w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200",
-                       isActive ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
-                     )}
-                   >
-                     <div className="flex items-center gap-2.5">
-                       <span className="text-lg">{lngs[lng].flag}</span>
-                       <span className="text-sm font-semibold">{lngs[lng].nativeName}</span>
-                     </div>
-                     {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
-                   </button>
-                 );
-               })}
-             </motion.div>
-           </>
-         )}
-       </AnimatePresence>
-     </div>
-   );
- };
+    return (
+      <div className="relative" ref={containerRef}>
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className="flex items-center gap-2 px-3 py-2 bg-gray-100/80 hover:bg-gray-200/80 rounded-xl transition-all duration-200 text-sm font-semibold text-gray-900 border border-transparent active:scale-95 shadow-sm"
+        >
+          <span>{lngs[currentLng].flag}</span>
+          <span className="uppercase">{currentLng}</span>
+          {isOpen ? <ChevronUp size={14} className="text-gray-500" /> : <ChevronDown size={14} className="text-gray-500" />}
+        </button>
+ 
+        <div
+          className={clsx(
+            "absolute right-0 mt-2 w-40 bg-white/95 backdrop-blur-xl border border-gray-200/50 rounded-2xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] z-50 overflow-hidden p-1.5 transition-all duration-200 origin-top-right",
+            isOpen ? "opacity-100 scale-100 translate-y-0" : "opacity-0 scale-95 -translate-y-2 pointer-events-none"
+          )}
+        >
+          {Object.keys(lngs).map((lng) => {
+            const isActive = currentLng === lng;
+            return (
+              <button
+                key={lng}
+                onClick={() => {
+                  onChange(lng);
+                  setIsOpen(false);
+                }}
+                className={clsx(
+                  "w-full flex items-center justify-between px-3 py-2.5 rounded-xl transition-all duration-200",
+                  isActive ? "bg-blue-50 text-blue-700" : "text-gray-600 hover:bg-gray-100/80 hover:text-gray-900"
+                )}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">{lngs[lng].flag}</span>
+                  <span className="text-sm font-semibold">{lngs[lng].nativeName}</span>
+                </div>
+                {isActive && <div className="w-1.5 h-1.5 rounded-full bg-blue-600" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
 // Clean Card Component
 const Card = ({ children, className }) => (
@@ -236,92 +258,87 @@ const Toast = ({ notification, onDismiss, t }) => {
   }, [notification, onDismiss]);
 
   return (
-    <AnimatePresence>
-      {notification && (
-        <motion.div
-          initial={{ opacity: 0, y: -60, scale: 0.85 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -40, scale: 0.9 }}
-          transition={{ type: "spring", stiffness: 400, damping: 28 }}
-          className="fixed top-[45vh] md:top-[130px] inset-x-0 mx-auto z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-[92%]"
-        >
-          <div
-            className="bg-white/95 rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden border border-gray-200/60"
-          >
-            <div className="p-3 sm:p-4">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                {/* Icon */}
-                {(() => {
-                  const netDiff = notification.changes?.reduce((sum, c) => sum + c.diff, 0) ?? 0;
-                  const isUp = notification.hasChanges && netDiff > 0.0001;
-                  const isDown = notification.hasChanges && netDiff < -0.0001;
-                  return (
-                    <div className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center ${isUp ? 'bg-red-50' : isDown ? 'bg-green-50' : 'bg-gray-100'}`}>
-                      {isUp ? (
-                        <TrendingUp size={16} className="text-red-500 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
-                      ) : isDown ? (
-                        <TrendingDown size={16} className="text-green-600 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
-                      ) : (
-                        <Info size={16} className="text-gray-500 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
-                      )}
-                    </div>
-                  );
-                })()}
-
-                {/* Content */}
-                <div className="flex-1 min-w-0">
-                  <p className="text-[14px] sm:text-[15px] font-semibold text-gray-900 leading-tight">
-                    {notification.title}
-                  </p>
-                  {notification.changes && notification.changes.length > 0 ? (
-                    <div className="mt-1.5 space-y-1">
-                      {notification.changes.map((change, i) => {
-                        let textKey = 'notification.item_unchanged';
-                        if (change.diff > 0.0001) textKey = 'notification.item_increased';
-                        if (change.diff < -0.0001) textKey = 'notification.item_decreased';
-
-                        return (
-                          <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
-                            <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-500' :
-                              change.diff < -0.0001 ? 'text-green-600' : 'text-gray-600'
-                              }`}>
-                              {t(textKey, {
-                                fuel: change.fuel,
-                                diff: Math.abs(change.diff * 100).toFixed(1)
-                              })}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
+    <div
+      className={clsx(
+        "fixed top-[45vh] md:top-[130px] inset-x-0 mx-auto z-[100] max-w-sm w-[calc(100%-2rem)] sm:w-[92%] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)]",
+        notification ? "opacity-100 translate-y-0 scale-100" : "opacity-0 -translate-y-8 scale-90 pointer-events-none"
+      )}
+    >
+      <div
+        className="bg-white/95 rounded-[22px] backdrop-blur-xl shadow-[0_8px_32px_rgba(0,0,0,0.12)] overflow-hidden border border-gray-200/60"
+      >
+        <div className="p-3 sm:p-4">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            {/* Icon */}
+            {(() => {
+              const netDiff = notification?.changes?.reduce((sum, c) => sum + c.diff, 0) ?? 0;
+              const isUp = notification?.hasChanges && netDiff > 0.0001;
+              const isDown = notification?.hasChanges && netDiff < -0.0001;
+              return (
+                <div className={`flex-shrink-0 w-8 h-8 sm:w-9 sm:h-9 rounded-full flex items-center justify-center ${isUp ? 'bg-red-50' : isDown ? 'bg-green-50' : 'bg-gray-100'}`}>
+                  {isUp ? (
+                    <TrendingUp size={16} className="text-red-500 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
+                  ) : isDown ? (
+                    <TrendingDown size={16} className="text-green-600 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   ) : (
-                    <p className="text-[12px] sm:text-[13px] text-gray-500 mt-0.5 leading-tight">{notification.message}</p>
+                    <Info size={16} className="text-gray-500 sm:w-[18px] sm:h-[18px]" strokeWidth={2.5} />
                   )}
                 </div>
+              );
+            })()}
 
-                {/* Close button */}
-                <button
-                  onClick={onDismiss}
-                  className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
-                >
-                  <X size={12} className="text-gray-500 sm:w-[14px] sm:h-[14px]" strokeWidth={2.5} />
-                </button>
-              </div>
+            {/* Content */}
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] sm:text-[15px] font-semibold text-gray-900 leading-tight">
+                {notification?.title}
+              </p>
+              {notification?.changes && notification.changes.length > 0 ? (
+                <div className="mt-1.5 space-y-1">
+                  {notification.changes.map((change, i) => {
+                    let textKey = 'notification.item_unchanged';
+                    if (change.diff > 0.0001) textKey = 'notification.item_increased';
+                    if (change.diff < -0.0001) textKey = 'notification.item_decreased';
+
+                    return (
+                      <div key={i} className="flex items-center gap-1.5 text-[12px] sm:text-[13px]">
+                        <span className={`font-medium ${change.diff > 0.0001 ? 'text-red-500' :
+                          change.diff < -0.0001 ? 'text-green-600' : 'text-gray-600'
+                          }`}>
+                          {t(textKey, {
+                            fuel: change.fuel,
+                            diff: Math.abs(change.diff * 100).toFixed(1)
+                          })}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-[12px] sm:text-[13px] text-gray-500 mt-0.5 leading-tight">{notification?.message}</p>
+              )}
             </div>
 
-            {/* Progress bar */}
-            <div className="h-1 bg-gray-100">
-              <motion.div
-                initial={{ width: "0%" }}
-                animate={{ width: "100%" }}
-                transition={{ duration: 5, ease: "linear" }}
-                className="h-full bg-gray-300"
-              />
-            </div>
+            {/* Close button */}
+            <button
+              onClick={onDismiss}
+              className="flex-shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-gray-100 hover:bg-gray-200 flex items-center justify-center transition-colors"
+            >
+              <X size={12} className="text-gray-500 sm:w-[14px] sm:h-[14px]" strokeWidth={2.5} />
+            </button>
           </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+        </div>
+
+        {/* Progress bar */}
+        <div className="h-1 bg-gray-100">
+          <div
+            className={clsx(
+              "h-full bg-gray-300 transition-all duration-[5000ms] ease-linear",
+              notification ? "w-full" : "w-0"
+            )}
+          />
+        </div>
+      </div>
+    </div>
   );
 };
 
@@ -416,18 +433,14 @@ const AddressChip = ({ addr, url }) => {
       >
         {copied ? <Check size={10} /> : <Copy size={10} />}
       </button>
-      <AnimatePresence>
-        {copied && (
-          <motion.span
-            initial={{ opacity: 0, y: 4 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -4 }}
-            className="absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap pointer-events-none z-10"
-          >
-            {t('copied')}
-          </motion.span>
+      <span
+        className={clsx(
+          "absolute -top-6 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[9px] font-medium px-2 py-0.5 rounded-md whitespace-nowrap pointer-events-none z-10 transition-all duration-200",
+          copied ? "opacity-100 translate-y-0" : "opacity-0 translate-y-1"
         )}
-      </AnimatePresence>
+      >
+        {t('copied')}
+      </span>
     </span>
   );
 };
@@ -1030,32 +1043,21 @@ const HistoryTable = React.memo(({
                       const isLast = idx === avgSelectedFuels.length - 1;
                       return (
                         <th key={fuel} className={clsx("text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
-                          <motion.div layout>
+                          <div>
                             <span className="sm:hidden">{shortLabel}</span>
                             <span className="hidden sm:inline">{label}</span>
-                          </motion.div>
+                          </div>
                         </th>
                       );
                     })}
                   </tr>
                 </thead>
               <tbody>
-                {tableRows.slice(0, visibleCount).map((row, i) => {
+                {tableRows.slice(0, visibleCount).map((row) => {
                   const highlighted = showDiscounts && row.isDiscount;
                   return (
-                  <motion.tr
-                    layout
+                  <tr
                     key={row.dateKey}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{
-                      type: "spring",
-                      stiffness: 400,
-                      damping: 30,
-                      delay: Math.min(i * 0.01, 0.3)
-                    }}
-                    // 1A (~10%) matches the chart's effective opacity: ReferenceArea applies
-                    // Recharts' default fillOpacity: 0.5 on top of the 33 (20%) fill, yielding ~10%.
                     style={highlighted ? { backgroundColor: `${DISCOUNT_COLOR}1A` } : undefined}
                     className={clsx(
                       "border-b border-gray-50 last:border-b-0 transition-colors",
@@ -1073,7 +1075,7 @@ const HistoryTable = React.memo(({
                       }
                       return (
                         <td key={fuel} className={clsx("text-right px-1 sm:px-4 py-2 align-top", isLast && "pr-2 sm:pr-4")}>
-                          <motion.div layout className="flex flex-col items-end gap-0">
+                          <div className="flex flex-col items-end gap-0">
                             <span className="text-[11px] sm:text-sm font-bold text-gray-900 leading-tight tabular-nums">€{data.latest.toFixed(3)}</span>
                             <div className="flex flex-col items-end">
                               {renderChange(data.change)}
@@ -1083,11 +1085,11 @@ const HistoryTable = React.memo(({
                                 </span>
                               )}
                             </div>
-                          </motion.div>
+                          </div>
                         </td>
                       );
                     })}
-                  </motion.tr>
+                  </tr>
                   );
                 })}
               </tbody>
@@ -1101,14 +1103,12 @@ const HistoryTable = React.memo(({
                   {t('avg_prices.showing_of', { visible: Math.min(visibleCount, tableRows.length), total: tableRows.length })}
                 </span>
                 {visibleCount < tableRows.length && (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
+                  <button
                     onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
-                    className="w-full sm:w-auto px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 border border-blue-100 transition-colors"
+                    className="w-full sm:w-auto px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-100 transition-all"
                   >
                     {t('avg_prices.show_more')}
-                  </motion.button>
+                  </button>
                 )}
               </div>
             )}
@@ -2058,6 +2058,7 @@ export default function App() {
           </Card>
         </section>
 
+
         {/* History Table Section */}
         <section>
           <HistoryTable
@@ -2076,11 +2077,10 @@ export default function App() {
 
         {/* Floating Refresh Button */}
         <div className="fixed bottom-6 left-0 right-0 flex justify-center pointer-events-none z-50">
-          <motion.button
-            whileTap={{ scale: 0.97 }}
+          <button
             onClick={handleRefresh}
             disabled={loading}
-            className="flex flex-col items-center px-6 py-2 bg-gray-900 text-white rounded-full pointer-events-auto shadow-2xl disabled:opacity-50 transition-all"
+            className="flex flex-col items-center px-6 py-2 bg-gray-900 text-white rounded-full pointer-events-auto shadow-2xl disabled:opacity-50 hover:scale-[1.02] active:scale-[0.98] transition-all"
           >
             <div className="flex items-center gap-2">
               <RefreshCw className={clsx("w-4 h-4", loading && "animate-spin")} />
@@ -2098,7 +2098,7 @@ export default function App() {
                 })}
               </span>
             )}
-          </motion.button>
+          </button>
         </div>
 
       </main>
