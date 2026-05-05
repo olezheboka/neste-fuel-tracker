@@ -101,3 +101,4 @@ Fuel shorthand mapping: `95` → `Neste Futura 95`, `98` → `Neste Futura 98`, 
 - **Timezone**: All dates normalized to Europe/Riga via `Intl.toLocaleString()` and `getRigaDateParts()` helper — critical for correct price grouping
 - **Auto-refresh**: Client polls every 15 minutes; compares prices to show change notifications
 - **Vercel config**: Security headers (X-Frame-Options DENY, Permissions-Policy), API routes have `no-store, max-age=0`
+- **Performance**: Edge Middleware (`middleware.js`) inlines `latest.json` from Vercel Blob directly into the HTML as `window.__INITIAL_PRICES__` for instant first paint (LCP/FCP optimization).
