@@ -688,13 +688,7 @@ const HistoryTable = React.memo(({
   const [localStartDate, setLocalStartDate] = useState(startDate);
   const [localEndDate, setLocalEndDate] = useState(endDate);
 
-  // Helper for accurate local timezone dates (to avoid UTC shift)
-  const fmtLocal = (d) => {
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  };
+
 
   // Sync internal staging when external props change (e.g. from URL)
   useEffect(() => {
