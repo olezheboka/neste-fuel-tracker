@@ -1733,7 +1733,7 @@ export default function App() {
           <Card className="p-3 sm:p-6">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
               <div className="flex items-center gap-2">
-                <span className="text-lg sm:text-xl leading-none" role="img" aria-label="lightning">⚡</span>
+                <span className="text-lg sm:text-xl leading-none" role="img" aria-label="fire">🔥</span>
                 <h2 className="text-base sm:text-lg font-semibold text-gray-900">
                   {t('current_prices')}
                 </h2>
@@ -1785,6 +1785,12 @@ export default function App() {
                 {t('no_data')}
               </div>
             )}
+            <div className="mt-3 sm:mt-4 flex justify-center">
+              <p className="text-[10px] text-gray-400/60 font-light flex items-center justify-center gap-1.5 max-w-2xl text-center leading-tight">
+                <Info size={11} className="shrink-0" strokeWidth={1.5} />
+                {t('current_prices_disclaimer')}
+              </p>
+            </div>
           </Card>
         </section>
 
