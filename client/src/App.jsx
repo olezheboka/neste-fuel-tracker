@@ -1784,10 +1784,10 @@ export default function App() {
                 {t('no_data')}
               </div>
             )}
-            <div className="mt-3 sm:mt-4 flex justify-center">
-              <p className="text-[10px] text-gray-400/60 font-light flex items-center justify-center gap-1.5 max-w-2xl text-center leading-tight">
-                <Info size={11} className="shrink-0" strokeWidth={1.5} />
-                {t('current_prices_disclaimer')}
+            <div className="mt-3 sm:mt-4">
+              <p className="text-[10px] text-gray-400/60 font-light flex items-start sm:items-center gap-1.5 max-w-2xl leading-tight">
+                <Info size={11} className="shrink-0 mt-[1px] sm:mt-0" strokeWidth={1.5} />
+                <span>{t('current_prices_disclaimer')}</span>
               </p>
             </div>
           </Card>
