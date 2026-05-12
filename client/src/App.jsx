@@ -1715,9 +1715,9 @@ export default function App() {
       </header>
 
       {/* Disclaimer */}
-      <div className="bg-amber-50 border-b border-amber-200">
+      <div className="bg-blue-50 border-b border-blue-200">
         <div className="max-w-5xl mx-auto px-6 py-3">
-          <p className="text-sm text-amber-700 text-center font-medium flex items-center justify-center gap-1.5">
+          <p className="text-sm text-blue-600 text-center font-medium flex items-center justify-center gap-1.5">
             <AlertTriangle size={15} className="shrink-0" strokeWidth={2} />
             {t('disclaimer')}
           </p>
