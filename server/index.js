@@ -132,10 +132,20 @@ function toRigaDateKey(timestamp) {
     return rigaDateFormatter.format(date); // 'YYYY-MM-DD'
 }
 
+// Mirror the client's discount-marker regex (DISCOUNT_MARKER_RE in
+// client/src/App.jsx). Matches both the static prices-page "visās stacijās"
+// text and the scraper-injected "samazināta cena" external-confirmation marker.
+const DISCOUNT_MARKER_RE = /vis[āa]s[\s\S]*stacij[āa]s|samazin[āa]ta\s+cena/i;
+const hasMarker = (loc) => !!loc && DISCOUNT_MARKER_RE.test(loc);
+
 // Within each (Riga-date, fuel-type) bucket, keep distinct price-change points:
 // the first scrape of the day, plus any later scrape whose price differs from
-// the previously kept one. Stable days collapse to 1 row; change-days keep 2+
-// rows so the chart tooltip can show intra-day price history.
+// the previously kept one. Additionally, keep a scrape where the discount
+// marker appears mid-day even at the same price — otherwise the daily snapshot
+// loses the only evidence of a discount day (the homepage banner usually shows
+// up after the day's first scrape). Stable non-discount days still collapse
+// to 1 row; change/discount days keep 2+ rows so the chart tooltip can show
+// intra-day price history and the chart can still highlight discount days.
 function deduplicateHistory(rows) {
     const toIso = (t) => (t instanceof Date ? t.toISOString() : String(t));
     const sorted = [...rows].sort((a, b) => (toIso(a.timestamp) < toIso(b.timestamp) ? -1 : 1));
@@ -144,7 +154,9 @@ function deduplicateHistory(rows) {
     for (const row of sorted) {
         const key = `${toRigaDateKey(row.timestamp)}::${row.type}`;
         const last = lastKeptByBucket.get(key);
-        if (!last || Math.abs(row.price - last.price) > 0.0001) {
+        const priceChanged = !last || Math.abs(row.price - last.price) > 0.0001;
+        const markerAppeared = !!last && !hasMarker(last.location) && hasMarker(row.location);
+        if (priceChanged || markerAppeared) {
             kept.push(row);
             lastKeptByBucket.set(key, row);
         }
