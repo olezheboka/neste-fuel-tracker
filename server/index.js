@@ -132,20 +132,24 @@ function toRigaDateKey(timestamp) {
     return rigaDateFormatter.format(date); // 'YYYY-MM-DD'
 }
 
-// Keep the latest entry per (Riga-date, fuel-type) so the client receives
-// ~1 row/day/fuel instead of ~24 hourly duplicates.
-// Input rows must be sorted ASC by timestamp (later entry wins via Map overwrite).
+// Within each (Riga-date, fuel-type) bucket, keep distinct price-change points:
+// the first scrape of the day, plus any later scrape whose price differs from
+// the previously kept one. Stable days collapse to 1 row; change-days keep 2+
+// rows so the chart tooltip can show intra-day price history.
 function deduplicateHistory(rows) {
-    const seen = new Map();
-    for (const row of rows) {
+    const toIso = (t) => (t instanceof Date ? t.toISOString() : String(t));
+    const sorted = [...rows].sort((a, b) => (toIso(a.timestamp) < toIso(b.timestamp) ? -1 : 1));
+    const lastKeptByBucket = new Map(); // `${date}::${type}` -> last kept row
+    const kept = [];
+    for (const row of sorted) {
         const key = `${toRigaDateKey(row.timestamp)}::${row.type}`;
-        seen.set(key, row); // later (ASC) overwrites earlier
+        const last = lastKeptByBucket.get(key);
+        if (!last || Math.abs(row.price - last.price) > 0.0001) {
+            kept.push(row);
+            lastKeptByBucket.set(key, row);
+        }
     }
-    return Array.from(seen.values()).sort((a, b) => {
-        const ta = a.timestamp instanceof Date ? a.timestamp.toISOString() : String(a.timestamp);
-        const tb = b.timestamp instanceof Date ? b.timestamp.toISOString() : String(b.timestamp);
-        return ta < tb ? -1 : 1;
-    });
+    return kept;
 }
 
 // Query DB for the current snapshot data and persist it to memory + Blob.
