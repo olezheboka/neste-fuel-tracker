@@ -39,15 +39,12 @@ const calculateAnalysis = (historyData, fuelTypes) => {
     const thirtyDaysAgoRaw = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
     const threeMonthsAgoRaw = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
 
-    // For 24H: compare to the price exactly 24 hours ago (not end-of-yesterday).
-    // End-of-yesterday breaks during/after a discount window: yesterday's last
-    // record is the post-discount-recovery price, which makes today's price
-    // look slightly LOWER even when it actually rose vs the discount baseline.
-    // Using the price at "now-24h" matches what a customer would have paid
-    // a day ago at the same moment.
-    const oneDayAgo = oneDayAgoRaw;
-    // Longer periods keep end-of-day-Latvia semantics — smooths diurnal noise
-    // and is well-defined regardless of timezone offset.
+    // All cutoffs use end-of-day Latvia so deltas line up with the history
+    // table's day-over-day column. Without this, the 24H card would
+    // sometimes land on a transient intra-day price point (e.g. the brief
+    // post-discount-rebound peak), producing a delta that disagrees with
+    // the table's last-of-day comparison.
+    const oneDayAgo = getEndOfDayInLatvia(oneDayAgoRaw);
     const sevenDaysAgo = getEndOfDayInLatvia(sevenDaysAgoRaw);
     const thirtyDaysAgo = getEndOfDayInLatvia(thirtyDaysAgoRaw);
     const threeMonthsAgo = getEndOfDayInLatvia(threeMonthsAgoRaw);
