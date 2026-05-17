@@ -40,8 +40,14 @@ export default async function middleware(request) {
 
     let html = await htmlResponse.text();
 
-    // 4. Inject the data
-    const injection = `<script>window.__INITIAL_PRICES__ = ${JSON.stringify(latestPrices)};</script>`;
+    // 4. Inject the data.
+    // JSON.stringify does NOT escape "<" or U+2028 / U+2029, which can break out of a
+    // <script> block. Escape those sequences before interpolating.
+    const safe = JSON.stringify(latestPrices)
+      .replace(/</g, '\\u003c')
+      .replace(/ /g, '\\u2028')
+      .replace(/ /g, '\\u2029');
+    const injection = `<script>window.__INITIAL_PRICES__ = ${safe};</script>`;
     const marker = '<!-- __INITIAL_PRICES_INJECTED_HERE__ -->';
     
     if (html.includes(marker)) {

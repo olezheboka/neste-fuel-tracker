@@ -39,8 +39,11 @@ if (!IS_PRODUCTION) {
 }
 
 app.use(cors({
-    origin: true,
-    credentials: true
+    origin: (origin, cb) => {
+        if (!origin || ALLOWED_ORIGINS.includes(origin)) return cb(null, true);
+        return cb(new Error('CORS blocked'));
+    },
+    credentials: true,
 }));
 
 app.use(express.json());
@@ -51,7 +54,9 @@ const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
 const RATE_LIMIT_MAX = 60; // 60 requests per minute per IP
 
 const rateLimiter = (req, res, next) => {
-    const ip = req.headers['x-forwarded-for'] || req.ip || 'unknown';
+    // x-forwarded-for can be a chain ("client, proxy1, proxy2"); use the first hop.
+    const xff = req.headers['x-forwarded-for'];
+    const ip = (typeof xff === 'string' ? xff.split(',')[0].trim() : null) || req.ip || 'unknown';
     const now = Date.now();
 
     if (!rateLimitMap.has(ip)) {
@@ -314,10 +319,20 @@ app.get('/api/prices/latest', async (req, res) => {
     }
 });
 
+const VALID_FUEL_TYPES = new Set([
+    'Neste Futura 95',
+    'Neste Futura 98',
+    'Neste Futura D',
+    'Neste Pro Diesel',
+]);
+
 // Get history — returns deduplicated daily rows (~1 per day/fuel, not hourly)
 app.get('/api/prices/history', async (req, res) => {
     try {
         const { type } = req.query;
+        if (type !== undefined && (typeof type !== 'string' || !VALID_FUEL_TYPES.has(type))) {
+            return res.status(400).json({ error: 'Invalid fuel type' });
+        }
 
         // 1. Memory / Blob snapshot
         let snap = getMemory();
@@ -362,12 +377,24 @@ app.get('/api/prices/history', async (req, res) => {
     }
 });
 
-// Scrape endpoint — now uses a 5 minute debounce instead of auth to allow UI refresh
+// Scrape endpoint — protected by CRON_SECRET (Vercel cron sends this automatically).
+// 5-minute debounce remains as a safety net against rapid re-triggers.
 let lastScrapeTime = 0;
 const SCRAPE_DEBOUNCE_MS = 5 * 60 * 1000;
 
 app.get('/api/scrape', async (req, res) => {
     try {
+        const cronSecret = process.env.CRON_SECRET;
+        if (cronSecret) {
+            const auth = req.headers.authorization || '';
+            if (auth !== `Bearer ${cronSecret}`) {
+                return res.status(401).json({ error: 'Unauthorized' });
+            }
+        } else if (IS_PRODUCTION) {
+            console.error('[API] /api/scrape called but CRON_SECRET is not configured');
+            return res.status(503).json({ error: 'Scrape endpoint not configured' });
+        }
+
         const now = Date.now();
         if (now - lastScrapeTime < SCRAPE_DEBOUNCE_MS) {
             if (!IS_PRODUCTION) console.log('Scrape skipped (debounced)');
