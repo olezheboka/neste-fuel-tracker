@@ -12,7 +12,7 @@ import { DateRangePicker } from './components/ui/DatePicker';
 import CustomTooltip from './CustomTooltip';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
-console.log('[DEBUG] API_BASE:', API_BASE, 'PROD:', import.meta.env.PROD);
+if (!import.meta.env.PROD) console.log('[DEBUG] API_BASE:', API_BASE);
 
 const FUEL_COLORS = {
   'Neste Futura 95': '#22c55e', // green-500

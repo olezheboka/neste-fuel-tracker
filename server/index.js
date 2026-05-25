@@ -49,42 +49,55 @@ app.use(cors({
 app.use(express.json());
 
 // --- Security: Basic rate limiting (in-memory, per-instance) ---
+// Best-effort only — on Vercel serverless each warm instance has its own Map,
+// so the real per-IP ceiling is higher than the constants below. For strict
+// limits we'd need a shared store (Vercel KV / Upstash).
 const rateLimitMap = new Map();
 const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute
-const RATE_LIMIT_MAX = 60; // 60 requests per minute per IP
 
-const rateLimiter = (req, res, next) => {
+const getClientIp = (req) => {
     // x-forwarded-for can be a chain ("client, proxy1, proxy2"); use the first hop.
     const xff = req.headers['x-forwarded-for'];
-    const ip = (typeof xff === 'string' ? xff.split(',')[0].trim() : null) || req.ip || 'unknown';
+    return (typeof xff === 'string' ? xff.split(',')[0].trim() : null) || req.ip || 'unknown';
+};
+
+const makeRateLimiter = (max, keyPrefix = 'g') => (req, res, next) => {
+    const key = `${keyPrefix}:${getClientIp(req)}`;
     const now = Date.now();
 
-    if (!rateLimitMap.has(ip)) {
-        rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-        return next();
-    }
-
-    const entry = rateLimitMap.get(ip);
-    if (now > entry.resetAt) {
-        entry.count = 1;
-        entry.resetAt = now + RATE_LIMIT_WINDOW_MS;
+    const entry = rateLimitMap.get(key);
+    if (!entry || now > entry.resetAt) {
+        rateLimitMap.set(key, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
         return next();
     }
 
     entry.count++;
-    if (entry.count > RATE_LIMIT_MAX) {
+    if (entry.count > max) {
+        if (entry.count === max + 1) {
+            console.warn(`[Security] Rate limit exceeded (${keyPrefix}) for ${getClientIp(req)} on ${req.method} ${req.path}`);
+        }
         return res.status(429).json({ error: 'Too many requests. Please try again later.' });
     }
     next();
 };
 
-app.use('/api', rateLimiter);
+// Health check must be exempt from rate limiting so uptime monitors don't get 429'd.
+app.get('/api/health', (req, res) => {
+    res.json({ status: 'ok', dbReady });
+});
+
+// General API limit: 60 req/min/IP.
+app.use('/api', makeRateLimiter(60, 'g'));
+
+// Stricter limit on /api/scrape — it triggers an outbound HTTP and DB writes.
+// Auth (CRON_SECRET) gates real work, but this caps unauthenticated 401 spam.
+app.use('/api/scrape', makeRateLimiter(5, 's'));
 
 // Periodic cleanup of stale rate limit entries (every 5 minutes)
 setInterval(() => {
     const now = Date.now();
-    for (const [ip, entry] of rateLimitMap) {
-        if (now > entry.resetAt) rateLimitMap.delete(ip);
+    for (const [key, entry] of rateLimitMap) {
+        if (now > entry.resetAt) rateLimitMap.delete(key);
     }
 }, 5 * 60 * 1000);
 
@@ -416,10 +429,6 @@ app.get('/api/scrape', async (req, res) => {
         console.error('Scrape failed:', error.message);
         res.status(500).json({ error: 'Scrape failed' });
     }
-});
-
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', dbReady });
 });
 
 // Catch-all for unhandled API routes (must be last)
