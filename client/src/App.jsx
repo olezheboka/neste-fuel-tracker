@@ -1266,6 +1266,10 @@ export default function App() {
     return null;
   });
   const [notification, setNotification] = useState(null);
+  // Transient "checked just now" feedback after a manual refresh. lastCheck shows
+  // when the *data* is from (server scrape time); this confirms the click did
+  // something even when the data is unchanged (e.g. within the 5-min debounce).
+  const [justChecked, setJustChecked] = useState(false);
   const [showDiscounts, setShowDiscounts] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const discountParam = params.get('discounts');
@@ -1433,7 +1437,10 @@ export default function App() {
 
     if (forceScrape) {
       try {
-        await axios.get(`${API_BASE}/scrape`);
+        // Public, rate-limited + persistently-debounced trigger. Unlike /scrape
+        // (cron-only, CRON_SECRET), this lets the button do real work; the server
+        // skips the outbound scrape when data is already fresh (<5 min).
+        await axios.get(`${API_BASE}/refresh`);
       } catch (err) {
         console.error(err);
       }
@@ -1510,8 +1517,10 @@ export default function App() {
     await Promise.all([latestPromise, historyPromise]);
   }, [t]);
 
-  const handleRefresh = () => {
-    fetchData(true, true);
+  const handleRefresh = async () => {
+    await fetchData(true, true);
+    setJustChecked(true);
+    setTimeout(() => setJustChecked(false), 3000);
   };
 
   useEffect(() => {
@@ -1854,14 +1863,16 @@ export default function App() {
               {lastCheck && (
                 <div className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
                   <span className="text-[10px] sm:text-xs font-medium">
-                    {t('updated')}: {new Date(lastCheck).toLocaleString(i18n.language === 'en' ? 'en-GB' : i18n.language, {
-                      timeZone: 'Europe/Riga',
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: '2-digit',
-                      hour: '2-digit',
-                      minute: '2-digit'
-                    })}
+                    {justChecked
+                      ? t('checked_just_now')
+                      : `${t('updated')}: ${new Date(lastCheck).toLocaleString(i18n.language === 'en' ? 'en-GB' : i18n.language, {
+                          timeZone: 'Europe/Riga',
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: '2-digit',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}`}
                   </span>
                   <button
                     onClick={handleRefresh}

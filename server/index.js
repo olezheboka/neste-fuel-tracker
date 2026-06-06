@@ -431,6 +431,46 @@ app.get('/api/scrape', async (req, res) => {
     }
 });
 
+// Public manual-refresh trigger for the browser "Refresh" button.
+// Unlike /api/scrape (cron-only, gated by CRON_SECRET), this is callable from the
+// client. Abuse is bounded by three layers:
+//   (1) the general /api limiter (60/min/IP) + a stricter per-IP limiter below;
+//   (2) a PERSISTENT freshness gate based on the snapshot timestamp — because the
+//       snapshot is Blob-backed, this debounce holds across serverless instances,
+//       unlike the in-memory lastScrapeTime, which each warm instance resets.
+// If the current data is younger than the window we skip the outbound scrape and
+// just report that nothing was done, so the button never hammers neste.lv.
+const MANUAL_REFRESH_DEBOUNCE_MS = 5 * 60 * 1000;
+
+app.use('/api/refresh', makeRateLimiter(5, 'r'));
+
+app.get('/api/refresh', async (req, res) => {
+    try {
+        let snap = getMemory();
+        if (!snap) { await hydratePromise; snap = getMemory(); }
+
+        const latest = snap?.latest;
+        if (latest && latest.length > 0) {
+            const ageMs = Date.now() - new Date(latest[0].timestamp).getTime();
+            if (ageMs >= 0 && ageMs < MANUAL_REFRESH_DEBOUNCE_MS) {
+                if (!IS_PRODUCTION) console.log('[API] /api/refresh debounced (data is fresh)');
+                return res.json({ status: 'ok', scraped: false, debounced: true });
+            }
+        }
+
+        if (!IS_PRODUCTION) console.log('[API] /api/refresh triggered scrape');
+        const results = await scrapePrices();
+        lastScrapeTime = Date.now();
+        if (results.length > 0) {
+            await updateSnapshot();
+        }
+        res.json({ status: 'ok', scraped: results.length > 0, count: results.length });
+    } catch (error) {
+        console.error('[API] /api/refresh failed:', error.message);
+        res.status(500).json({ error: 'Refresh failed' });
+    }
+});
+
 // Catch-all for unhandled API routes (must be last)
 app.use('/api', (req, res) => {
     res.status(404).json({ error: 'Not found' });
