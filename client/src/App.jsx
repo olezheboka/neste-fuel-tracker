@@ -961,7 +961,7 @@ const HistoryTable = React.memo(({
 
 
   return (
-    <Card className="p-3 sm:p-6 overflow-hidden">
+    <Card className="p-3 sm:p-6">
       {/* Header with period controls */}
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-gray-100">
         <div className="flex items-center gap-2">
@@ -1077,12 +1077,13 @@ const HistoryTable = React.memo(({
                 </p>
               </div>
 
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-                <div className="overflow-auto max-h-[70vh]">
+              {/* No overflow-hidden / internal scroll here: both would make this a
+                  scroll container and break the page-level sticky <thead> below. */}
+              <div className="rounded-xl border border-slate-200 bg-white">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="sticky top-0 z-10 bg-white text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4 border-b border-gray-100">
+                        <th className="sticky top-[55px] z-20 bg-white text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4 border-b border-gray-100 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
                            {t('avg_prices.day')}
                         </th>
                         {avgSelectedFuels.map((fuel, idx) => {
@@ -1090,7 +1091,7 @@ const HistoryTable = React.memo(({
                           const shortLabel = label === 'Pro Diesel' ? 'Pro D' : label;
                           const isLast = idx === avgSelectedFuels.length - 1;
                           return (
-                            <th key={fuel} className={clsx("sticky top-0 z-10 bg-white text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap border-b border-gray-100", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
+                            <th key={fuel} className={clsx("sticky top-[55px] z-20 bg-white text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap border-b border-gray-100 shadow-[0_1px_0_rgba(0,0,0,0.04)]", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
                               <div>
                                 <span className="sm:hidden">{shortLabel}</span>
                                 <span className="hidden sm:inline">{label}</span>
@@ -1143,7 +1144,6 @@ const HistoryTable = React.memo(({
                     })}
                   </tbody>
                   </table>
-                </div>
 
                 {/* Show more / row count */}
                 {tableRows.length > PAGE_SIZE && (
