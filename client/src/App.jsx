@@ -1068,19 +1068,21 @@ const HistoryTable = React.memo(({
                 <FileSpreadsheet className="w-3.5 h-3.5 text-gray-400 shrink-0" />
                 <h2 className="text-sm sm:text-base font-semibold text-gray-700">{t('avg_prices.table_title')}</h2>
               </div>
-              
-              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
-                <div className="p-2.5 sm:p-3 bg-gray-50/80 border-b border-gray-100 flex items-center justify-center gap-2 text-center">
-                  <p className="text-sm font-medium text-gray-600">
-                    {t('avg_prices.latest_disclaimer')}
-                  </p>
-                </div>
 
-                <div className="overflow-x-auto">
+              {/* Subtle disclaimer — context for the table, deliberately low-contrast so it reads as a footnote, not a heading */}
+              <div className="flex items-start gap-2 mx-1 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
+                <Info className="w-3.5 h-3.5 text-slate-400 mt-px shrink-0" />
+                <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
+                  {t('avg_prices.latest_disclaimer')}
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-200 overflow-hidden bg-white">
+                <div className="overflow-auto max-h-[70vh]">
                   <table className="w-full text-sm">
                     <thead>
                       <tr className="border-b border-gray-100">
-                        <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4">
+                        <th className="sticky top-0 z-10 bg-white text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4 border-b border-gray-100">
                            {t('avg_prices.day')}
                         </th>
                         {avgSelectedFuels.map((fuel, idx) => {
@@ -1088,7 +1090,7 @@ const HistoryTable = React.memo(({
                           const shortLabel = label === 'Pro Diesel' ? 'Pro D' : label;
                           const isLast = idx === avgSelectedFuels.length - 1;
                           return (
-                            <th key={fuel} className={clsx("text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
+                            <th key={fuel} className={clsx("sticky top-0 z-10 bg-white text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap border-b border-gray-100", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
                               <div>
                                 <span className="sm:hidden">{shortLabel}</span>
                                 <span className="hidden sm:inline">{label}</span>
