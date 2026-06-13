@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Neste Fuel Tracker — a full-stack web app that scrapes, stores, and visualizes fuel prices from Neste gas stations in Latvia. Deployed on Vercel at https://neste-fuel-tracker.vercel.app.
+Neste Fuel Tracker — a full-stack web app that scrapes, stores, and visualizes fuel prices from Latvian gas stations across four chains (Neste, Circle K, Virši, Viada). All client views are multi-station: the prices view, the per-fuel charts, the Dynamics deltas, and the history table (which carries per-station Ø average + Min–Max footer rows; the old Neste-only "average price" cards were removed). Deployed on Vercel at https://neste-fuel-tracker.vercel.app.
 
 ## Tech Stack
 
@@ -22,11 +22,13 @@ client/              # React frontend (ES modules)
     InsightsPanel.jsx
     CustomTooltip.jsx
     i18n.js          # Inline translations for 3 languages
-    components/ui/   # Calendar, DatePicker, Popover (Radix-based)
+    components/ui/   # Calendar, DatePicker, Popover, MultiSelect
 server/              # Express backend (CommonJS)
   index.js           # API routes, CORS, rate limiting
   db.js              # Database abstraction (Postgres/SQLite/Mock)
-  scraper.js         # Cheerio-based price scraper
+  scraper.js         # Cheerio-based Neste scraper (extended w/ shared ts + source)
+  scrapers/          # Multi-station: circlek.js, virsi.js, viada.js,
+                     #   normalize.js (helpers), index.js (scrapeAll orchestrator)
 vercel.json          # Deployment config, routes, cron, security headers
 ```
 
@@ -78,26 +80,31 @@ Server expects `POSTGRES_URL` in `server/.env` for production database. SQLite i
 
 All optional, used for deep linking and state sharing:
 ```
-?fuel=95&period=days&lang=en&discounts=on&h_preset=30&h_start=2026-01-01&h_end=2026-04-09
+?lang=en&discounts=on&h_preset=7&h_start=2026-01-01&h_end=2026-04-09&stations=Neste,CircleK&fuels=95,diesel
 ```
-- `fuel` — single fuel shorthand for Dynamics section (`95`, `98`, `diesel`, `pro`)
-- `period` — graph interval (`days`, `weeks`, `months`)
 - `lang` — UI language (`en`, `lv`, `ru`)
-- `discounts` — discount toggle, only in day view (`on`, `off`)
-- `h_preset` — history period preset (`7`, `30`, `thisMonth`, `lastMonth`); mutually exclusive with `h_start`/`h_end`
+- `discounts` — chart discount-shading toggle (`on`, `off`). The chart is day-granularity only — the old Days/Weeks/Months switcher (and its `period` param) were removed; the timeline range slider is the only range control.
+- `h_preset` — history period preset (`7`, `30`, `90`); **default `7`**; mutually exclusive with `h_start`/`h_end`
 - `h_start`, `h_end` — custom history date range (`YYYY-MM-DD`); only present when no preset is active
+- `stations` — CSV station filter (`Neste`, `CircleK`, `Virsi`, `Viada`); omitted when all selected. ONE global filter driving the prices view AND all of analytics (chart, Dynamics, history table).
+- `fuels` — CSV fuel-group filter (`95`, `98`, `diesel`, `pro`, `gas`); omitted when all selected. Same global scope as `stations`.
+Graph, Dynamics, and Price History live in ONE merged "Analytics" card whose header is just the title — there is **no per-section fuel tab** (the old `ftab` param and `fuelTab` state were removed). All three subsections scope to `effectiveSelectedFuels`/`analyticsFuels` (= the global `fuels` filter ∩ what the selected stations sell), driven entirely by the sticky station/fuel filter bar. `HistoryTable` renders card-less (its parent provides the card); its "Price History" subsection header holds the date-range picker plus a `7`/`30`/`90`-day preset segmented control (default 7).
 
-Fuel shorthand mapping: `95` → `Neste Futura 95`, `98` → `Neste Futura 98`, `diesel` → `Neste Futura D`, `pro` → `Neste Pro Diesel`. State priority: URL params > localStorage > hardcoded defaults.
+State priority: URL params > localStorage > hardcoded defaults. (The old `fuel` single-fuel param for the Dynamics section was removed — Dynamics now follows the global `stations`/`fuels` filters.)
 
-## Fuel Types
+## Fuel Types & Stations
 
-95 (Futura), 98 (Futura), Diesel (Futura D), Pro Diesel — each with distinct color coding (green-500, cyan-500, gray-900, yellow-500). Premium badge shown only for 98 and Pro Diesel. Discount indicator color: `#44D62C`.
+Canonical fuel groups: 95, 98, Diesel, Pro Diesel, Gas (LPG) — colors green-500, cyan-500, gray-900, yellow-500, violet-500. Display labels are codes shown the same in all 3 languages: `95`, `98`, `D`, `D+`; gas is localized (`Газ`/`Gāze`/`LPG`). Pro Diesel (`D+`) is premium diesel — **Virši doesn't sell it**; Gas is **LPG / autogāze** (per-liter) — **Neste doesn't sell it**. `STATION_FUEL_SUPPORT` in `App.jsx` encodes per-station availability and drives both the fuel filter options and an `effectiveSelectedFuels` intersection, so a group disappears when no selected station sells it (selecting only Neste hides Gas; only Virši hides D+). Discount indicator color: `#44D62C`.
+
+Prices are grouped by fuel type across four stations, each with a brand color used for its row label and filter dot: Neste `#073C87`, Circle K `#EE2E25`, Virši `#613DC1`, Viada `#D81438`. Each station scraper normalizes its native fuel names to a canonical id (`95`/`98`/`diesel`/`pro`/`gas`) in `server/scrapers/normalize.js` conventions; `pro` maps from Circle K `Dmiles+`, Viada `d_ecto`, Neste `Pro Diesel`; `gas` maps from Circle K `Autogāze`, Virši `lpg`, Viada `GAZE`. Types outside the five canonical groups (CNG/E85/AdBlue/XTL/premium-95) are omitted. Neste rows store the full fuel name (`Neste Futura 95`); other stations store the canonical id directly. The client maps both to a group via `fuelGroupId()` in `App.jsx`.
 
 ## Architecture Notes
 
 - **Scraper** fetches `neste.lv/lv/content/degvielas-cenas`, parses with Cheerio, uses fuzzy matching for fuel names, handles `\u00A0` non-breaking spaces
+- **Multi-station**: `scrapeAll()` (`server/scrapers/index.js`) runs all four station scrapers in PARALLEL via `Promise.allSettled` (one failure never breaks the others) with ONE shared timestamp, so `/api/prices/latest` (`WHERE timestamp = MAX(...)`) returns every station from the same cycle. Rows are tagged with a `fuel_prices.source` column (default `'Neste'`, added via idempotent migration in `db.js`).
+- **History is multi-station**: `/api/prices/history` returns ALL stations; `deduplicateHistory` buckets by `(Riga-date, source, type)`. Client consumers (all in `App.jsx`): `chartData` builds per-`${fuelId}__${source}` series for the per-fuel charts (`FuelTrendChart`); `allDaysMulti`/`tableFuelGroups` drive the per-fuel history table (station columns, cheapest-of-day highlighted); `insightsGroups` drives the Dynamics deltas (`InsightsPanel.jsx`). `tableFuelGroups` also computes per-station Ø/min/max stats over the whole filtered period for the history-table footer (lowest average outlined in green); the old Neste-only "average price" cards are gone. Discount-day detection stays Neste-based (`allDaysData`, filtered `source==='Neste'`, also feeds the date-picker's available dates). New chains began scraping recently, so their charts/deltas are sparse (em dashes / short lines) until history accumulates.
 - **Cron**: Vercel triggers `/api/scrape` hourly; scrape endpoint has 5-minute debounce (no auth)
-- **Data flow**: Scraper → DB insert → `/api/prices/latest` (current) + `/api/prices/history` (aggregated by day/week/month)
+- **Data flow**: scrapeAll → DB insert (per source) → `/api/prices/latest` (current, all stations) + `/api/prices/history` (all stations; chart filters to Neste client-side, Dynamics uses per-station)
 - **Timezone**: All dates normalized to Europe/Riga via `Intl.toLocaleString()` and `getRigaDateParts()` helper — critical for correct price grouping
 - **Auto-refresh**: Client polls every 15 minutes; compares prices to show change notifications
 - **Vercel config**: Security headers (X-Frame-Options DENY, Permissions-Policy), API routes have `no-store, max-age=0`
