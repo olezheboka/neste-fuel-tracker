@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useMemo, useCallback, lazy, Suspense } from 'react';
 import "react-day-picker/src/style.css";
 import axios from 'axios';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, ErrorBar, ReferenceArea } from 'recharts';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea } from 'recharts';
 import { useTranslation } from 'react-i18next';
 // framer-motion removed
-import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, AlertTriangle, Calculator, History, ChartSpline, Diff, Grid3X3, CircleGauge, CircleSlash2, FileSpreadsheet } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, Calculator, History, ChartSpline, Diff, Grid3X3, CircleGauge, FileSpreadsheet } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 const PriceChangeCards = lazy(() => import('./InsightsPanel'));
 import { DateRangePicker } from './components/ui/DatePicker';
-import CustomTooltip from './CustomTooltip';
+import MultiSelect from './components/ui/MultiSelect';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 if (!import.meta.env.PROD) console.log('[DEBUG] API_BASE:', API_BASE);
@@ -42,16 +42,74 @@ const lngs = {
   en: { nativeName: 'English', flag: '🇬🇧' }
 };
 
-const FUEL_URL_MAP = {
-  '95': 'Neste Futura 95',
-  '98': 'Neste Futura 98',
-  'diesel': 'Neste Futura D',
-  'pro': 'Neste Pro Diesel',
+// --- Multi-station config -------------------------------------------------
+// Station brand metadata. Key = the `source` value returned by the API.
+const STATIONS = {
+  Neste:   { label: 'Neste',    color: '#003C96' },
+  CircleK: { label: 'Circle K', color: '#DA281C' },
+  Virsi:   { label: 'Virši',    color: '#24356F' },
+  Viada:   { label: 'Viada',    color: '#D50231' },
+};
+const STATION_ORDER = ['Neste', 'CircleK', 'Virsi', 'Viada'];
+
+// Which fuel groups each station sells. Neste has no gas/LPG; Virši has no
+// premium diesel ('pro'). The rest sell all five groups.
+const STATION_FUEL_SUPPORT = {
+  Neste:   new Set(['95', '98', 'diesel', 'pro']),
+  CircleK: new Set(['95', '98', 'diesel', 'pro', 'gas']),
+  Virsi:   new Set(['95', '98', 'diesel', 'gas']),
+  Viada:   new Set(['95', '98', 'diesel', 'pro', 'gas']),
 };
 
-const FUEL_TO_URL = Object.fromEntries(
-  Object.entries(FUEL_URL_MAP).map(([k, v]) => [v, k])
-);
+// Canonical fuel groups. `id` matches the canonical fuel ids and the `type` value
+// new stations store; colors mirror FUEL_COLORS; labelKey reuses existing i18n keys.
+const FUEL_GROUPS = [
+  { id: '95',     color: '#22c55e', labelKey: 'Futura 95' },
+  { id: '98',     color: '#06b6d4', labelKey: 'Futura 98' },
+  { id: 'diesel', color: '#111827', labelKey: 'Futura D' },
+  { id: 'pro',    color: '#EAB308', labelKey: 'Pro Diesel' },
+  { id: 'gas',    color: '#8b5cf6', labelKey: 'Gas' },
+];
+const FUEL_GROUP_IDS = FUEL_GROUPS.map((g) => g.id);
+
+// Map a price record to its canonical fuel-group id. Neste rows carry full names
+// ("Neste Futura 95"); new stations already store the canonical id ("95").
+const NESTE_TYPE_TO_GROUP = {
+  'Neste Futura 95': '95',
+  'Neste Futura 98': '98',
+  'Neste Futura D': 'diesel',
+  'Neste Pro Diesel': 'pro',
+};
+const fuelGroupId = (rec) => NESTE_TYPE_TO_GROUP[rec.type] || rec.type;
+const stationKey = (rec) => rec.source || 'Neste';
+
+// Single accent used to mark the cheapest station in every fuel group. Green is
+// the universal "best price / savings" signal — kept consistent across all fuels
+// so the meaning reads instantly regardless of the group's own color.
+const CHEAPEST_COLOR = '#16a34a'; // green-600
+
+// Translate a #rrggbb color into an rgba() string so the cheapest-station row can
+// be tinted/ringed in the accent color at a chosen opacity.
+const hexToRgba = (hex, alpha) => {
+  const h = hex.replace('#', '');
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
+// Read a filter Set from URL param (CSV) → localStorage → default to "all".
+const initFilterSet = (paramKey, lsKey, all) => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get(paramKey) ?? localStorage.getItem(lsKey);
+    if (raw) {
+      const picked = raw.split(',').map((s) => s.trim()).filter((v) => all.includes(v));
+      if (picked.length) return new Set(picked);
+    }
+  } catch { /* SSR / parsing guard */ }
+  return new Set(all);
+};
 
 // Apple-style Segmented Control
 const SegmentedControl = ({ options, value, onChange, className, size = 'default' }) => {
@@ -202,22 +260,6 @@ const InsightsSkeleton = () => (
         <Skeleton className="h-3 w-8" />
         <Skeleton className="h-5 sm:h-6 w-16" />
         <Skeleton className="h-2.5 w-12" />
-      </div>
-    ))}
-  </div>
-);
-
-const HistorySummarySkeleton = () => (
-  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 mb-5">
-    {[1, 2, 3, 4].map(i => (
-      <div key={i} className="rounded-xl p-3 sm:p-4 border-l-4 border-l-gray-200 bg-[#FCFCFD] shadow-[0_2px_6px_rgba(0,0,0,0.06)] ring-1 ring-gray-100">
-        <Skeleton className="h-3 w-12 mb-1" />
-        <Skeleton className="h-7 w-24 mb-1.5" />
-        <Skeleton className="h-4 w-20 rounded-full mb-2" />
-        <div className="flex gap-3 pt-2 border-t border-gray-50">
-          <Skeleton className="h-3 w-16" />
-          <Skeleton className="h-3 w-16" />
-        </div>
       </div>
     ))}
   </div>
@@ -458,91 +500,189 @@ const AddressChip = ({ addr, url, isMarker = false }) => {
   );
 };
 
-const FuelCard = ({ type, price, location }) => {
+// One station's price within a fuel group: colored brand name + inline
+// address list (reusing AddressChip) + price. The cheapest row is highlighted.
+const StationRow = ({ rec, isCheapest }) => {
   const { t } = useTranslation();
+  const st = STATIONS[stationKey(rec)] || { label: stationKey(rec), color: '#6b7280' };
 
-  // Parse addresses from pipe-separated string
+  // Neste discount days replace addresses with a "same price everywhere" marker.
+  const isMarker = rec.location && (/vienād/i.test(rec.location) || DISCOUNT_MARKER_RE.test(rec.location));
   let addressList = [];
-  // True when the location field is a "same price everywhere" marker rather than
-  // a list of specific station addresses. Covers all observed phrasings:
-  //   • old price-page:  "Visās stacijās cenas vienādas" / "…cena vienāda"
-  //   • current page:    "Visās degvielas uzpildes stacijās"
-  //   • homepage/IG:     "Visās Neste DUS degvielai samazināta cena (homepage)"
-  const isAllStationsSamePrice = location && (
-    /vienād/i.test(location) || DISCOUNT_MARKER_RE.test(location)
-  );
-  if (isAllStationsSamePrice) {
+  if (isMarker) {
     addressList = [t('all_stations_same_price')];
-  } else if (location && location.trim().length > 0) {
-    addressList = location.split(/\|/).map(s => s.trim()).filter(s => s.length > 0);
+  } else if (rec.location && rec.location.trim().length > 0) {
+    addressList = rec.location.split(/\|/).map((s) => s.trim()).filter((s) => s.length > 0);
   }
-
-  const color = FUEL_COLORS[type] || FUEL_COLORS['Neste Futura 95'];
 
   return (
     <div
-      className="rounded-xl p-3 sm:p-4 border-l-4 bg-[#FCFCFD] shadow-[0_2px_6px_rgba(0,0,0,0.06)] ring-1 ring-gray-100"
-      style={{ borderLeftColor: color }}
+      className={clsx(
+        'flex items-start justify-between gap-3 rounded-xl px-2.5 sm:px-3 transition-colors',
+        isCheapest ? 'py-2.5' : 'py-2 hover:bg-gray-50'
+      )}
+      style={isCheapest ? {
+        backgroundColor: hexToRgba(CHEAPEST_COLOR, 0.09),
+        boxShadow: `inset 0 0 0 1.5px ${hexToRgba(CHEAPEST_COLOR, 0.45)}`,
+      } : undefined}
     >
-      <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide mb-1" style={{ color }}>
-        {t(type.replace('Neste ', ''))}
-      </p>
-      <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
-        €{price.toFixed(3)}
-        <span className="text-xs sm:text-sm text-gray-400 font-medium ml-1">/ {t('liter_short')}</span>
-      </p>
-      <div className="flex flex-wrap gap-x-3 gap-y-1 mt-2 pt-2 border-t border-gray-50 text-[10px] text-gray-500 font-medium">
-        {addressList.length > 0 ? (
-          addressList.map((addr, i) => {
-            const url = isAllStationsSamePrice
-              ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent('Neste DUS, Rīga, Latvia')}`
-              : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`Neste ${addr}, Rīga, Latvia`)}`;
-            return <AddressChip key={i} addr={addr} url={url} isMarker={isAllStationsSamePrice} />;
-          })
-        ) : (
-          <span className="text-gray-400 italic">{t('location')}</span>
+      <div className="min-w-0 flex-1 flex flex-col gap-1">
+        <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wide" style={{ color: st.color }}>
+          {st.label}
+        </span>
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-gray-500 font-medium min-w-0">
+          {addressList.length > 0 ? (
+            addressList.map((addr, i) => {
+              const url = isMarker
+                ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${st.label}, Rīga, Latvia`)}`
+                : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${st.label} ${addr}, Latvia`)}`;
+              return <AddressChip key={i} addr={addr} url={url} isMarker={isMarker} />;
+            })
+          ) : (
+            <span className="text-gray-400 italic">{t('location')}</span>
+          )}
+        </div>
+      </div>
+      <div className="shrink-0 flex flex-col items-end leading-tight">
+        <span
+          className={clsx(
+            'tabular-nums tracking-tight',
+            isCheapest ? 'text-base sm:text-lg font-extrabold' : 'text-sm sm:text-base font-bold'
+          )}
+          style={{ color: isCheapest ? CHEAPEST_COLOR : '#111827' }}
+        >
+          €{rec.price.toFixed(3)}
+          <span className="text-[10px] text-gray-400 font-medium ml-1">/ {t('liter_short')}</span>
+        </span>
+        {isCheapest && (
+          <span className="text-[9px] sm:text-[10px] font-bold uppercase tracking-wide text-white px-2 py-0.5 rounded-md mt-1" style={{ backgroundColor: CHEAPEST_COLOR }}>
+            {t('cheapest_badge')}
+          </span>
         )}
       </div>
     </div>
   );
 };
 
-// Calculate trend line helper
-const calculateTrendLine = (data, dataKey) => {
-  if (!data || data.length < 2) return null;
+// A fuel-type group: colored accent + label + cheapest price headline, then one
+// StationRow per station sorted cheapest-first.
+const FuelGroupBlock = ({ group, rows }) => {
+  const { t } = useTranslation();
 
-  // const n = data.length; // unused
-  let sumX = 0;
-  let sumY = 0;
-  let sumXY = 0;
-  let sumXX = 0;
+  return (
+    <div className="rounded-2xl bg-white p-3 sm:p-4 shadow-[0_1px_8px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
+      <div className="mb-2 px-1">
+        <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
+          {t(group.labelKey)}
+        </span>
+      </div>
+      <div className="space-y-0.5">
+        {rows.map((rec, i) => (
+          <StationRow key={`${stationKey(rec)}-${rec.type}`} rec={rec} isCheapest={i === 0} />
+        ))}
+      </div>
+    </div>
+  );
+};
 
-  // Map data points to index (x) and value (y)
-  const points = data.map((d, i) => {
-    const val = parseFloat(d[dataKey]);
-    if (isNaN(val)) return null;
-    return { x: i, y: val };
-  }).filter(p => p !== null);
+// Tooltip for the per-fuel station charts: date + each station's price (sorted
+// cheapest first). payload dataKeys are `${fuelId}__${source}`.
+const StationChartTooltip = ({ active, payload }) => {
+  if (!active || !payload || !payload.length) return null;
+  const date = payload[0]?.payload?.date;
+  const dateStr = date
+    ? new Date(date).toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit', year: '2-digit' })
+    : '';
+  const rows = payload.filter(p => typeof p.value === 'number').sort((a, b) => a.value - b.value);
+  if (!rows.length) return null;
+  return (
+    <div className="rounded-lg bg-white/95 backdrop-blur shadow-lg ring-1 ring-gray-100 px-3 py-2 text-xs">
+      <div className="font-semibold text-gray-400 mb-1 tabular-nums">{dateStr}</div>
+      {rows.map(p => {
+        const src = String(p.dataKey).split('__')[1];
+        const st = STATIONS[src] || { label: src, color: p.stroke };
+        return (
+          <div key={p.dataKey} className="flex items-center justify-between gap-4">
+            <span className="flex items-center gap-1.5">
+              <span className="w-2 h-2 rounded-full" style={{ backgroundColor: st.color }} />
+              <span className="font-medium text-gray-700">{st.label}</span>
+            </span>
+            <span className="font-bold tabular-nums text-gray-900">€{p.value.toFixed(3)}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
 
-  if (points.length < 2) return null;
-
-  points.forEach(p => {
-    sumX += p.x;
-    sumY += p.y;
-    sumXY += p.x * p.y;
-    sumXX += p.x * p.x;
-  });
-
-  const count = points.length;
-  // Linear regression formula: y = mx + c
-  const slope = (count * sumXY - sumX * sumY) / (count * sumXX - sumX * sumX);
-  const intercept = (sumY - slope * sumX) / count;
-
-  // Return mapped data with trend values
-  return data.map((d, i) => ({
-    ...d,
-    [`${dataKey}_trend`]: slope * i + intercept
+// One fuel's mini line chart: a line per station, end dots, discount shading.
+// Shares the global brush window (visibleData) and period/discount settings.
+const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, showDiscounts, t }) => {
+  const lastIndex = visibleData.length - 1;
+  const vals = [];
+  visibleData.forEach(d => group.stations.forEach(s => {
+    const v = d[`${group.id}__${s}`];
+    if (typeof v === 'number') vals.push(v);
   }));
+  const dMin = vals.length ? Math.min(...vals) : 0;
+  const dMax = vals.length ? Math.max(...vals) : 1;
+  const pad = Math.max((dMax - dMin) * 0.18, 0.012);
+
+  return (
+    <div>
+      <div className="mb-1 px-1">
+        <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
+          {t(group.labelKey)}
+        </span>
+      </div>
+      <div className="h-[140px] w-full">
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={visibleData} margin={{ top: 14, right: 18, left: 8, bottom: 2 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
+            <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
+            <YAxis domain={[dMin - pad, dMax + pad]} hide />
+            <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50 }} />
+            {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
+              if (!point.isDiscount) return areas;
+              const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
+              const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
+              const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
+              areas.push(
+                <ReferenceArea
+                  key={`disc-${point.periodKey}`}
+                  x1={(prevDate + point.date) / 2}
+                  x2={(point.date + nextDate) / 2}
+                  fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'}
+                  stroke="none"
+                />
+              );
+              return areas;
+            }, [])}
+            {group.stations.map(src => {
+              const color = (STATIONS[src] || {}).color || '#6b7280';
+              return (
+                <Line
+                  key={src}
+                  type="monotone"
+                  dataKey={`${group.id}__${src}`}
+                  stroke={color}
+                  strokeWidth={2}
+                  connectNulls
+                  isAnimationActive={false}
+                  dot={(props) => {
+                    const { cx, cy, index } = props;
+                    if (index !== lastIndex || cx == null || cy == null) return null;
+                    return <circle key={`${src}-end`} cx={cx} cy={cy} r={4} fill={color} stroke="#fff" strokeWidth={1.5} />;
+                  }}
+                  activeDot={{ r: 4, fill: color, strokeWidth: 0 }}
+                />
+              );
+            })}
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
 };
 
 // Custom Timeline Slider — matches Apple-style spec from screenshot
@@ -684,11 +824,11 @@ const HistoryTable = React.memo(({
   onPresetChange,
   activePreset,
   loading,
-  showDiscounts
+  selectedStations,
+  selectedFuels
 }) => {
   const { i18n } = useTranslation();
   const allFuelTypes = FUEL_KEYS;
-  const avgSelectedFuels = allFuelTypes;
   const PAGE_SIZE = 31;
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
 
@@ -721,14 +861,7 @@ const HistoryTable = React.memo(({
 
 
 
-  // Dynamic names
   const currentLang = i18n?.language || 'en';
-  const now = new Date();
-  const thisMonthNameRaw = now.toLocaleString(currentLang, { month: 'long' });
-  const thisMonthName = thisMonthNameRaw.charAt(0).toUpperCase() + thisMonthNameRaw.slice(1);
-  const lastMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const lastMonthNameRaw = lastMonthDate.toLocaleString(currentLang, { month: 'long' });
-  const lastMonthName = lastMonthNameRaw.charAt(0).toUpperCase() + lastMonthNameRaw.slice(1);
 
   // Quick preset functions
   const setPreset = (days) => {
@@ -742,26 +875,6 @@ const HistoryTable = React.memo(({
     onPresetChange?.(String(days));
   };
 
-  const setThisMonth = () => {
-    const end = new Date();
-    const start = new Date(end.getFullYear(), end.getMonth(), 1);
-    const s = toYMD(start.getTime());
-    const e = toYMD(end.getTime());
-    onStartDateChange(s);
-    onEndDateChange(e);
-    onPresetChange?.('thisMonth');
-  };
-
-  const setLastMonth = () => {
-    const now = new Date();
-    const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-    const end = new Date(now.getFullYear(), now.getMonth(), 0);
-    const s = toYMD(start.getTime());
-    const e = toYMD(end.getTime());
-    onStartDateChange(s);
-    onEndDateChange(e);
-    onPresetChange?.('lastMonth');
-  };
   // Optimization: use a single, cached formatter for better performance
   const rigaFormatter = React.useMemo(() => new Intl.DateTimeFormat('en-US', {
     timeZone: 'Europe/Riga',
@@ -791,10 +904,14 @@ const HistoryTable = React.memo(({
   // Pre-aggregate ALL available historical data mathematically by Day (for accurate preceding deltas)
   const allDaysData = useMemo(() => {
     if (!historyData || historyData.length === 0) return [];
-    
+
+    // The chart / history table are Neste-only — other stations live only in the
+    // Dynamics section. Filter here so multi-station history never leaks in.
+    const nesteHistory = historyData.filter(e => (e.source || 'Neste') === 'Neste');
+
     // Group into days
     const dayMap = new Map();
-    historyData.forEach(e => {
+    nesteHistory.forEach(e => {
         const dateKey = toYMD(e.timestamp);
         if (!dayMap.has(dateKey)) {
             const { year, month, day } = getRigaParts(e.timestamp);
@@ -910,63 +1027,76 @@ const HistoryTable = React.memo(({
     return new Set(allDaysData.map(d => d.dateKey));
   }, [allDaysData]);
 
-  // Filter `allDaysData` into just the selected date range
-  const tableRows = useMemo(() => {
-    const filtered = allDaysData.filter(r => r.dateKey >= filterStart && r.dateKey <= filterEnd);
-    // If the 30-day preset is active, strictly limit to 30 days to avoid 31st-day boundary issues
-    const result = (activePreset === '30' && filtered.length > 30) 
-      ? filtered.slice(-30) 
-      : filtered;
-    return result.reverse(); // Newest day at top
-  }, [allDaysData, filterStart, filterEnd, activePreset]);
-
-  // Calculate OVERALL summaries only over the filtered selection (used for the big cards)
-  const periodSummary = useMemo(() => {
-    const stats = {};
-    avgSelectedFuels.forEach(fuel => {
-        // Collect all daily latest prices for selected fuel in range
-        const values = tableRows.map(r => r.fuels[fuel]?.latest).filter(v => v !== undefined);
-        if (values.length === 0) return;
-        const sum = values.reduce((a,b) => a + b, 0);
-        stats[fuel] = {
-            avg: sum / values.length,
-            min: Math.min(...values),
-            max: Math.max(...values),
-            count: values.length // number of days
-        };
+  // Multi-station day aggregation for the detail table: per day → per fuel group
+  // → per station → most-recent price of that day. Covers ALL stations.
+  const allDaysMulti = useMemo(() => {
+    if (!historyData || historyData.length === 0) return [];
+    const dayMap = new Map();
+    historyData.forEach(e => {
+      const dateKey = toYMD(e.timestamp);
+      const groupId = fuelGroupId(e);
+      const src = stationKey(e);
+      if (!dayMap.has(dateKey)) {
+        const { year, month, day } = getRigaParts(e.timestamp);
+        dayMap.set(dateKey, {
+          dateKey,
+          timeStr: `${String(day).padStart(2, '0')}.${String(month).padStart(2, '0')}.${String(year).slice(-2)}`,
+          cells: {},
+        });
+      }
+      const d = dayMap.get(dateKey);
+      if (!d.cells[groupId]) d.cells[groupId] = {};
+      const cur = d.cells[groupId][src];
+      if (!cur || new Date(e.timestamp) > new Date(cur.timestamp)) {
+        d.cells[groupId][src] = { price: e.price, timestamp: e.timestamp };
+      }
     });
-    return stats;
-  }, [tableRows, avgSelectedFuels]);
-  
-  const renderChange = (change) => {
-    if (change === null || change === undefined) return null;
-    const cents = change * 100;
-    const isUp = cents > 0.05;
-    const isDown = cents < -0.05;
-    if (!isUp && !isDown) return null;
-    return (
-      <span className={clsx(
-        'inline-flex items-center gap-0.5 text-[9px] sm:text-[11px] font-semibold',
-        isUp && 'text-red-500',
-        isDown && 'text-green-600',
-        !isUp && !isDown && 'text-gray-400'
-      )}>
-        {isUp && <TrendingUp size={10} />}
-        {isDown && <TrendingDown size={10} />}
-        {!isUp && !isDown && <Minus size={10} />}
-        {cents > 0 ? '+' : ''}{cents.toFixed(1)}¢
-      </span>
-    );
-  };
+    return Array.from(dayMap.values()).sort((a, b) => a.dateKey.localeCompare(b.dateKey));
+  }, [historyData, toYMD, getRigaParts]);
 
+  const tableRowsMulti = useMemo(() => {
+    const filtered = allDaysMulti.filter(r => r.dateKey >= filterStart && r.dateKey <= filterEnd);
+    const result = (activePreset === '30' && filtered.length > 30) ? filtered.slice(-30) : filtered;
+    return result.reverse();
+  }, [allDaysMulti, filterStart, filterEnd, activePreset]);
+
+  // Which fuel groups / stations to render, honoring the global filters.
+  // Each column also gets Ø/min/max stats over the whole filtered period
+  // (not just the visible page) for the table footer; the station with the
+  // lowest period average is flagged via minAvg.
+  const tableFuelGroups = useMemo(() => {
+    return FUEL_GROUPS
+      .filter(g => !selectedFuels || selectedFuels.has(g.id))
+      .map(g => {
+        const cols = STATION_ORDER.filter(src =>
+          (!selectedStations || selectedStations.has(src)) &&
+          tableRowsMulti.some(r => r.cells[g.id] && r.cells[g.id][src])
+        );
+        const stats = cols.map(src => {
+          const vals = tableRowsMulti
+            .map(r => (r.cells[g.id] && r.cells[g.id][src]) ? r.cells[g.id][src].price : null)
+            .filter(v => v != null);
+          if (vals.length === 0) return null;
+          return {
+            avg: vals.reduce((a, b) => a + b, 0) / vals.length,
+            min: Math.min(...vals),
+            max: Math.max(...vals),
+          };
+        });
+        const avgs = stats.filter(Boolean).map(s => s.avg);
+        const minAvg = avgs.length > 1 ? Math.min(...avgs) : null;
+        return { ...g, cols, stats, minAvg };
+      })
+      .filter(g => g.cols.length > 0);
+  }, [tableRowsMulti, selectedFuels, selectedStations]);
 
   return (
-    <Card className="p-3 sm:p-6">
-      {/* Header with period controls */}
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6 pb-6 border-b border-gray-100">
+    <div>
+      {/* Header: subsection title + period controls */}
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
         <div className="flex items-center gap-2">
-          <TrendingUp className="w-4 h-4 text-gray-400 shrink-0" />
-          <h2 className="text-base sm:text-lg font-semibold text-gray-900">{t('analytics')}</h2>
+          <FileSpreadsheet className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+          <h3 className="text-sm sm:text-base font-semibold text-gray-700">{t('avg_prices.table_title')}</h3>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <DateRangePicker
@@ -992,15 +1122,15 @@ const HistoryTable = React.memo(({
             />
             <SegmentedControl
               options={[
+                { value: '7', label: t('avg_prices.last_7_days') },
                 { value: '30', label: t('avg_prices.last_30_days') },
-                { value: 'lastMonth', label: lastMonthName },
-                { value: 'thisMonth', label: thisMonthName },
+                { value: '90', label: t('avg_prices.last_90_days') },
               ]}
               value={activePreset}
               onChange={(val) => {
-                if (val === '30') setPreset(30);
-                else if (val === 'lastMonth') setLastMonth();
-                else if (val === 'thisMonth') setThisMonth();
+                if (val === '7') setPreset(7);
+                else if (val === '30') setPreset(30);
+                else if (val === '90') setPreset(90);
               }}
               layoutId="active-history-preset"
               size="small"
@@ -1009,67 +1139,15 @@ const HistoryTable = React.memo(({
         </div>
 
         {loading && historyData.length === 0 ? (
-          <div className="space-y-8">
-            <HistorySummarySkeleton />
-            <HistoryTableSkeleton />
-          </div>
-        ) : tableRows.length === 0 ? (
+          <HistoryTableSkeleton />
+        ) : tableRowsMulti.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-10">{t('avg_prices.no_data')}</p>
         ) : (
           <div className="space-y-8">
-            {/* Section 1: Summary Cards for selected period */}
-            {Object.keys(periodSummary).length > 0 && (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 px-1">
-                  <CircleSlash2 className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                  <h2 className="text-sm sm:text-base font-semibold text-gray-700">{t('avg_prices.title')}</h2>
-                </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                  {avgSelectedFuels.map(fuel => {
-                    const stats = periodSummary[fuel];
-                    if (!stats) return null;
-                    return (
-                      <div
-                        key={fuel}
-                        className="rounded-xl p-3 sm:p-4 border-l-4 bg-[#FCFCFD] shadow-[0_2px_6px_rgba(0,0,0,0.06)] ring-1 ring-gray-100"
-                        style={{ borderLeftColor: FUEL_COLORS[fuel] }}
-                      >
-                        <p className="text-[10px] sm:text-xs font-semibold uppercase tracking-wide mb-1" style={{ color: FUEL_COLORS[fuel] }}>
-                          {t(fuel.replace('Neste ', ''))}
-                        </p>
-                        <p className="text-xl sm:text-2xl font-bold text-gray-900 tracking-tight">
-                          €{stats.avg.toFixed(3)}
-                        </p>
-                        <p className="mt-1.5">
-                          <span
-                            className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold px-2 py-0.5 rounded-full"
-                            style={{
-                              color: FUEL_COLORS[fuel],
-                              backgroundColor: FUEL_COLORS[fuel] + '15'
-                            }}
-                          >
-                            {t('avg_prices.avg_for_days', { count: stats.count })}
-                          </span>
-                        </p>
-                        <div className="flex gap-3 mt-2 pt-2 border-t border-gray-100 text-[10px] text-gray-500 font-medium">
-                          <span>{t('avg_prices.min')}: €{stats.min.toFixed(3)}</span>
-                          <span>{t('avg_prices.max')}: €{stats.max.toFixed(3)}</span>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-
-            {/* Section 2: Detail Table — latest price per day within the selected period */}
+            {/* Detail Table — daily price per station, grouped by fuel, with
+                per-station Ø average + Min–Max footer rows for the period */}
             <div className="space-y-4">
-              <div className="flex items-center gap-2 px-1">
-                <FileSpreadsheet className="w-3.5 h-3.5 text-gray-400 shrink-0" />
-                <h2 className="text-sm sm:text-base font-semibold text-gray-700">{t('avg_prices.table_title')}</h2>
-              </div>
-
-              {/* Subtle disclaimer — context for the table, deliberately low-contrast so it reads as a footnote, not a heading */}
+              {/* Subtle disclaimer — the cheapest price of the day (among selected stations) is colored */}
               <div className="flex items-start gap-2 mx-1 rounded-lg bg-slate-50 border border-slate-100 px-3 py-2">
                 <Info className="w-3.5 h-3.5 text-slate-400 mt-px shrink-0" />
                 <p className="text-[11px] sm:text-xs text-slate-500 leading-relaxed">
@@ -1077,95 +1155,131 @@ const HistoryTable = React.memo(({
                 </p>
               </div>
 
-              {/* No overflow-hidden / internal scroll here: both would make this a
-                  scroll container and break the page-level sticky <thead> below. */}
-              <div className="rounded-xl border border-slate-200 bg-white">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b border-gray-100">
-                        <th className="sticky top-[55px] z-20 bg-white text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4 border-b border-gray-100 shadow-[0_1px_0_rgba(0,0,0,0.04)]">
-                           {t('avg_prices.day')}
-                        </th>
-                        {avgSelectedFuels.map((fuel, idx) => {
-                          const label = t(fuel.replace('Neste ', ''));
-                          const shortLabel = label === 'Pro Diesel' ? 'Pro D' : label;
-                          const isLast = idx === avgSelectedFuels.length - 1;
-                          return (
-                            <th key={fuel} className={clsx("sticky top-[55px] z-20 bg-white text-right text-[9px] sm:text-xs font-semibold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap border-b border-gray-100 shadow-[0_1px_0_rgba(0,0,0,0.04)]", isLast && "pr-2 sm:pr-4")} style={{ color: FUEL_COLORS[fuel] }}>
-                              <div>
-                                <span className="sm:hidden">{shortLabel}</span>
-                                <span className="hidden sm:inline">{label}</span>
-                              </div>
-                            </th>
-                          );
-                        })}
-                      </tr>
-                    </thead>
-                  <tbody>
-                    {tableRows.slice(0, visibleCount).map((row) => {
-                      const highlighted = showDiscounts && row.isDiscount;
-                      return (
-                      <tr
-                        key={row.dateKey}
-                        className={clsx(
-                          "border-b border-gray-100 last:border-b-0 transition-all duration-200",
-                          highlighted 
-                            ? "bg-[#44D62C]/10 hover:bg-[#44D62C]/20" 
-                            : "hover:bg-slate-100/60"
-                        )}
-                      >
-                        <td className="py-2 pl-2 sm:pl-4 pr-0 sm:pr-2 align-top">
-                          <span className="block text-[10px] sm:text-sm font-normal text-gray-500 whitespace-nowrap tabular-nums leading-tight">{row.timeStr}</span>
-                        </td>
-                        {avgSelectedFuels.map((fuel, idx) => {
-                          const isLast = idx === avgSelectedFuels.length - 1;
-                          const data = row.fuels[fuel];
-                          if (!data) {
-                            return <td key={fuel} className={clsx("text-right px-1 sm:px-4 py-2 align-top text-gray-300 text-[10px]", isLast && "pr-2 sm:pr-4")}>—</td>;
-                          }
-                          return (
-                            <td key={fuel} className={clsx("text-right px-1 sm:px-4 py-2 align-top", isLast && "pr-2 sm:pr-4")}>
-                              <div className="flex flex-col items-end gap-0">
-                                <span className="text-[11px] sm:text-sm font-bold text-gray-900 leading-tight tabular-nums">€{data.latest.toFixed(3)}</span>
-                                <div className="flex flex-col items-end">
-                                  {renderChange(data.change)}
-                                  {data.min !== data.max && (
-                                    <span className="text-[8px] sm:text-[9px] text-gray-400 font-medium whitespace-nowrap tracking-tighter sm:tracking-tight tabular-nums">
-                                      {data.min.toFixed(3)}–{data.max.toFixed(3)}
-                                    </span>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                          );
-                        })}
-                      </tr>
-                      );
-                    })}
-                  </tbody>
-                  </table>
-
-                {/* Show more / row count */}
-                {tableRows.length > PAGE_SIZE && (
-                  <div className="flex flex-col items-center gap-2 py-3 px-4 border-t border-slate-100">
-                    <span className="text-[11px] text-gray-400 font-medium">
-                      {t('avg_prices.showing_of', { visible: Math.min(visibleCount, tableRows.length), total: tableRows.length })}
+              {tableFuelGroups.map(group => (
+                <div key={group.id} className="space-y-2">
+                  <div className="px-1">
+                    <span className="inline-block text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
+                      {t(group.labelKey)}
                     </span>
-                    {visibleCount < tableRows.length && (
-                      <button
-                        onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
-                        className="w-full sm:w-auto px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-100 transition-all"
-                      >
-                        {t('avg_prices.show_more')}
-                      </button>
-                    )}
                   </div>
-                )}
-              </div>
+                  <div className="rounded-xl border border-slate-200 bg-white overflow-hidden">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-gray-100">
+                          <th className="text-left text-[9px] sm:text-[10px] font-semibold text-gray-400 uppercase tracking-wide py-3 pl-2 sm:pl-4">
+                            {t('avg_prices.day')}
+                          </th>
+                          {group.cols.map((src, idx) => (
+                            <th
+                              key={src}
+                              className={clsx("text-right text-[9px] sm:text-xs font-bold uppercase tracking-wide px-1 sm:px-4 py-3 whitespace-nowrap", idx === group.cols.length - 1 && "pr-2 sm:pr-4")}
+                              style={{ color: (STATIONS[src] || {}).color }}
+                            >
+                              {(STATIONS[src] || {}).label || src}
+                            </th>
+                          ))}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {tableRowsMulti.slice(0, visibleCount).map(row => {
+                          const prices = group.cols.map(src => (row.cells[group.id] && row.cells[group.id][src]) ? row.cells[group.id][src].price : null);
+                          const valid = prices.filter(v => v != null);
+                          const min = valid.length ? Math.min(...valid) : null;
+                          const multiple = valid.length > 1;
+                          return (
+                            <tr key={row.dateKey} className="border-b border-gray-100 last:border-b-0 hover:bg-slate-100/60 transition-colors">
+                              <td className="py-2 pl-2 sm:pl-4 pr-0 sm:pr-2 align-middle">
+                                <span className="block text-[10px] sm:text-sm font-normal text-gray-500 whitespace-nowrap tabular-nums">{row.timeStr}</span>
+                              </td>
+                              {prices.map((price, i) => {
+                                const isLast = i === group.cols.length - 1;
+                                if (price == null) {
+                                  return <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 py-2 align-middle text-gray-300 text-[10px]", isLast && "pr-2 sm:pr-4")}>—</td>;
+                                }
+                                const isCheapest = multiple && price === min;
+                                return (
+                                  <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 py-2 align-middle", isLast && "pr-2 sm:pr-4")}>
+                                    <span
+                                      className={clsx("inline-block text-[11px] sm:text-sm font-bold leading-tight tabular-nums rounded-md px-1.5 py-0.5", isCheapest ? "text-white" : "text-gray-900")}
+                                      style={isCheapest ? { backgroundColor: CHEAPEST_COLOR } : undefined}
+                                    >
+                                      €{price.toFixed(3)}
+                                    </span>
+                                  </td>
+                                );
+                              })}
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                      {tableRowsMulti.length > 1 && group.stats.some(Boolean) && (
+                        <tfoot>
+                          <tr className="border-t-2 border-slate-200 bg-slate-50/80">
+                            <td className="pt-2.5 pb-1 pl-2 sm:pl-4 pr-0 sm:pr-2 align-middle">
+                              <span className="block text-[10px] sm:text-xs font-semibold text-gray-600 whitespace-nowrap">Ø {t('avg_prices.avg')}</span>
+                            </td>
+                            {group.stats.map((s, i) => {
+                              const isLast = i === group.cols.length - 1;
+                              if (!s) {
+                                return <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 pt-2.5 pb-1 align-middle text-gray-300 text-[10px]", isLast && "pr-2 sm:pr-4")}>—</td>;
+                              }
+                              const isBest = group.minAvg != null && s.avg === group.minAvg;
+                              return (
+                                <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 pt-2.5 pb-1 align-middle", isLast && "pr-2 sm:pr-4")}>
+                                  <span
+                                    className={clsx("inline-block text-[11px] sm:text-sm font-bold leading-tight tabular-nums rounded-md px-1.5 py-0.5", !isBest && "text-gray-700")}
+                                    style={isBest ? { color: CHEAPEST_COLOR, boxShadow: `inset 0 0 0 1.5px ${CHEAPEST_COLOR}` } : undefined}
+                                  >
+                                    €{s.avg.toFixed(3)}
+                                  </span>
+                                </td>
+                              );
+                            })}
+                          </tr>
+                          <tr className="bg-slate-50/80">
+                            <td className="pb-2.5 pl-2 sm:pl-4 pr-0 sm:pr-2 align-middle">
+                              <span className="block text-[9px] sm:text-[11px] font-medium text-gray-400 whitespace-nowrap">{t('avg_prices.min')}–{t('avg_prices.max')}</span>
+                            </td>
+                            {group.stats.map((s, i) => {
+                              const isLast = i === group.cols.length - 1;
+                              return (
+                                <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 pb-2.5 align-middle", isLast && "pr-2 sm:pr-4")}>
+                                  {s ? (
+                                    <span className="text-[9px] sm:text-[11px] text-gray-400 tabular-nums whitespace-nowrap">{s.min.toFixed(3)}–{s.max.toFixed(3)}</span>
+                                  ) : (
+                                    <span className="text-gray-200 text-[10px]">—</span>
+                                  )}
+                                </td>
+                              );
+                            })}
+                          </tr>
+                        </tfoot>
+                      )}
+                    </table>
+                  </div>
+                </div>
+              ))}
+
+              {/* Show more / row count */}
+              {tableRowsMulti.length > PAGE_SIZE && (
+                <div className="flex flex-col items-center gap-2 py-3">
+                  <span className="text-[11px] text-gray-400 font-medium">
+                    {t('avg_prices.showing_of', { visible: Math.min(visibleCount, tableRowsMulti.length), total: tableRowsMulti.length })}
+                  </span>
+                  {visibleCount < tableRowsMulti.length && (
+                    <button
+                      onClick={() => setVisibleCount(prev => prev + PAGE_SIZE)}
+                      className="w-full sm:w-auto px-6 py-2 rounded-lg text-xs sm:text-sm font-semibold text-blue-700 bg-blue-50 hover:bg-blue-100 active:scale-95 border border-blue-100 transition-all"
+                    >
+                      {t('avg_prices.show_more')}
+                    </button>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         )}
-    </Card>
+    </div>
   );
 });
 
@@ -1173,91 +1287,31 @@ export default function App() {
   const { t, i18n } = useTranslation();
   const [latestPrices, setLatestPrices] = useState(window.__INITIAL_PRICES__ || []);
   const [historyData, setHistoryData] = useState([]);
-  const [isMobile, setIsMobile] = useState(window.innerWidth < 768);
-  const [isHeaderCompact, setIsHeaderCompact] = useState(() => window.scrollY > 80);
 
+  // Sticky filter bar shrinks once the page is scrolled past the top (the title
+  // row collapses and padding tightens), like a condensing sticky header.
+  const [filtersCompact, setFiltersCompact] = useState(() => window.scrollY > 90);
   useEffect(() => {
-    const handleResize = () => setIsMobile(window.innerWidth < 768);
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
-  }, []);
-
-  useEffect(() => {
-    let lastScrollY = Math.max(window.scrollY, 0);
     let frameId = null;
-    let compact = lastScrollY > 80;
-
-    const setCompact = (nextCompact) => {
-      if (compact === nextCompact) return;
-      compact = nextCompact;
-      setIsHeaderCompact(nextCompact);
-    };
-
-    const handleScrollFrame = () => {
+    const onFrame = () => {
       frameId = null;
-      const currentScrollY = Math.max(window.scrollY, 0);
-      const delta = currentScrollY - lastScrollY;
-
-      if (currentScrollY < 24) {
-        lastScrollY = currentScrollY;
-        setCompact(false);
-        return;
-      }
-
-      if (Math.abs(delta) < 8) return;
-
-      if (delta > 0 && currentScrollY > 80) {
-        setCompact(true);
-      } else if (delta < 0) {
-        setCompact(false);
-      }
-
-      lastScrollY = currentScrollY;
+      setFiltersCompact(window.scrollY > 90);
     };
-
-    const handleScroll = () => {
+    const onScroll = () => {
       if (frameId !== null) return;
-      frameId = window.requestAnimationFrame(handleScrollFrame);
+      frameId = window.requestAnimationFrame(onFrame);
     };
-
-    window.addEventListener('scroll', handleScroll, { passive: true });
-
+    window.addEventListener('scroll', onScroll, { passive: true });
     return () => {
-      window.removeEventListener('scroll', handleScroll);
-      if (frameId !== null) {
-        window.cancelAnimationFrame(frameId);
-      }
+      window.removeEventListener('scroll', onScroll);
+      if (frameId !== null) window.cancelAnimationFrame(frameId);
     };
   }, []);
 
-  // Insights fuel selector — single fuel for Price Insights section
-  const [insightsFuel, setInsightsFuel] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const fuelParam = params.get('fuel');
-    const stored = localStorage.getItem('insightsFuel');
-    const validFuelNames = Object.keys(FUEL_COLORS);
-
-    if (fuelParam && FUEL_URL_MAP[fuelParam] && validFuelNames.includes(FUEL_URL_MAP[fuelParam])) {
-      return FUEL_URL_MAP[fuelParam];
-    }
-    if (stored && validFuelNames.includes(stored)) return stored;
-    return validFuelNames[0]; // Default to first fuel type
-  });
-
-  const [graphInterval, setGraphInterval] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    const periodParam = params.get('period');
-    const storedPeriod = localStorage.getItem('graphInterval');
-
-    // URL params take priority, then localStorage, then default
-    if (['days', 'weeks', 'months'].includes(periodParam)) {
-      return periodParam;
-    }
-    if (['days', 'weeks', 'months'].includes(storedPeriod)) {
-      return storedPeriod;
-    }
-    return 'days';
-  });
+  // The chart renders at day granularity only (the weeks/months switcher was
+  // removed in favor of the timeline range slider). Kept as a constant because
+  // the chart aggregation logic still branches on it.
+  const graphInterval = 'days';
 
   const [loading, setLoading] = useState(!window.__INITIAL_PRICES__);
   const [historyLoading, setHistoryLoading] = useState(true);
@@ -1281,6 +1335,93 @@ export default function App() {
     return stored === null ? true : stored === 'true';
   });
 
+  // Client-side station / fuel filters for the prices view (default: all).
+  const [selectedStations, setSelectedStations] = useState(() => initFilterSet('stations', 'selectedStations', STATION_ORDER));
+  const [selectedFuels, setSelectedFuels] = useState(() => initFilterSet('fuels', 'selectedFuels', FUEL_GROUP_IDS));
+
+  // Fuels actually sold by the currently selected stations. A group disappears
+  // when no selected station sells it — gas drops for Neste-only, premium diesel
+  // ('pro') drops for Virši-only — without mutating the persisted selection.
+  const stationSupportedFuels = useMemo(() => {
+    const supported = new Set();
+    selectedStations.forEach((s) => {
+      (STATION_FUEL_SUPPORT[s] || new Set()).forEach((f) => supported.add(f));
+    });
+    return supported;
+  }, [selectedStations]);
+
+  // Intersection of user's fuel selection and what selected stations actually sell.
+  // Use this everywhere a fuel filter is needed; keep selectedFuels for persistence.
+  // The analytics subsections (Graph / Dynamics / History) all scope to this same
+  // set — there is no separate per-section fuel tab anymore.
+  const effectiveSelectedFuels = useMemo(
+    () => new Set([...selectedFuels].filter((f) => stationSupportedFuels.has(f))),
+    [selectedFuels, stationSupportedFuels]
+  );
+  const analyticsFuels = effectiveSelectedFuels;
+
+  // Toggle a value; never allow an empty selection (keeps the view non-blank).
+  const toggleStation = useCallback((value) => setSelectedStations((prev) => {
+    const next = new Set(prev);
+    if (next.has(value)) next.delete(value); else next.add(value);
+    return next.size === 0 ? prev : next;
+  }), []);
+  const toggleFuel = useCallback((value) => setSelectedFuels((prev) => {
+    const next = new Set(prev);
+    if (next.has(value)) next.delete(value); else next.add(value);
+    return next.size === 0 ? prev : next;
+  }), []);
+
+  // Group latest prices by fuel type, filtered by the two selectors, each group's
+  // stations sorted cheapest-first. Pure client-side — no refetch.
+  const fuelGroups = useMemo(() => {
+    return FUEL_GROUPS
+      .filter((g) => effectiveSelectedFuels.has(g.id))
+      .map((g) => ({
+        group: g,
+        rows: latestPrices
+          .filter((r) => fuelGroupId(r) === g.id && selectedStations.has(stationKey(r)))
+          .slice()
+          .sort((a, b) => a.price - b.price),
+      }))
+      .filter((x) => x.rows.length > 0);
+  }, [latestPrices, effectiveSelectedFuels, selectedStations]);
+
+  // Which stations / fuels actually appear in the current data (for the header
+  // count and to hide selector options that returned nothing this scrape).
+  const presentStations = useMemo(() => {
+    const seen = new Set(latestPrices.map(stationKey));
+    return STATION_ORDER.filter((s) => seen.has(s));
+  }, [latestPrices]);
+  const presentFuels = useMemo(() => {
+    const seen = new Set(latestPrices.map(fuelGroupId));
+    return FUEL_GROUPS.filter((g) => seen.has(g.id) && stationSupportedFuels.has(g.id));
+  }, [latestPrices, stationSupportedFuels]);
+
+  // Dynamics data: per selected fuel → per selected station that currently sells
+  // it (from latest), each with its own history slice for trend computation.
+  // Respects BOTH global filters. History is multi-station now; stations without
+  // enough history just render em dashes until data accumulates.
+  const insightsGroups = useMemo(() => {
+    return FUEL_GROUPS
+      .filter((g) => analyticsFuels.has(g.id))
+      .map((g) => {
+        const stations = STATION_ORDER
+          .filter((src) =>
+            selectedStations.has(src) &&
+            latestPrices.some((r) => stationKey(r) === src && fuelGroupId(r) === g.id)
+          )
+          .map((src) => ({
+            key: src,
+            label: (STATIONS[src] || {}).label || src,
+            color: (STATIONS[src] || {}).color || '#6b7280',
+            history: historyData.filter((r) => stationKey(r) === src && fuelGroupId(r) === g.id),
+          }));
+        return { id: g.id, color: g.color, labelKey: g.labelKey, stations };
+      })
+      .filter((g) => g.stations.length > 0);
+  }, [historyData, latestPrices, analyticsFuels, selectedStations]);
+
   // Helper to compute date range from a preset name relative to today
   const computePresetDates = (preset) => {
     const fmt = (d) => {
@@ -1297,22 +1438,18 @@ export default function App() {
     }
     if (preset === '30') {
       const start = new Date();
-      start.setDate(now.getDate() - 30);
+      start.setDate(now.getDate() - 29);
       return { start: fmt(start), end: fmt(now) };
     }
-    if (preset === 'thisMonth') {
-      const start = new Date(now.getFullYear(), now.getMonth(), 1);
+    if (preset === '90') {
+      const start = new Date();
+      start.setDate(now.getDate() - 89);
       return { start: fmt(start), end: fmt(now) };
-    }
-    if (preset === 'lastMonth') {
-      const start = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      const end = new Date(now.getFullYear(), now.getMonth(), 0);
-      return { start: fmt(start), end: fmt(end) };
     }
     return null;
   };
 
-  const VALID_PRESETS = ['7', '30', 'thisMonth', 'lastMonth'];
+  const VALID_PRESETS = ['7', '30', '90'];
 
   const [historyPreset, setHistoryPreset] = useState(() => {
     const params = new URLSearchParams(window.location.search);
@@ -1321,9 +1458,9 @@ export default function App() {
     if (urlPreset && VALID_PRESETS.includes(urlPreset)) return urlPreset;
     // Explicit date params mean no preset
     if (params.get('h_start') || params.get('h_end')) return null;
-    const stored = localStorage.getItem('historyPreset');
+    const stored = localStorage.getItem('historyPreset_v2');
     if (stored && VALID_PRESETS.includes(stored)) return stored;
-    return '30'; // default preset
+    return '7'; // default preset
   });
 
   const [historyStartDate, setHistoryStartDate] = useState(() => {
@@ -1337,14 +1474,14 @@ export default function App() {
     if (hStart) return hStart;
 
     // localStorage preset or stored dates
-    const storedPreset = localStorage.getItem('historyPreset');
+    const storedPreset = localStorage.getItem('historyPreset_v2');
     if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
       return computePresetDates(storedPreset).start;
     }
-    const storedStart = localStorage.getItem('historyStartDate');
+    const storedStart = localStorage.getItem('historyStartDate_v2');
     if (storedStart) return storedStart;
 
-    return computePresetDates('30').start;
+    return computePresetDates('7').start;
   });
 
   const [historyEndDate, setHistoryEndDate] = useState(() => {
@@ -1358,14 +1495,14 @@ export default function App() {
     if (hEnd) return hEnd;
 
     // localStorage preset or stored dates
-    const storedPreset = localStorage.getItem('historyPreset');
+    const storedPreset = localStorage.getItem('historyPreset_v2');
     if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
       return computePresetDates(storedPreset).end;
     }
-    const storedEnd = localStorage.getItem('historyEndDate');
+    const storedEnd = localStorage.getItem('historyEndDate_v2');
     if (storedEnd) return storedEnd;
 
-    return computePresetDates('30').end;
+    return computePresetDates('7').end;
   });
 
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
@@ -1383,38 +1520,45 @@ export default function App() {
       localStorage.setItem('i18nextLng', currentLang);
     }
 
-    // Sync Graph interval
-    params.set('period', graphInterval);
-    localStorage.setItem('graphInterval', graphInterval);
-
-    // Sync Insights fuel selector
-    params.set('fuel', FUEL_TO_URL[insightsFuel] || '95');
-    localStorage.setItem('insightsFuel', insightsFuel);
-
-    // Sync Discounts (only in day view)
-    if (graphInterval === 'days') {
-      params.set('discounts', showDiscounts ? 'on' : 'off');
-    } else {
-      params.delete('discounts');
-    }
+    // Sync Discounts (chart is always day-granularity)
+    params.set('discounts', showDiscounts ? 'on' : 'off');
 
     // Sync History Filters — use preset param when active, concrete dates otherwise
     if (historyPreset) {
       params.set('h_preset', historyPreset);
-      localStorage.setItem('historyPreset', historyPreset);
+      localStorage.setItem('historyPreset_v2', historyPreset);
     } else {
-      localStorage.removeItem('historyPreset');
+      localStorage.removeItem('historyPreset_v2');
       if (historyStartDate && historyEndDate) {
         params.set('h_start', historyStartDate);
         params.set('h_end', historyEndDate);
       }
     }
-    localStorage.setItem('historyStartDate', historyStartDate);
-    localStorage.setItem('historyEndDate', historyEndDate);
-    
+    localStorage.setItem('historyStartDate_v2', historyStartDate);
+    localStorage.setItem('historyEndDate_v2', historyEndDate);
+
+    // Sync station / fuel filters — omit the param when all are selected so the
+    // default state keeps the URL clean.
+    const allStations = STATION_ORDER.every((s) => selectedStations.has(s));
+    if (allStations) {
+      localStorage.removeItem('selectedStations');
+    } else {
+      const v = STATION_ORDER.filter((s) => selectedStations.has(s)).join(',');
+      params.set('stations', v);
+      localStorage.setItem('selectedStations', v);
+    }
+    const allFuels = FUEL_GROUP_IDS.every((f) => selectedFuels.has(f));
+    if (allFuels) {
+      localStorage.removeItem('selectedFuels');
+    } else {
+      const v = FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)).join(',');
+      params.set('fuels', v);
+      localStorage.setItem('selectedFuels', v);
+    }
+
     const newRelativePathQuery = window.location.pathname + '?' + params.toString();
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, graphInterval, insightsFuel, showDiscounts, historyStartDate, historyEndDate, historyPreset]);
+  }, [i18n.language, showDiscounts, historyStartDate, historyEndDate, historyPreset, selectedStations, selectedFuels]);
 
   // Persist showDiscounts preference
   useEffect(() => {
@@ -1560,7 +1704,8 @@ export default function App() {
     // Limit to exactly 1 year (365 days) back
     cutoff.setDate(now.getDate() - 365);
 
-    // Filter by date first
+    // Filter by date first. Chart now covers ALL stations (one line per station
+    // within each fuel chart); discount detection below stays Neste-based.
     const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
 
     // Helper to get period key based on interval (always in Latvia/Riga timezone)
@@ -1603,31 +1748,24 @@ export default function App() {
       return new Date(periodKey).getTime();
     };
 
-    // Accumulate prices by period and fuel type
-    // Structure: { periodKey: { fuelType: { sum: X, count: Y }, ... } }
+    // Accumulate by period → composite series key `${fuelGroupId}__${source}`
+    // (e.g. "95__Neste"). Each station gets its own line within a fuel chart.
     const periodData = new Map();
 
     filteredByTime.forEach(item => {
       const periodKey = getPeriodKey(item.timestamp);
-
-      if (!periodData.has(periodKey)) {
-        periodData.set(periodKey, {});
-      }
-
+      if (!periodData.has(periodKey)) periodData.set(periodKey, { series: {}, locations: [] });
       const period = periodData.get(periodKey);
-
-      if (!period[item.type]) {
-        period[item.type] = { prices: [] };
-      }
-
-      period[item.type].prices.push({
-        price: item.price,
-        timestamp: item.timestamp,
-        location: item.location
-      });
+      const ck = `${fuelGroupId(item)}__${stationKey(item)}`;
+      if (!period.series[ck]) period.series[ck] = [];
+      period.series[ck].push({ price: item.price, timestamp: item.timestamp });
+      // Discount markers are a Neste signal — only collect Neste locations.
+      if (item.location && (item.source || 'Neste') === 'Neste') period.locations.push(item.location);
     });
 
-    // Convert to chart format with High-Low Range logic (Option 1)
+    // Neste series keys, used for the discount drop-gate below.
+    const NESTE_KEYS = FUEL_GROUPS.map(g => `${g.id}__Neste`);
+
     const result = Array.from(periodData.entries()).map(([periodKey, data]) => {
       let formattedTime = periodKey;
       if (graphInterval === 'days') {
@@ -1642,55 +1780,19 @@ export default function App() {
         formattedTime = `${startStr} - ${endStr}`;
       }
 
-      // Detect discount markers: any fuel type in this period has a discount
-      // marker in its location field. See DISCOUNT_MARKER_RE (broad) and
-      // EXTERNAL_DISCOUNT_RE (server-confirmed only — authoritative).
-      const hasDiscountLocation = Object.values(data).some(fuelData =>
-        fuelData.prices.some(p =>
-          p.location && DISCOUNT_MARKER_RE.test(p.location)
-        )
-      );
-      const hasExternalDiscount = Object.values(data).some(fuelData =>
-        fuelData.prices.some(p =>
-          p.location && EXTERNAL_DISCOUNT_RE.test(p.location)
-        )
-      );
-
       const entry = {
         date: getPeriodTimestamp(periodKey),
         periodKey,
         formattedTime,
-        hasDiscountLocation,
-        hasExternalDiscount,
-        isDiscount: false, // Will be finalized in second pass after sorting
+        hasDiscountLocation: data.locations.some(l => DISCOUNT_MARKER_RE.test(l)),
+        hasExternalDiscount: data.locations.some(l => EXTERNAL_DISCOUNT_RE.test(l)),
+        isDiscount: false, // finalized in second pass after sorting
       };
 
-      // Calculate stats for each fuel type
-      Object.keys(data).forEach(key => {
-        // Sort by timestamp to find the true "last" price
-        const sortedItems = data[key].prices.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-
-        // Filter out duplicates (keep only changes) for tooltip history
-        const distinctItems = sortedItems.filter((item, index, arr) => {
-          if (index === 0) return true;
-          return Math.abs(item.price - arr[index - 1].price) > 0.0001;
-        });
-
-        const priceValues = sortedItems.map(p => p.price); // Use ALL values for min/max to be safe
-
-        const lastPrice = priceValues[priceValues.length - 1];
-        const minPrice = Math.min(...priceValues);
-        const maxPrice = Math.max(...priceValues);
-
-        entry[key] = lastPrice; // Main line plots LAST price
-        entry[`${key}_min`] = minPrice;
-        entry[`${key}_max`] = maxPrice;
-
-        // Error range for Recharts ErrorBar: [negativeError, positiveError]
-        // This draws a line from (last - (last-min)) to (last + (max-last)) => min to max
-        entry[`${key}_range`] = [lastPrice - minPrice, maxPrice - lastPrice];
-
-        entry[`${key}_history`] = distinctItems.reverse(); // Store CLEAN history for tooltip (Newest first)
+      // Each station series → the period's LAST price (the plotted value).
+      Object.keys(data.series).forEach(ck => {
+        const sortedItems = data.series[ck].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+        entry[ck] = sortedItems[sortedItems.length - 1].price;
       });
 
       return entry;
@@ -1698,47 +1800,21 @@ export default function App() {
 
     const sorted = result.sort((a, b) => a.date - b.date);
 
-    // Second pass: finalize isDiscount. Two paths:
-    //   (1) External confirmation (hasExternalDiscount): server scraper saw
-    //       the neste.lv homepage / Instagram post / manual override.
-    //       Authoritative — flag regardless of price-drop magnitude
-    //       (Privātkarte discounts can be as small as 3¢/L).
-    //   (2) Marker-only fallback: requires both 95 and 98 dropped ≥4¢ vs the
-    //       previous period (using latest OR intra-period min) to avoid
-    //       false-positives from the prices-page static "visās stacijās"
-    //       wording.
-    //
-    // Why gasoline-only for the drop gate: diesel drops are inconsistent on
-    // real discount days (sometimes only 1-2¢, e.g. 2026-04-28) while 95 and
-    // 98 reliably drop together. Requiring all four fuels was hiding weak
-    // diesel discounts.
-    //
-    // We do NOT carry the discount flag forward to the next day. Neste
-    // typically runs ~24h discounts that span the boundary between two
-    // calendar days (e.g. 2026-04-28 22:00 → 2026-04-29 22:00 Riga). Only the
-    // day on which the price visibly DROPPED day-over-day is the discount
-    // day; the day after is the price-recovery day even if its intra-day min
-    // briefly equals the discount price.
+    // Finalize isDiscount (Neste-based). External confirmation is authoritative;
+    // otherwise require any Neste fuel to drop ≥4¢ vs the previous period. No
+    // carry-forward — only the day the price visibly dropped is the discount day.
     const MIN_DISCOUNT_DROP = 0.04;
     const EPSILON = 0.001;
     for (let i = 0; i < sorted.length; i++) {
-      if (sorted[i].hasExternalDiscount) {
-        sorted[i].isDiscount = true;
-        continue;
-      }
+      if (sorted[i].hasExternalDiscount) { sorted[i].isDiscount = true; continue; }
       if (i === 0 || !sorted[i].hasDiscountLocation) continue;
       const prev = sorted[i - 1];
       const curr = sorted[i];
-      // Any fuel (incl. diesel) dropping ≥4¢ day-over-day qualifies — diesel-
-      // focused discounts (e.g. 2026-05-29) move diesel far more than gasoline.
-      const anyFuelDropped = FUEL_KEYS.some(fuel => {
-        const prevPrice = prev[fuel];
-        const currLast = curr[fuel];
-        const currMin = curr[`${fuel}_min`];
-        if (prevPrice === undefined || currLast === undefined) return false;
-        const dropLast = prevPrice - currLast;
-        const dropMin = currMin !== undefined ? prevPrice - currMin : -Infinity;
-        return Math.max(dropLast, dropMin) >= MIN_DISCOUNT_DROP - EPSILON;
+      const anyFuelDropped = NESTE_KEYS.some(k => {
+        const prevPrice = prev[k];
+        const currPrice = curr[k];
+        if (prevPrice === undefined || currPrice === undefined) return false;
+        return (prevPrice - currPrice) >= MIN_DISCOUNT_DROP - EPSILON;
       });
       sorted[i].isDiscount = anyFuelDropped;
     }
@@ -1746,31 +1822,32 @@ export default function App() {
     return sorted;
   }, [historyData, graphInterval]);
 
+  // Which fuel charts / station lines to render, honoring the global filters.
+  const chartGroups = useMemo(() => {
+    return FUEL_GROUPS
+      .filter(g => analyticsFuels.has(g.id))
+      .map(g => {
+        const stations = STATION_ORDER.filter(src =>
+          selectedStations.has(src) &&
+          chartData.some(d => typeof d[`${g.id}__${src}`] === 'number')
+        );
+        return { ...g, stations };
+      })
+      .filter(g => g.stations.length > 0);
+  }, [chartData, analyticsFuels, selectedStations]);
+
+  // Shared legend: stations present across the visible fuel charts.
+  const chartStations = useMemo(() => {
+    const present = new Set();
+    chartGroups.forEach(g => g.stations.forEach(s => present.add(s)));
+    return STATION_ORDER.filter(s => present.has(s));
+  }, [chartGroups]);
 
 
 
 
-  // Prepare data with trend lines
-  const chartDataWithTrend = useMemo(() => {
-    if (!chartData) return [];
-    // Deep copy objects to avoid mutating memoized chartData
-    let data = chartData.map(item => ({ ...item }));
 
-    FUEL_KEYS.forEach(fuel => {
-      const trend = calculateTrendLine(data, fuel);
-      if (trend) {
-        // Merge trend data back into main data array
-        trend.forEach((t, i) => {
-          if (data[i]) data[i][`${fuel}_trend`] = t[`${fuel}_trend`];
-        });
-      }
-    });
-
-    return data;
-  }, [chartData]);
-
-  // No smoothing - use raw daily aggregation (High-Low)
-  const chartDataFinal = chartDataWithTrend;
+  const chartDataFinal = chartData;
 
   // Slice visible data based on timeline slider indices
   const visibleChartData = useMemo(() => {
@@ -1810,100 +1887,119 @@ export default function App() {
         t={t}
       />
 
-      {/* Header */}
-      <div className="h-[79px]">
-        <header className={clsx(
-          "fixed inset-x-0 top-0 z-50 bg-white/95 backdrop-blur-xl border-b border-gray-200 transition-[box-shadow,background-color] duration-300 ease-out motion-reduce:transition-none",
-          isHeaderCompact ? "shadow-sm" : "shadow-none"
-        )}>
-          <div className={clsx(
-            "max-w-5xl mx-auto px-6 flex items-center justify-between transition-[padding] duration-300 ease-out motion-reduce:transition-none",
-            isHeaderCompact ? "py-2.5 sm:py-3" : "py-5"
-          )}>
-            <a
-              href="/"
-              className={clsx(
-                "font-bold text-gray-900 tracking-tight hover:text-gray-600 transition-[font-size,line-height,color] duration-300 ease-out cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis mr-4 motion-reduce:transition-none",
-                isHeaderCompact ? "text-lg sm:text-xl leading-tight" : "text-xl sm:text-2xl leading-tight"
-              )}
-            >
-              {t('app_title')}
-            </a>
-            <LanguageDropdown
-              lngs={lngs}
-              currentLng={i18n.language}
-              onChange={(val) => i18n.changeLanguage(val)}
-              compact={isHeaderCompact}
-            />
-          </div>
-        </header>
-      </div>
-
-      {/* Disclaimer */}
-      <div className="bg-blue-50 border-b border-blue-200">
-        <div className="max-w-5xl mx-auto px-6 py-3">
-          <p className="text-sm text-blue-600 text-center font-medium flex items-start justify-center gap-1.5">
-            <AlertTriangle size={15} className="shrink-0 mt-0.5" strokeWidth={2} />
-            {t('disclaimer')}
-          </p>
+      {/* Header — in normal flow; it scrolls away (the sticky filter bar below
+          is the single persistent control). `relative z-40` lifts the header's
+          stacking context above the sticky filter bar (z-30) so the language
+          dropdown overlays it instead of opening underneath. */}
+      <header className="relative z-40 bg-white/95 backdrop-blur-xl border-b border-gray-200">
+        <div className="max-w-5xl mx-auto px-6 flex items-center justify-between py-5">
+          <a
+            href="/"
+            className="font-bold text-gray-900 tracking-tight hover:text-gray-600 transition-colors duration-300 ease-out cursor-pointer whitespace-nowrap overflow-hidden text-ellipsis mr-4 text-xl sm:text-2xl leading-tight motion-reduce:transition-none"
+          >
+            {t('app_title')}
+          </a>
+          <LanguageDropdown
+            lngs={lngs}
+            currentLng={i18n.language}
+            onChange={(val) => i18n.changeLanguage(val)}
+            compact={false}
+          />
         </div>
-      </div>
+      </header>
 
-      <main className="max-w-5xl mx-auto px-3 sm:px-6 py-10 space-y-8">
+      <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-10 space-y-8">
 
+        {/* Sticky global filter bar — the single persistent control; scopes BOTH
+            the prices view and all of analytics. Pinned to the viewport top for the
+            entire scroll (first child of <main>, the scroll container). */}
+        {latestPrices.length > 0 && (
+          <div className={clsx(
+            "sticky top-0 z-30 bg-white/95 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-[0_1px_8px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)] px-3 sm:px-4 transition-[padding] duration-300 ease-out motion-reduce:transition-none",
+            filtersCompact ? "py-2 sm:py-2.5" : "py-3 sm:py-4"
+          )}>
+            <div className={clsx(
+              "flex items-center gap-2 overflow-hidden transition-all duration-300 ease-out motion-reduce:transition-none",
+              filtersCompact ? "max-h-0 opacity-0 mb-0" : "max-h-8 opacity-100 mb-2"
+            )}>
+              <h2 className="text-sm sm:text-base font-semibold text-gray-900">
+                {t('interested_in')}
+              </h2>
+            </div>
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <MultiSelect
+                label={t('station_filter')}
+                allLabel={t('all')}
+                compact={filtersCompact}
+                options={presentStations.map((s) => ({ value: s, label: STATIONS[s].label, color: STATIONS[s].color }))}
+                selected={selectedStations}
+                onToggle={toggleStation}
+                onToggleAll={() => {
+                  const allOn = presentStations.every((s) => selectedStations.has(s));
+                  setSelectedStations(new Set(allOn ? [] : presentStations));
+                }}
+              />
+              <MultiSelect
+                label={t('fuel_filter')}
+                allLabel={t('all')}
+                align="end"
+                compact={filtersCompact}
+                options={presentFuels.map((g) => ({ value: g.id, label: t(g.labelKey), color: g.color }))}
+                selected={selectedFuels}
+                onToggle={toggleFuel}
+                onToggleAll={() => {
+                  const allOn = presentFuels.every((g) => selectedFuels.has(g.id));
+                  setSelectedFuels(new Set(allOn ? [] : presentFuels.map((g) => g.id)));
+                }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Fuel Prices */}
         <section>
           <Card className="p-3 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <span className="text-lg sm:text-xl leading-none" role="img" aria-label="fire">🔥</span>
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900">
-                  {t('current_prices')}
-                </h2>
+            {lastCheck && (
+              <div className="flex items-center justify-start gap-1.5 sm:gap-2 text-gray-400 mb-2">
+                <span className="text-[10px] sm:text-xs font-medium">
+                  {justChecked
+                    ? t('checked_just_now')
+                    : `${t('updated')}: ${new Date(lastCheck).toLocaleString(i18n.language === 'en' ? 'en-GB' : i18n.language, {
+                        timeZone: 'Europe/Riga',
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}`}
+                </span>
+                <button
+                  onClick={handleRefresh}
+                  disabled={loading}
+                  className="group flex items-center justify-center p-1.5 rounded-full hover:bg-gray-200/50 active:scale-90 transition-all"
+                  title={t('refresh')}
+                >
+                  <RefreshCw
+                    className={clsx(
+                      "w-3 h-3 sm:w-3.5 sm:h-3.5 transition-colors",
+                      loading ? "animate-spin text-blue-600" : "group-hover:text-gray-600"
+                    )}
+                  />
+                </button>
               </div>
-              {lastCheck && (
-                <div className="flex items-center gap-1.5 sm:gap-2 text-gray-400">
-                  <span className="text-[10px] sm:text-xs font-medium">
-                    {justChecked
-                      ? t('checked_just_now')
-                      : `${t('updated')}: ${new Date(lastCheck).toLocaleString(i18n.language === 'en' ? 'en-GB' : i18n.language, {
-                          timeZone: 'Europe/Riga',
-                          day: '2-digit',
-                          month: '2-digit',
-                          year: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}`}
-                  </span>
-                  <button
-                    onClick={handleRefresh}
-                    disabled={loading}
-                    className="group flex items-center justify-center p-1.5 rounded-full hover:bg-gray-200/50 active:scale-90 transition-all"
-                    title={t('refresh')}
-                  >
-                    <RefreshCw 
-                      className={clsx(
-                        "w-3 h-3 sm:w-3.5 sm:h-3.5 transition-colors", 
-                        loading ? "animate-spin text-blue-600" : "group-hover:text-gray-600"
-                      )} 
-                    />
-                  </button>
-                </div>
-              )}
-            </div>
+            )}
 
             {loading && latestPrices.length === 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
+              <div className="space-y-3">
                 <FuelCardSkeleton />
                 <FuelCardSkeleton />
                 <FuelCardSkeleton />
                 <FuelCardSkeleton />
               </div>
-            ) : latestPrices.length > 0 ? (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-                {latestPrices.map((item) => (
-                  <FuelCard key={item.type} {...item} />
+            ) : fuelGroups.length > 0 ? (
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+                {fuelGroups.map(({ group, rows }) => (
+                  <FuelGroupBlock key={group.id} group={group} rows={rows} />
                 ))}
               </div>
             ) : (
@@ -1920,53 +2016,51 @@ export default function App() {
           </Card>
         </section>
 
-        {/* Chart Section */}
+        {/* Analytics — Graph, Dynamics and Price History share one card. The sticky
+            header carries the fuel tabs that scope all three subsections; it sticks
+            just below the fixed app header (compact height ≈55px) while scrolling.
+            Tabs only offer fuels picked in the global filter; hidden when a single
+            fuel is selected. */}
         <section>
-          <Card className="p-3 sm:p-6">
-            {/* Header with Time Period Pills */}
+          <Card className="p-0">
+            <div className="rounded-t-2xl border-b border-gray-100 px-3 sm:px-6 py-2.5 sm:py-3">
+              {/* Title only. The Graph / Dynamics / Price History subsections are
+                  scoped by the global station/fuel filters from the sticky bar. */}
+              <div className="flex items-center gap-2 min-w-0">
+                <TrendingUp className="w-4 h-4 text-gray-400 shrink-0" />
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 truncate">{t('analytics')}</h2>
+              </div>
+            </div>
+
+            {/* Subsection: Graph */}
+            <div className="px-3 sm:px-6 pt-4 sm:pt-5 pb-5">
             <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
               <div className="flex items-center gap-2">
-                <ChartSpline className="w-4 h-4 text-gray-400 shrink-0" />
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900">{t('history')}</h2>
+                <ChartSpline className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <h3 className="text-sm sm:text-base font-semibold text-gray-700">{t('history')}</h3>
               </div>
-              
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 sm:gap-6">
-                {/* Discount Toggle — only in day view */}
-                {graphInterval === 'days' && (
-                  <button
-                    onClick={() => setShowDiscounts(prev => !prev)}
-                    className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
-                  >
-                    <span>{t('discounts')}</span>
-                    <div
-                      className={clsx(
-                        'relative w-9 h-5 rounded-full transition-colors duration-200',
-                        !showDiscounts && 'bg-gray-300'
-                      )}
-                      style={{ backgroundColor: showDiscounts ? DISCOUNT_COLOR : undefined }}
-                    >
-                      <div
-                        className={clsx(
-                          'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
-                          showDiscounts ? 'translate-x-[18px]' : 'translate-x-0.5'
-                        )}
-                      />
-                    </div>
-                  </button>
-                )}
 
-                <SegmentedControl
-                  options={['days', 'weeks', 'months'].map(step => ({
-                    value: step,
-                    label: t(`intervals.${step}`)
-                  }))}
-                  value={graphInterval}
-                  onChange={setGraphInterval}
-                  layoutId="active-interval"
-                  size="small"
-                  className="z-10"
-                />
-              </div>
+              {/* Discount Toggle — the chart is always day-granularity now */}
+              <button
+                onClick={() => setShowDiscounts(prev => !prev)}
+                className="flex items-center gap-2 text-xs font-medium text-gray-500 hover:text-gray-700 transition-colors"
+              >
+                <span>{t('discounts')}</span>
+                <div
+                  className={clsx(
+                    'relative w-9 h-5 rounded-full transition-colors duration-200',
+                    !showDiscounts && 'bg-gray-300'
+                  )}
+                  style={{ backgroundColor: showDiscounts ? DISCOUNT_COLOR : undefined }}
+                >
+                  <div
+                    className={clsx(
+                      'absolute top-0.5 w-4 h-4 rounded-full bg-white shadow-sm transition-transform duration-200',
+                      showDiscounts ? 'translate-x-[18px]' : 'translate-x-0.5'
+                    )}
+                  />
+                </div>
+              </button>
             </div>
 
 
@@ -1981,282 +2075,72 @@ export default function App() {
               />
             )}
 
-            {/* Chart container — stretch to card edges on mobile */}
-            <div className="relative h-[350px] w-[calc(100%+1.5rem)] -ml-3 sm:w-[calc(100%+3rem)] sm:-ml-6">
+            {/* Per-fuel charts — one line per selected station, shared zoom + discount shading */}
+            <div className="relative">
               {historyLoading && <ChartLoadingOverlay />}
-              {historyData.length > 0 ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart
-                  data={visibleChartData}
-                  margin={{ top: 20, right: isMobile ? 20 : 30, left: isMobile ? -5 : 0, bottom: 5 }}
-                >
-                  <CartesianGrid strokeDasharray="3 3" stroke="#e5e5e5" vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    type="number"
-                    domain={['dataMin', (dataMax) => {
-                      // Extend right boundary when last day is a discount to prevent shade clipping
-                      const lastIsDiscount = chartDataFinal.length > 0 && chartDataFinal[chartDataFinal.length - 1].isDiscount;
-                      if (lastIsDiscount && graphInterval === 'days') {
-                        const avgGap = chartDataFinal.length > 1
-                          ? (chartDataFinal[chartDataFinal.length - 1].date - chartDataFinal[0].date) / (chartDataFinal.length - 1)
-                          : 0;
-                        return dataMax + avgGap / 2;
-                      }
-                      return dataMax;
-                    }]}
-                    stroke="#a3a3a3"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    minTickGap={30}
-                    dy={8}
-                    tickFormatter={(unixTime) => {
-                      const d = new Date(unixTime);
-                      const tz = 'Europe/Riga';
-                      if (graphInterval === 'hours') return d.toLocaleTimeString('lv-LV', { timeZone: tz, hour: '2-digit', minute: '2-digit' });
-                      if (graphInterval === 'weeks') {
-                        const start = new Date(d);
-                        const end = new Date(d.getTime() + 6 * 86400000);
-                        const startStr = start.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
-                        const endStr = end.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
-                        return `${startStr} - ${endStr}`;
-                      }
-                      if (graphInterval === 'months') {
-                        const { month, year } = getRigaDateParts(unixTime);
-                        return `${String(month).padStart(2, '0')}.${year}.`;
-                      }
-                      return d.toLocaleDateString('lv-LV', { timeZone: tz, day: '2-digit', month: '2-digit' });
-                    }}
-                  />
-                  <YAxis
-                    stroke="#a3a3a3"
-                    fontSize={11}
-                    tickLine={false}
-                    axisLine={false}
-                    domain={[dataMin => (dataMin - 0.02), dataMax => (dataMax + 0.10)]}
-                    allowDataOverflow={true}
-                    tickFormatter={(value) => `€${parseFloat(value).toFixed(2)}`}
-                  />
-                  <Tooltip
-                    content={<CustomTooltip t={t} interval={graphInterval} />}
-                    cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }}
-                    wrapperStyle={{ zIndex: 50 }}
-                  />
-
-
-
-                  {/* Discount day highlights — only in day view, always rendered to avoid re-animation */}
-                  {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
-                    if (!point.isDiscount) return areas;
-                    const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
-                    const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
-                    const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
-                    const x1 = (prevDate + point.date) / 2;
-                    const x2 = (point.date + nextDate) / 2;
-                    areas.push(
-                      <ReferenceArea
-                        key={`discount-${point.periodKey}`}
-                        x1={x1}
-                        x2={x2}
-                        fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'} // Exact same yellow with ~20% opacity (33 in hex)
-                        stroke="none"
-                      />
-                    );
-                    return areas;
-                  }, [])}
-
-                  {FUEL_KEYS.map((fuel) => {
-                    const fuelShortName = t(fuel.replace('Neste ', ''));
-
-                    // Calculate precise scale for this specific chart view to ensure perfect badge positioning
-                    const allValues = visibleChartData.flatMap(d => FUEL_KEYS.map(f => d[f]).filter(v => typeof v === 'number'));
-                    const dMin = Math.min(...allValues);
-                    const dMax = Math.max(...allValues);
-                    const chartDomainHeight = (dMax + 0.10) - (dMin - 0.02);
-                    const pxPerEuro = 350 / chartDomainHeight;
-
-                    return (
-                      <React.Fragment key={fuel}>
-                        <Line
-                          type="monotone"
-                          dataKey={fuel}
-                          stroke={FUEL_COLORS[fuel]}
-                          strokeWidth={2}
-                          dot={{ r: 3, fill: FUEL_COLORS[fuel], strokeWidth: 0 }}
-                          activeDot={{ r: 5, strokeWidth: 0, fill: FUEL_COLORS[fuel] }}
-                        >
-                          <ErrorBar
-                            dataKey={`${fuel}_range`}
-                            width={4}
-                            strokeWidth={2}
-                            stroke={FUEL_COLORS[fuel]}
-                            direction="y"
-                          />
-                          <LabelList
-                            dataKey={fuel}
-                            content={(props) => {
-                              const { x, y, value, index: pointIndex } = props;
-                              if (!value) return null;
-                              
-                              const lastDataPoint = chartDataFinal?.[chartDataFinal.length - 1];
-                              const currentPoint = visibleChartData?.[pointIndex];
-                              if (!lastDataPoint || !currentPoint || +currentPoint.date !== +lastDataPoint.date) return null;
-
-                              const pillHeight = 30;
-                              const pillHeightWithGap = pillHeight + 12;
-
-                              // Resolve collisions consistently across all active fuels
-                              const activeFuels = FUEL_KEYS
-                                .filter(f => lastDataPoint[f] !== undefined)
-                                .sort((a, b) => lastDataPoint[b] - lastDataPoint[a]);
-
-                              // Use the common pxPerEuro to ensure all fuel labels calculate the same Y offsets
-                              const positions = activeFuels.map(f => {
-                                const priceDiff = lastDataPoint[f] - value;
-                                return { fuel: f, y: y - (priceDiff * pxPerEuro) };
-                              });
-
-                              for (let iter = 0; iter < 50; iter++) {
-                                let changed = false;
-                                for (let i = 0; i < positions.length - 1; i++) {
-                                  const a = positions[i];
-                                  const b = positions[i+1];
-                                  const overlap = pillHeightWithGap - (b.y - a.y);
-                                  if (overlap > 0) {
-                                    a.y -= overlap / 2;
-                                    b.y += overlap / 2;
-                                    changed = true;
-                                  }
-                                }
-                                if (!changed) break;
-                              }
-
-                              const resolvedY = positions.find(p => p.fuel === fuel)?.y || y;
-                              const badgeY = resolvedY - pillHeight / 2;
-                              const textWidth = `€${value.toFixed(3)}`.length * 7;
-                              const pillWidth = textWidth + 14;
-                              const pillX = x - pillWidth - 16;
-
-                              return (
-                                <g>
-                                  <line
-                                    x1={x} y1={y}
-                                    x2={pillX + pillWidth + 2} y2={resolvedY}
-                                    stroke={FUEL_COLORS[fuel]}
-                                    strokeWidth={1.5}
-                                    opacity={0.8}
-                                  />
-                                  <g transform={`translate(${pillX}, ${badgeY})`}>
-                                    <rect
-                                      width={pillWidth}
-                                      height={pillHeight}
-                                      rx={8}
-                                      fill="rgba(255, 255, 255, 0.85)"
-                                      stroke="rgba(243, 244, 246, 0.7)"
-                                      strokeWidth={1}
-                                    />
-                                    <text
-                                      x={pillWidth / 2}
-                                      y={pillHeight / 2 - 4}
-                                      textAnchor="middle"
-                                      dominantBaseline="middle"
-                                      fontSize={11}
-                                      fontWeight="700"
-                                      fill={FUEL_COLORS[fuel]}
-                                    >
-                                      €{value.toFixed(3)}
-                                    </text>
-                                    <text
-                                      x={pillWidth / 2}
-                                      y={pillHeight / 2 + 9}
-                                      textAnchor="middle"
-                                      dominantBaseline="middle"
-                                      fontSize={9}
-                                      fontWeight="500"
-                                      fill={FUEL_COLORS[fuel]}
-                                      opacity={0.6}
-                                    >
-                                      {fuelShortName}
-                                    </text>
-                                  </g>
-                                </g>
-                              );
-                            }}
-                          />
-                        </Line>
-                        <Line
-                          type="linear"
-                          dataKey={`${fuel}_trend`}
-                          stroke={FUEL_COLORS[fuel]}
-                          strokeWidth={1}
-                          strokeDasharray="5 5"
-                          dot={false}
-                          activeDot={false}
-                          legendType="none"
-                          isAnimationActive={false}
-                          opacity={0.5}
-                        />
-                      </React.Fragment>
-                    );
-                  })}
-                </LineChart>
-              </ResponsiveContainer>
+              {historyData.length > 0 && chartGroups.length > 0 ? (
+                <div className="space-y-4">
+                  {chartGroups.map(group => (
+                    <FuelTrendChart
+                      key={group.id}
+                      group={group}
+                      visibleData={visibleChartData}
+                      chartDataFinal={chartDataFinal}
+                      graphInterval={graphInterval}
+                      showDiscounts={showDiscounts}
+                      t={t}
+                    />
+                  ))}
+                  {/* Shared station legend */}
+                  <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 pt-3 mt-1 border-t border-gray-100">
+                    {chartStations.map(src => (
+                      <span key={src} className="flex items-center gap-1.5">
+                        <span className="w-2.5 h-2.5 rounded-full shrink-0" style={{ backgroundColor: (STATIONS[src] || {}).color }} />
+                        <span className="text-xs font-semibold text-gray-700">{(STATIONS[src] || {}).label || src}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ) : historyData.length > 0 ? (
+                <div className="text-center text-gray-400 py-10 text-sm">{t('no_data')}</div>
               ) : null}
             </div>
-          </Card>
-        </section>
+            </div>
 
-        {/* Price Changes Section */}
-        <section>
-          <Card className="p-3 sm:p-6">
-            <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
-              <div className="flex items-center gap-2">
-                <CircleGauge className="w-4 h-4 text-gray-400 shrink-0" />
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900">
+            {/* Subsection: Dynamics */}
+            <div className="px-3 sm:px-6 py-5 border-t border-gray-100">
+              <div className="flex items-center gap-2 mb-4">
+                <CircleGauge className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <h3 className="text-sm sm:text-base font-semibold text-gray-700">
                   {t('insights.title')}
-                </h2>
+                </h3>
               </div>
-              <SegmentedControl
-                options={FUEL_KEYS.map(fuel => ({
-                  value: fuel,
-                  label: t(fuel.replace('Neste ', ''))
-                }))}
-                value={insightsFuel}
-                onChange={setInsightsFuel}
-                layoutId="active-insights-fuel"
-                size="small"
+              {historyLoading && historyData.length === 0 ? (
+                <InsightsSkeleton />
+              ) : (
+                <Suspense fallback={<InsightsSkeleton />}>
+                  <PriceChangeCards groups={insightsGroups} />
+                </Suspense>
+              )}
+            </div>
+
+            {/* Subsection: Price History table */}
+            <div className="px-3 sm:px-6 py-5 border-t border-gray-100">
+              <HistoryTable
+                historyData={historyData}
+                t={t}
+                startDate={historyStartDate}
+                endDate={historyEndDate}
+                onStartDateChange={setHistoryStartDate}
+                onEndDateChange={setHistoryEndDate}
+                onPresetChange={setHistoryPreset}
+                activePreset={historyPreset}
+                loading={historyLoading}
+                selectedStations={selectedStations}
+                selectedFuels={analyticsFuels}
               />
             </div>
-            {historyLoading && historyData.length === 0 ? (
-              <InsightsSkeleton />
-            ) : (
-              <Suspense fallback={<InsightsSkeleton />}>
-                <PriceChangeCards
-                  historyData={historyData}
-                  latestPrices={latestPrices}
-                  selectedFuel={insightsFuel}
-                />
-              </Suspense>
-            )}
           </Card>
-        </section>
-
-
-        {/* History Table Section */}
-        <section>
-          <HistoryTable
-            historyData={historyData}
-            t={t}
-            startDate={historyStartDate}
-            endDate={historyEndDate}
-            onStartDateChange={setHistoryStartDate}
-            onEndDateChange={setHistoryEndDate}
-            onPresetChange={setHistoryPreset}
-            activePreset={historyPreset}
-            loading={historyLoading}
-            showDiscounts={showDiscounts}
-          />
         </section>
 
         <div className="h-8" />

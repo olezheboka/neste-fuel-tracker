@@ -2,7 +2,7 @@ import * as React from "react"
 import { twMerge } from "tailwind-merge"
 import { clsx } from "clsx"
 
-const Popover = ({ children }) => {
+const Popover = ({ children, className }) => {
   const [isOpen, setIsOpen] = React.useState(false)
   const containerRef = React.useRef(null)
 
@@ -22,7 +22,7 @@ const Popover = ({ children }) => {
 
   // Context-like passing of state to children
   return (
-    <div className="relative inline-block" ref={containerRef}>
+    <div className={twMerge("relative inline-block", className)} ref={containerRef}>
       {React.Children.map(children, child => {
         if (child.type.displayName === 'PopoverTrigger') {
           return React.cloneElement(child, { isOpen, setIsOpen })
