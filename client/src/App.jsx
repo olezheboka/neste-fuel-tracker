@@ -330,14 +330,28 @@ const HistoryTableSkeleton = () => (
 
 const Toast = ({ notification, onDismiss, onRetry, t }) => {
   const kind = notification?.kind;
-  // Errors linger a little longer (the user may want to hit Retry).
-  const durationMs = kind === 'error' ? 8000 : 5000;
+
+  // Dynamic dwell time, scaled to how much there is to read: a no-change ping is
+  // brief, a price-change toast grows with the number of changed rows, and an
+  // error lingers so the user can reach Retry. Derived from the notification, so
+  // its value only changes when the notification does (keeps the timer stable).
+  const dwellMs = !notification ? 0
+    : kind === 'error' ? 8000
+    : kind === 'nochange' ? 3000
+    : Math.min(11000, 4000 + (notification.groups || []).reduce((n, g) => n + g.items.length, 0) * 650);
+
+  // Auto-dismiss. onDismiss is an inline closure recreated on every parent
+  // re-render, so depending on it here restarted the timer on each re-render
+  // (e.g. when justChecked flipped, or the 15-min poll fired) — the toast then
+  // outlived its own progress bar. Hold it in a ref and arm the timer once per
+  // notification so it counts down uninterrupted.
+  const onDismissRef = React.useRef(onDismiss);
+  useEffect(() => { onDismissRef.current = onDismiss; });
   useEffect(() => {
-    if (notification) {
-      const timer = setTimeout(() => onDismiss(), durationMs);
-      return () => clearTimeout(timer);
-    }
-  }, [notification, onDismiss, durationMs]);
+    if (!notification) return undefined;
+    const timer = setTimeout(() => onDismissRef.current(), dwellMs);
+    return () => clearTimeout(timer);
+  }, [notification, dwellMs]);
 
   // Header icon: error → warning; changed → net direction (down = cheaper = green,
   // up = pricier = red, mixed = neutral); nochange → check.
@@ -432,7 +446,7 @@ const Toast = ({ notification, onDismiss, onRetry, t }) => {
         <div className="h-1 bg-gray-100">
           <div
             className={clsx("h-full bg-gray-300 ease-linear", notification ? "w-full" : "w-0")}
-            style={{ transitionProperty: 'width', transitionDuration: `${durationMs}ms` }}
+            style={{ transitionProperty: 'width', transitionDuration: `${dwellMs}ms` }}
           />
         </div>
       </div>
@@ -870,22 +884,37 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
             <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
             <YAxis domain={[dMin - pad, dMax + pad]} hide />
             <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50 }} />
-            {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
-              if (!point.isDiscount) return areas;
-              const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
-              const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
-              const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
-              areas.push(
-                <ReferenceArea
-                  key={`disc-${point.periodKey}`}
-                  x1={(prevDate + point.date) / 2}
-                  x2={(point.date + nextDate) / 2}
-                  fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'}
-                  stroke="none"
-                />
-              );
-              return areas;
-            }, [])}
+            {graphInterval === 'days' && (() => {
+              // Clamp each discount band to the visible window's date range. Without
+              // this, the band for the LAST point (e.g. today's discount) extends to
+              // point.date + ½·gap — past the axis max — and Recharts' ReferenceArea
+              // (ifOverflow="discard" by default) drops the whole band, so the most
+              // recent discount day never highlighted even though mid-chart ones did.
+              const visMin = visibleData[0]?.date;
+              const visMax = visibleData[visibleData.length - 1]?.date;
+              return chartDataFinal.reduce((areas, point, i, arr) => {
+                if (!point.isDiscount) return areas;
+                const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
+                const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
+                const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
+                let x1 = (prevDate + point.date) / 2;
+                let x2 = (point.date + nextDate) / 2;
+                if (visMin !== undefined) { x1 = Math.max(visMin, x1); x2 = Math.max(visMin, x2); }
+                if (visMax !== undefined) { x1 = Math.min(visMax, x1); x2 = Math.min(visMax, x2); }
+                if (x2 <= x1) return areas; // fully outside the visible window
+                areas.push(
+                  <ReferenceArea
+                    key={`disc-${point.periodKey}`}
+                    x1={x1}
+                    x2={x2}
+                    ifOverflow="visible"
+                    fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'}
+                    stroke="none"
+                  />
+                );
+                return areas;
+              }, []);
+            })()}
             {/* One line per station, each with an intraday min–max ErrorBar
                 whisker. Scoped to stations present in the visible window so we
                 never feed Recharts empty all-null series. */}
