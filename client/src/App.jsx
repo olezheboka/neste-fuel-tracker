@@ -703,7 +703,7 @@ const StationChartTooltip = ({ active, payload }) => {
 // distinct from the solid graph lines.
 const PILL_HEIGHT = 24;
 const PLOT_TOP = 14; // matches LineChart top margin
-const PLOT_BOTTOM = 138; // chart height (140) − bottom margin (2)
+const PLOT_BOTTOM = 198; // chart height (200) − bottom margin (2)
 
 // Build the vertically collision-resolved pill stack for the final datapoint.
 // Each item keeps its true datapoint y plus a labelY (pill center) after overlap
@@ -856,10 +856,10 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
   }
   if (!hasVals) { dMin = 0; dMax = 1; }
 
-  // Derive Y-axis domain from the most recent half of visible data so a large
-  // historical price move doesn't visually compress closely-spaced current lines.
-  // Historical data outside this tighter domain is clipped at the chart boundary.
-  const recentCount = Math.max(Math.ceil(safeData.length * 0.5), 7);
+  // Derive Y-axis domain from recent data so historical swings don't compress
+  // closely-spaced current lines. Cap at 14 points (~2 weeks) so a mid-range
+  // dip doesn't blow out the domain; older data is clipped at the chart boundary.
+  const recentCount = Math.max(Math.min(Math.ceil(safeData.length * 0.15), 14), 7);
   const recentStart = Math.max(0, safeData.length - recentCount);
   let yMin = Infinity, yMax = -Infinity;
   safeData.forEach((d, idx) => {
@@ -870,15 +870,28 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
     });
   });
   if (yMin === Infinity) { yMin = dMin; yMax = dMax; }
-  const pad = Math.max((yMax - yMin) * 0.25, 0.025);
+  // Anchor domain on the endpoint prices so the current inter-station gap
+  // always has meaningful pixel room. Allow surrounding context up to 4× the
+  // endpoint gap — large enough to show a recent price cut, tight enough that
+  // closely-priced lines never collapse to the same pixel row.
+  const lastDataPoint = safeData[safeData.length - 1] || {};
+  const endPrices = visibleStations.map(s => lastDataPoint[`${group.id}__${s}`]).filter(v => typeof v === 'number');
+  const endMin = endPrices.length ? Math.min(...endPrices) : yMin;
+  const endMax = endPrices.length ? Math.max(...endPrices) : yMax;
+  const endCenter = (endMin + endMax) / 2;
+  const maxContextSpread = Math.max((endMax - endMin) * 4, 0.06);
+  const contextSpread = Math.min(yMax - yMin, maxContextSpread);
+  const pad = Math.max(contextSpread * 0.15, 0.02);
+  const domainLow = endCenter - Math.max(contextSpread / 2 + pad, 0.03);
+  const domainHigh = endCenter + Math.max(contextSpread / 2 + pad, 0.03);
 
   // Price-pill geometry for the final datapoint. toY mirrors the (explicit,
   // linear) YAxis domain → pixel mapping so pills line up with the real dots.
   const lastPoint = visibleData[visibleData.length - 1] || {};
   const activeSrcs = visibleStations.filter((s) => typeof lastPoint[`${group.id}__${s}`] === 'number');
   const anchorSrc = activeSrcs[0];
-  const domainMin = yMin - pad;
-  const domainSpan = (yMax + pad) - domainMin;
+  const domainMin = domainLow;
+  const domainSpan = domainHigh - domainLow;
   const toY = (price) => PLOT_TOP + (PLOT_BOTTOM - PLOT_TOP) * (1 - (price - domainMin) / domainSpan);
   const lastIndex = visibleData.length - 1;
 
@@ -889,12 +902,12 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
           {t(group.labelKey)}
         </span>
       </div>
-      <div className="h-[140px] w-full">
+      <div className="h-[200px] w-full">
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={visibleData} margin={{ top: 14, right: 18, left: 8, bottom: 2 }}>
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
-            <YAxis domain={[yMin - pad, yMax + pad]} hide />
+            <YAxis domain={[domainLow, domainHigh]} hide />
             <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50 }} />
             {graphInterval === 'days' && (() => {
               // Clamp each discount band to the visible window's date range. Without
