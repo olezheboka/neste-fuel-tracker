@@ -870,22 +870,37 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
             <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
             <YAxis domain={[dMin - pad, dMax + pad]} hide />
             <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50 }} />
-            {graphInterval === 'days' && chartDataFinal.reduce((areas, point, i, arr) => {
-              if (!point.isDiscount) return areas;
-              const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
-              const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
-              const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
-              areas.push(
-                <ReferenceArea
-                  key={`disc-${point.periodKey}`}
-                  x1={(prevDate + point.date) / 2}
-                  x2={(point.date + nextDate) / 2}
-                  fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'}
-                  stroke="none"
-                />
-              );
-              return areas;
-            }, [])}
+            {graphInterval === 'days' && (() => {
+              // Clamp each discount band to the visible window's date range. Without
+              // this, the band for the LAST point (e.g. today's discount) extends to
+              // point.date + ½·gap — past the axis max — and Recharts' ReferenceArea
+              // (ifOverflow="discard" by default) drops the whole band, so the most
+              // recent discount day never highlighted even though mid-chart ones did.
+              const visMin = visibleData[0]?.date;
+              const visMax = visibleData[visibleData.length - 1]?.date;
+              return chartDataFinal.reduce((areas, point, i, arr) => {
+                if (!point.isDiscount) return areas;
+                const avgGap = arr.length > 1 ? (arr[arr.length - 1].date - arr[0].date) / (arr.length - 1) : 0;
+                const prevDate = i > 0 ? arr[i - 1].date : point.date - avgGap;
+                const nextDate = i < arr.length - 1 ? arr[i + 1].date : point.date + avgGap;
+                let x1 = (prevDate + point.date) / 2;
+                let x2 = (point.date + nextDate) / 2;
+                if (visMin !== undefined) { x1 = Math.max(visMin, x1); x2 = Math.max(visMin, x2); }
+                if (visMax !== undefined) { x1 = Math.min(visMax, x1); x2 = Math.min(visMax, x2); }
+                if (x2 <= x1) return areas; // fully outside the visible window
+                areas.push(
+                  <ReferenceArea
+                    key={`disc-${point.periodKey}`}
+                    x1={x1}
+                    x2={x2}
+                    ifOverflow="visible"
+                    fill={showDiscounts ? `${DISCOUNT_COLOR}33` : 'transparent'}
+                    stroke="none"
+                  />
+                );
+                return areas;
+              }, []);
+            })()}
             {/* One line per station, each with an intraday min–max ErrorBar
                 whisker. Scoped to stations present in the visible window so we
                 never feed Recharts empty all-null series. */}
