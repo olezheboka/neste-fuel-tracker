@@ -845,7 +845,7 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
   if (!safeData.length) {
     return (
       <div>
-        <div className="mb-1 px-1">
+        <div className="mb-1">
           <span className="inline-block text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
             {t(group.labelKey)}
           </span>
@@ -884,7 +884,7 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
 
   return (
     <div>
-      <div className="mb-1 px-1">
+      <div className="mb-1">
         <span className="inline-block text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700">
           {t(group.labelKey)}
         </span>
