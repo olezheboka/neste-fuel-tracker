@@ -67,7 +67,7 @@ export default function PriceChangeCards({ groups }) {
         <div className="space-y-5">
             {groups.map(group => (
                 <div key={group.id}>
-                    <div className="mb-1.5 px-1">
+                    <div className="mb-1.5">
                         <span
                             className="inline-block text-[11px] sm:text-xs font-bold uppercase tracking-wider px-2.5 py-1 rounded-md bg-gray-100 text-gray-700"
                         >
