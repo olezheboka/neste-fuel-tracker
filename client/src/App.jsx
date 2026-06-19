@@ -886,7 +886,7 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
             <YAxis domain={[domainLow, domainHigh]} hide />
-            <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50, display: isActiveChart === false ? 'none' : undefined }} />
+            <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 20, display: isActiveChart === false ? 'none' : undefined }} />
             {graphInterval === 'days' && (() => {
               // Clamp each discount band to the visible window's date range. Without
               // this, the band for the LAST point (e.g. today's discount) extends to
