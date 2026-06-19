@@ -823,7 +823,7 @@ function EndPricePill({ item, dpX }) {
   );
 }
 
-const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, showDiscounts, t }) => {
+const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, showDiscounts, t, isActiveChart }) => {
   // Defensive: a brush window can transiently slice to an empty set while state
   // settles. Recharts dislikes an empty/degenerate-domain chart, so render a
   // neutral placeholder rather than risk a throw that blanks the panel.
@@ -886,7 +886,7 @@ const FuelTrendChart = ({ group, visibleData, chartDataFinal, graphInterval, sho
             <CartesianGrid strokeDasharray="3 3" stroke="#eee" vertical={false} />
             <XAxis dataKey="date" type="number" domain={['dataMin', 'dataMax']} hide />
             <YAxis domain={[domainLow, domainHigh]} hide />
-            <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50 }} />
+            <Tooltip content={<StationChartTooltip />} cursor={{ stroke: '#9ca3af', strokeWidth: 1, strokeDasharray: '5 5' }} wrapperStyle={{ zIndex: 50, display: isActiveChart === false ? 'none' : undefined }} />
             {graphInterval === 'days' && (() => {
               // Clamp each discount band to the visible window's date range. Without
               // this, the band for the LAST point (e.g. today's discount) extends to
@@ -1897,6 +1897,7 @@ export default function App() {
   // per-frame, so a transient chart throw can't drive a catch->reset->rethrow loop
   // that escalates ("Maximum update depth") past the chart boundary to the root.
   const [isBrushing, setIsBrushing] = useState(false);
+  const [activeChartGroupId, setActiveChartGroupId] = useState(null);
   // Timeline window shared via URL (br_start/br_end). Parsed once, applied to the
   // brush on first data load, then normal default-window behavior resumes.
   const initialBrushDates = useMemo(() => {
@@ -2614,6 +2615,7 @@ export default function App() {
                       resetKeys={[chartDataFinal.length, selectedStations, effectiveAnalyticsFuels, showDiscounts, isBrushing]}
                       fallback={<div className="h-[140px] w-full" aria-hidden="true" />}
                     >
+                    <div onTouchStart={() => setActiveChartGroupId(group.id)}>
                     <FuelTrendChart
                       group={group}
                       visibleData={visibleChartData}
@@ -2621,7 +2623,9 @@ export default function App() {
                       graphInterval={graphInterval}
                       showDiscounts={showDiscounts}
                       t={t}
+                      isActiveChart={activeChartGroupId === null || activeChartGroupId === group.id}
                     />
+                    </div>
                     </ErrorBoundary>
                   ))}
                   {/* Shared station legend */}
