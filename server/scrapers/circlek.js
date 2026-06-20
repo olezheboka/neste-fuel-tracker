@@ -8,7 +8,7 @@
 
 const cheerio = require('cheerio');
 const { openDb } = require('../db');
-const { fetchHtml, parsePrice, dedupeLowest, insertPrices } = require('./normalize');
+const { fetchHtml, parsePrice, validatePrice, dedupeLowest, insertPrices } = require('./normalize');
 
 const URL = 'https://www.circlek.lv/degviela-miles/degvielas-cenas';
 const SOURCE = 'CircleK';
@@ -23,30 +23,36 @@ function toCanonical(rawName) {
     return null;
 }
 
+// Pure: HTML string -> deduped canonical rows [{ type, price, location, source }].
+// No network/DB, so parsing tests can run it against stored fixtures.
+function parseCircleK(html) {
+    const $ = cheerio.load(html);
+    const results = [];
+
+    $('table tr').each((i, row) => {
+        const cells = $(row).find('td');
+        if (cells.length < 3) return;
+
+        const name = $(cells[0]).text().replace(/\s+/g, ' ').trim();
+        const canonical = toCanonical(name);
+        if (!canonical) return;
+
+        const price = parsePrice($(cells[1]).text());
+        if (!validatePrice(price)) return;
+
+        const addrText = $(cells[2]).text().replace(/\s+/g, ' ').trim();
+        const location = addrText.split(',').map(s => s.trim()).filter(Boolean).join(' | ') || 'Rīga';
+
+        results.push({ type: canonical, price, location, source: SOURCE });
+    });
+
+    return dedupeLowest(results);
+}
+
 async function scrapeCircleK(timestamp) {
     try {
         const html = await fetchHtml(URL);
-        const $ = cheerio.load(html);
-        const results = [];
-
-        $('table tr').each((i, row) => {
-            const cells = $(row).find('td');
-            if (cells.length < 3) return;
-
-            const name = $(cells[0]).text().replace(/\s+/g, ' ').trim();
-            const canonical = toCanonical(name);
-            if (!canonical) return;
-
-            const price = parsePrice($(cells[1]).text());
-            if (isNaN(price)) return;
-
-            const addrText = $(cells[2]).text().replace(/\s+/g, ' ').trim();
-            const location = addrText.split(',').map(s => s.trim()).filter(Boolean).join(' | ') || 'Rīga';
-
-            results.push({ type: canonical, price, location, source: SOURCE });
-        });
-
-        const deduped = dedupeLowest(results);
+        const deduped = parseCircleK(html);
         if (deduped.length) {
             const db = await openDb();
             await insertPrices(db, deduped, timestamp);
@@ -59,4 +65,4 @@ async function scrapeCircleK(timestamp) {
     }
 }
 
-module.exports = { scrapeCircleK };
+module.exports = { scrapeCircleK, parseCircleK, toCanonical };

@@ -10,40 +10,46 @@
 
 const cheerio = require('cheerio');
 const { openDb } = require('../db');
-const { fetchHtml, parsePrice, dedupeLowest, insertPrices } = require('./normalize');
+const { fetchHtml, parsePrice, validatePrice, dedupeLowest, insertPrices } = require('./normalize');
 
 const URL = 'https://www.virsi.lv/lv/privatpersonam/degviela/degvielas-un-elektrouzlades-cenas';
 const SOURCE = 'Virsi';
 
 const TYPE_MAP = { '95e': '95', '98e': '98', dd: 'diesel', lpg: 'gas' };
 
+// Pure: HTML string -> deduped canonical rows [{ type, price, location, source }].
+// No network/DB, so parsing tests can run it against stored fixtures.
+function parseVirsi(html) {
+    const $ = cheerio.load(html);
+    const results = [];
+
+    $('.price-card').each((i, el) => {
+        const dataType = ($(el).attr('data-type') || '').toLowerCase().trim();
+        const canonical = TYPE_MAP[dataType];
+        if (!canonical) return;
+
+        // Price is the second <span> inside p.price; the first is the label.
+        const price = parsePrice($(el).find('.price span').eq(1).text());
+        if (!validatePrice(price)) return;
+
+        // Single station address — keep as one chip (don't split on commas,
+        // which would break "street, city"). Drop the trailing postal code
+        // ("…, LV-1006") so only street + city remain.
+        const location = $(el).find('.address').text()
+            .replace(/\s+/g, ' ')
+            .replace(/,?\s*LV-\d{4}\s*$/i, '')
+            .trim() || 'Rīga';
+
+        results.push({ type: canonical, price, location, source: SOURCE });
+    });
+
+    return dedupeLowest(results);
+}
+
 async function scrapeVirsi(timestamp) {
     try {
         const html = await fetchHtml(URL);
-        const $ = cheerio.load(html);
-        const results = [];
-
-        $('.price-card').each((i, el) => {
-            const dataType = ($(el).attr('data-type') || '').toLowerCase().trim();
-            const canonical = TYPE_MAP[dataType];
-            if (!canonical) return;
-
-            // Price is the second <span> inside p.price; the first is the label.
-            const price = parsePrice($(el).find('.price span').eq(1).text());
-            if (isNaN(price)) return;
-
-            // Single station address — keep as one chip (don't split on commas,
-            // which would break "street, city"). Drop the trailing postal code
-            // ("…, LV-1006") so only street + city remain.
-            const location = $(el).find('.address').text()
-                .replace(/\s+/g, ' ')
-                .replace(/,?\s*LV-\d{4}\s*$/i, '')
-                .trim() || 'Rīga';
-
-            results.push({ type: canonical, price, location, source: SOURCE });
-        });
-
-        const deduped = dedupeLowest(results);
+        const deduped = parseVirsi(html);
         if (deduped.length) {
             const db = await openDb();
             await insertPrices(db, deduped, timestamp);
@@ -56,4 +62,4 @@ async function scrapeVirsi(timestamp) {
     }
 }
 
-module.exports = { scrapeVirsi };
+module.exports = { scrapeVirsi, parseVirsi, TYPE_MAP };

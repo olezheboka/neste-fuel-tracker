@@ -9,7 +9,7 @@
 
 const cheerio = require('cheerio');
 const { openDb } = require('../db');
-const { fetchHtml, parsePrice, dedupeLowest, insertPrices } = require('./normalize');
+const { fetchHtml, parsePrice, validatePrice, dedupeLowest, insertPrices } = require('./normalize');
 
 const URL = 'https://www.viada.lv/zemakas-degvielas-cenas/';
 const SOURCE = 'Viada';
@@ -26,49 +26,56 @@ function toCanonical(imgSrc) {
     return null;
 }
 
+// Pure: HTML string -> deduped canonical rows, with the D+/D swap applied.
+// No network/DB, so parsing tests can run it against stored fixtures.
+function parseViada(html) {
+    const $ = cheerio.load(html);
+    const results = [];
+
+    $('table tr').each((i, row) => {
+        const cells = $(row).find('td');
+        if (cells.length < 3) return;
+
+        const imgSrc = $(cells[0]).find('img').attr('src') || '';
+        const canonical = toCanonical(imgSrc);
+        if (!canonical) return;
+
+        const price = parsePrice($(cells[1]).text());
+        if (!validatePrice(price)) return;
+
+        // Split into one chip per station entry (each begins with "ADUS"/"DUS"),
+        // without breaking the internal "street, city" commas. Drop the station
+        // name prefix ("ADUS Liepāja 2 : ") and keep only "street, city".
+        const addrText = $(cells[2]).text().replace(/\s+/g, ' ').replace(/\.\s*$/, '').trim();
+        const parts = addrText
+            .split(/,\s*(?=A?DUS\b)/)
+            .map(s => s.trim().replace(/^A?DUS\b[^:]*:\s*/, ''))
+            .filter(Boolean);
+        const location = parts.join(' | ') || 'Rīga';
+
+        results.push({ type: canonical, price, location, source: SOURCE });
+    });
+
+    const deduped = dedupeLowest(results);
+
+    // D+ must always be the more expensive of Viada's two diesels. By image
+    // name `d_ecto` (ECTO diesel) is mapped to `pro` above, but Viada
+    // sometimes prices ECTO below regular `D`; in that case swap so D+ tracks
+    // the pricier product. (Per product owner: D+ = premium = costlier.)
+    const dRow = deduped.find((r) => r.type === 'diesel');
+    const proRow = deduped.find((r) => r.type === 'pro');
+    if (dRow && proRow && proRow.price < dRow.price) {
+        dRow.type = 'pro';
+        proRow.type = 'diesel';
+    }
+
+    return deduped;
+}
+
 async function scrapeViada(timestamp) {
     try {
         const html = await fetchHtml(URL);
-        const $ = cheerio.load(html);
-        const results = [];
-
-        $('table tr').each((i, row) => {
-            const cells = $(row).find('td');
-            if (cells.length < 3) return;
-
-            const imgSrc = $(cells[0]).find('img').attr('src') || '';
-            const canonical = toCanonical(imgSrc);
-            if (!canonical) return;
-
-            const price = parsePrice($(cells[1]).text());
-            if (isNaN(price)) return;
-
-            // Split into one chip per station entry (each begins with "ADUS"/"DUS"),
-            // without breaking the internal "street, city" commas. Drop the station
-            // name prefix ("ADUS Liepāja 2 : ") and keep only "street, city".
-            const addrText = $(cells[2]).text().replace(/\s+/g, ' ').replace(/\.\s*$/, '').trim();
-            const parts = addrText
-                .split(/,\s*(?=A?DUS\b)/)
-                .map(s => s.trim().replace(/^A?DUS\b[^:]*:\s*/, ''))
-                .filter(Boolean);
-            const location = parts.join(' | ') || 'Rīga';
-
-            results.push({ type: canonical, price, location, source: SOURCE });
-        });
-
-        const deduped = dedupeLowest(results);
-
-        // D+ must always be the more expensive of Viada's two diesels. By image
-        // name `d_ecto` (ECTO diesel) is mapped to `pro` above, but Viada
-        // sometimes prices ECTO below regular `D`; in that case swap so D+ tracks
-        // the pricier product. (Per product owner: D+ = premium = costlier.)
-        const dRow = deduped.find((r) => r.type === 'diesel');
-        const proRow = deduped.find((r) => r.type === 'pro');
-        if (dRow && proRow && proRow.price < dRow.price) {
-            dRow.type = 'pro';
-            proRow.type = 'diesel';
-        }
-
+        const deduped = parseViada(html);
         if (deduped.length) {
             const db = await openDb();
             await insertPrices(db, deduped, timestamp);
@@ -81,4 +88,4 @@ async function scrapeViada(timestamp) {
     }
 }
 
-module.exports = { scrapeViada };
+module.exports = { scrapeViada, parseViada, toCanonical };

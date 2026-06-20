@@ -240,4 +240,4 @@ async function initDb() {
     return db;
 }
 
-module.exports = { openDb, initDb };
+module.exports = { openDb, initDb, convertQueryToPg };

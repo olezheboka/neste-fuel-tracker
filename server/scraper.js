@@ -1,6 +1,7 @@
 const axios = require('axios');
 const cheerio = require('cheerio');
 const { openDb } = require('./db');
+const { validatePrice } = require('./scrapers/normalize');
 
 const PRICES_URL = 'https://www.neste.lv/lv/content/degvielas-cenas';
 const HOMEPAGE_URL = 'https://www.neste.lv/lv';
@@ -131,6 +132,55 @@ async function detectInstagramDiscount() {
     }
 }
 
+// Pure: HTML string -> [{ type, price, location }] for the four Neste fuels.
+// `type` is the full product name (e.g. "Neste Futura 95"), not a canonical id —
+// the client maps it via NESTE_TYPE_TO_GROUP. No discount marker is applied here;
+// that depends on DB history and external signals (see scrapePrices). No
+// network/DB, so parsing tests can run it against stored fixtures.
+function parseNestePrices(html) {
+    const $ = cheerio.load(html);
+    const results = [];
+
+    const rows = $('table tbody tr, table tr');
+    rows.each((i, row) => {
+        const cells = $(row).find('td');
+        if (cells.length < 3) return;
+
+        const fuelNameRaw = $(cells[0]).text().replace(/[\t\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
+        const priceRaw = $(cells[1]).text().trim().replace(',', '.');
+        // Strip MSO/CDATA artifacts that Neste injects (copy-pasted from Excel)
+        const dusHtml = $(cells[2]).html() || '';
+        const dusClean = dusHtml
+            .replace(/<!--[\s\S]*?-->/g, '')          // HTML comments
+            .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '') // CDATA sections
+            .replace(/\/\*[\s\S]*?\*\//g, '')         // CSS comments
+            .replace(/\/\*[^*]*/g, '')                // unclosed CSS comment starts
+            .replace(/\*\//g, '')                     // orphaned CSS comment ends
+            .replace(/<[^>]+>/g, ' ')                 // remaining HTML tags
+            .replace(/&nbsp;/g, ' ')                  // HTML entities
+            .replace(/[\t\n\r]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        // Match to known fuel types (handle non-breaking spaces)
+        const fuelName = fuelNameRaw.replace(/ /g, ' ');
+        const matchedFuel = FUEL_TYPES.find((f) =>
+            fuelName.includes(f) || f.includes(fuelName)
+        );
+        if (!matchedFuel) return;
+
+        const price = parseFloat(priceRaw);
+        if (!validatePrice(price)) return;
+
+        const addresses = dusClean.split(',').map(addr => addr.trim()).filter(addr => addr.length > 0);
+        const location = addresses.length > 0 ? addresses.join(' | ') : 'Rīga';
+
+        results.push({ type: matchedFuel, price, location });
+    });
+
+    return results;
+}
+
 /**
  * Scrape fuel prices and station addresses from the Neste prices page.
  * Each fuel type has:
@@ -158,89 +208,16 @@ async function scrapePrices(sharedTimestamp) {
         const externalDiscount = homepageDiscount || instagramDiscount || manualDiscount;
 
         console.log(`[SCRAPER] Page fetched. Length: ${data.length} chars.`);
-        const $ = cheerio.load(data);
         const db = await openDb();
 
-        const results = [];
         // When run as part of the multi-station orchestrator, all sources share
         // one timestamp so /api/prices/latest (WHERE timestamp = MAX(...)) returns
         // every station from the same scrape cycle. Falls back to "now" when run alone.
         const timestamp = sharedTimestamp || new Date().toISOString();
 
-        // Debug: Log all tables found
-        const tableCount = $('table').length;
-        console.log(`[SCRAPER] Found ${tableCount} tables.`);
-
-        // Parse the table - each row contains: Fuel Type | Price | DUS (addresses)
-        const rows = $('table tbody tr, table tr');
-        console.log(`[SCRAPER] Found ${rows.length} rows to parse.`);
-
-        rows.each((i, row) => {
-            const cells = $(row).find('td');
-            // Log first row for debug
-            if (i === 0) {
-                console.log(`[SCRAPER] First row text: ${$(row).text().replace(/\s+/g, ' ').substring(0, 50)}...`);
-            }
-
-            if (cells.length >= 3) {
-                // Clean up text - remove tabs, newlines, extra whitespace
-                const fuelNameRaw = $(cells[0]).text().replace(/[\t\n\r]+/g, ' ').replace(/\s+/g, ' ').trim();
-                const priceRaw = $(cells[1]).text().trim().replace(',', '.');
-                // Strip MSO/CDATA artifacts that Neste injects (copy-pasted from Excel)
-                const dusHtml = $(cells[2]).html() || '';
-                const dusClean = dusHtml
-                    .replace(/<!--[\s\S]*?-->/g, '')   // HTML comments
-                    .replace(/<!\[CDATA\[[\s\S]*?\]\]>/g, '') // CDATA sections
-                    .replace(/\/\*[\s\S]*?\*\//g, '')  // CSS comments
-                    .replace(/\/\*[^*]*/g, '')         // unclosed CSS comment starts
-                    .replace(/\*\//g, '')              // orphaned CSS comment ends
-                    .replace(/<[^>]+>/g, ' ')           // remaining HTML tags
-                    .replace(/&nbsp;/g, ' ')            // HTML entities
-                    .replace(/[\t\n\r]+/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .trim();
-                const dusRaw = dusClean;
-
-                // Match to known fuel types (handle non-breaking spaces)
-                const fuelName = fuelNameRaw.replace(/\u00A0/g, ' ');
-                const matchedFuel = FUEL_TYPES.find(f =>
-                    fuelName.includes(f) || f.includes(fuelName)
-                );
-
-                if (matchedFuel) {
-                    const price = parseFloat(priceRaw);
-                    if (!isNaN(price)) {
-                        // Parse DUS addresses - they are comma-separated
-                        // Each address is a street name/number in Rīga
-                        const addresses = dusRaw
-                            .split(',')
-                            .map(addr => addr.trim())
-                            .filter(addr => addr.length > 0);
-
-                        // Join with pipe separator for storage
-                        const location = addresses.length > 0
-                            ? addresses.join(' | ')
-                            : 'Rīga';
-
-                        console.log(`[SCRAPER] Matched: ${matchedFuel}: €${price.toFixed(3)}, ${addresses.length} DUS`);
-
-                        results.push({
-                            type: matchedFuel,
-                            price,
-                            location,
-                            timestamp
-                        });
-                    } else {
-                        console.warn(`[SCRAPER] Invalid price for ${matchedFuel}: ${priceRaw}`);
-                    }
-                } else {
-                    // Debug unmatched rows that look like data
-                    if (fuelNameRaw.length > 0 && priceRaw.length > 0) {
-                        // console.log(`[SCRAPER] Unmatched row: ${fuelNameRaw}`);
-                    }
-                }
-            }
-        });
+        // Parse the table (pure) then stamp the shared timestamp on each row.
+        const results = parseNestePrices(data).map((r) => ({ ...r, timestamp }));
+        console.log(`[SCRAPER] Parsed ${results.length} fuel rows.`);
 
         if (results.length === 0) {
             console.warn("[SCRAPER] No fuel data found. Check the page structure.");
@@ -298,4 +275,4 @@ async function scrapePrices(sharedTimestamp) {
     }
 }
 
-module.exports = { scrapePrices };
+module.exports = { scrapePrices, parseNestePrices, getRigaDateParts, FUEL_TYPES };

@@ -14,6 +14,22 @@ const { scrapeViada } = require('./viada');
 
 const SOURCES = ['Neste', 'CircleK', 'Virsi', 'Viada'];
 
+// Pure: fold Promise.allSettled results into a flat row list. Fulfilled arrays
+// are concatenated; a rejected (or non-array) source is logged and skipped so a
+// single failure never breaks the cycle. Extracted from scrapeAll so the
+// graceful-degradation guarantee is unit-testable without network/DB.
+function collectSettled(settled, sources = SOURCES) {
+    const results = [];
+    settled.forEach((s, i) => {
+        if (s.status === 'fulfilled' && Array.isArray(s.value)) {
+            results.push(...s.value);
+        } else if (s.status === 'rejected') {
+            console.warn(`[SCRAPER] ${sources[i]} rejected (non-fatal):`, s.reason && s.reason.message);
+        }
+    });
+    return results;
+}
+
 async function scrapeAll() {
     const timestamp = new Date().toISOString();
 
@@ -24,17 +40,9 @@ async function scrapeAll() {
         scrapeViada(timestamp),
     ]);
 
-    const results = [];
-    settled.forEach((s, i) => {
-        if (s.status === 'fulfilled' && Array.isArray(s.value)) {
-            results.push(...s.value);
-        } else if (s.status === 'rejected') {
-            console.warn(`[SCRAPER] ${SOURCES[i]} rejected (non-fatal):`, s.reason && s.reason.message);
-        }
-    });
-
+    const results = collectSettled(settled);
     console.log(`[SCRAPER] scrapeAll complete: ${results.length} rows across ${SOURCES.length} sources.`);
     return results;
 }
 
-module.exports = { scrapeAll };
+module.exports = { scrapeAll, collectSettled, SOURCES };

@@ -36,6 +36,24 @@ function parsePrice(raw) {
     return parseFloat(String(raw).replace(/[^0-9.,]/g, '').replace(',', '.'));
 }
 
+// Realistic per-liter retail bounds (EUR) for Latvian fuel, generous on both
+// ends so a genuine price swing never trips it but a parser glitch (0, NaN,
+// €18.17 from a mis-split, a negative) is rejected before it reaches the DB/UI.
+// Gas (LPG) sits at the low end (~0.6), premium diesel at the high end (~2.2).
+const MIN_REALISTIC_PRICE = 0.3;
+const MAX_REALISTIC_PRICE = 5.0;
+
+// True when `price` is a finite number inside the realistic retail range.
+// This is the single sanity gate for ingest — call it after parsePrice().
+function validatePrice(price) {
+    return (
+        typeof price === 'number' &&
+        Number.isFinite(price) &&
+        price >= MIN_REALISTIC_PRICE &&
+        price <= MAX_REALISTIC_PRICE
+    );
+}
+
 // Collapse to one row per canonical fuel id, keeping the lowest price if a site
 // happens to list the same fuel more than once.
 function dedupeLowest(rows) {
@@ -59,4 +77,13 @@ async function insertPrices(db, rows, timestamp) {
     }
 }
 
-module.exports = { fetchHtml, parsePrice, dedupeLowest, insertPrices, SCRAPER_USER_AGENT };
+module.exports = {
+    fetchHtml,
+    parsePrice,
+    validatePrice,
+    dedupeLowest,
+    insertPrices,
+    SCRAPER_USER_AGENT,
+    MIN_REALISTIC_PRICE,
+    MAX_REALISTIC_PRICE,
+};

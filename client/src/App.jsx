@@ -11,31 +11,14 @@ const PriceChangeCards = lazy(() => import('./InsightsPanel'));
 import { DateRangePicker } from './components/ui/DatePicker';
 import MultiSelect from './components/ui/MultiSelect';
 import ErrorBoundary from './ErrorBoundary';
+import { getRigaDateParts, fmtRigaYmd } from './lib/dates.js';
+import { hexToRgba } from './lib/format.js';
+import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
+import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
+import { initFilterSet } from './lib/filters.js';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 if (!import.meta.env.PROD) console.log('[DEBUG] API_BASE:', API_BASE);
-
-const FUEL_COLORS = {
-  'Neste Futura 95': '#22c55e', // green-500
-  'Neste Futura 98': '#06b6d4', // cyan-500
-  'Neste Futura D': '#111827',  // gray-900 (black)
-  'Neste Pro Diesel': '#EAB308' // yellow-500
-};
-
-const DISCOUNT_COLOR = '#44D62C'; // Vibrant Pantone Green for discounts
-
-// Matches all known discount marker phrasings: the prices-page text
-// (e.g. "Visās stacijās cenas vienādas", "visās degvielas uzpildes stacijās
-// cena vienāda", "Visās degvielas uzpildes stacijās") and the homepage-banner
-// marker injected by server/scraper.js (contains "samazināta cena").
-const DISCOUNT_MARKER_RE = /vis[āa]s[\s\S]*stacij[āa]s|samazin[āa]ta\s+cena/i;
-
-// Matches ONLY the server-injected marker from scraper.js (homepage / Instagram
-// / FORCE_DISCOUNT_TODAY override). The prices-page static text never uses
-// "samazināta cena". When present, this is authoritative — bypass the
-// heuristic price-drop gate, since external confirmation is independent of
-// how many cents the price actually moved (e.g. a 3¢/L Privātkarte discount).
-const EXTERNAL_DISCOUNT_RE = /samazin[āa]ta\s+cena/i;
 
 const lngs = {
   lv: { nativeName: 'Latviešu', flag: '🇱🇻' },
@@ -43,91 +26,10 @@ const lngs = {
   en: { nativeName: 'English', flag: '🇬🇧' }
 };
 
-// --- Multi-station config -------------------------------------------------
-// Station brand metadata. Key = the `source` value returned by the API.
-const STATIONS = {
-  Neste:   { label: 'Neste',    color: '#003C96' },
-  CircleK: { label: 'Circle K', color: '#DA281C' },
-  Virsi:   { label: 'Virši',    color: '#7C3AED' },
-  Viada:   { label: 'Viada',    color: '#E08A00' },
-};
-const STATION_ORDER = ['Neste', 'CircleK', 'Virsi', 'Viada'];
-
-// Which fuel groups each station sells. Neste has no gas/LPG; Virši has no
-// premium diesel ('pro'). The rest sell all five groups.
-const STATION_FUEL_SUPPORT = {
-  Neste:   new Set(['95', '98', 'diesel', 'pro']),
-  CircleK: new Set(['95', '98', 'diesel', 'pro', 'gas']),
-  Virsi:   new Set(['95', '98', 'diesel', 'gas']),
-  Viada:   new Set(['95', '98', 'diesel', 'pro', 'gas']),
-};
-
-// Canonical fuel groups. `id` matches the canonical fuel ids and the `type` value
-// new stations store; colors mirror FUEL_COLORS; labelKey reuses existing i18n keys.
-const FUEL_GROUPS = [
-  { id: '95',     color: '#22c55e', labelKey: 'Futura 95' },
-  { id: '98',     color: '#06b6d4', labelKey: 'Futura 98' },
-  { id: 'diesel', color: '#111827', labelKey: 'Futura D' },
-  { id: 'pro',    color: '#EAB308', labelKey: 'Pro Diesel' },
-  { id: 'gas',    color: '#8b5cf6', labelKey: 'Gas' },
-];
-const FUEL_GROUP_IDS = FUEL_GROUPS.map((g) => g.id);
-
-// Map a price record to its canonical fuel-group id. Neste rows carry full names
-// ("Neste Futura 95"); new stations already store the canonical id ("95").
-const NESTE_TYPE_TO_GROUP = {
-  'Neste Futura 95': '95',
-  'Neste Futura 98': '98',
-  'Neste Futura D': 'diesel',
-  'Neste Pro Diesel': 'pro',
-};
-const fuelGroupId = (rec) => NESTE_TYPE_TO_GROUP[rec.type] || rec.type;
-const stationKey = (rec) => rec.source || 'Neste';
-
 // Single accent used to mark the cheapest station in every fuel group. Green is
 // the universal "best price / savings" signal — kept consistent across all fuels
 // so the meaning reads instantly regardless of the group's own color.
 const CHEAPEST_COLOR = '#16a34a'; // green-600
-
-// Translate a #rrggbb color into an rgba() string so the cheapest-station row can
-// be tinted/ringed in the accent color at a chosen opacity.
-const hexToRgba = (hex, alpha) => {
-  const h = hex.replace('#', '');
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-};
-
-// Read a filter Set from URL param (CSV) → localStorage → default to "all".
-const initFilterSet = (paramKey, lsKey, all) => {
-  try {
-    const params = new URLSearchParams(window.location.search);
-    const raw = params.get(paramKey) ?? localStorage.getItem(lsKey);
-    if (raw) {
-      const picked = raw.split(',').map((s) => s.trim()).filter((v) => all.includes(v));
-      if (picked.length) return new Set(picked);
-    }
-  } catch { /* SSR / parsing guard */ }
-  return new Set(all);
-};
-
-// Extract Riga timezone date components without double-parsing.
-// Uses Intl to read year/month/day directly — immune to DST shifts.
-const getRigaDateParts = (timestamp) => {
-  const utcDate = new Date(timestamp);
-  const tz = 'Europe/Riga';
-  const year  = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, year: 'numeric' }));
-  const month = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, month: 'numeric' }));
-  const day   = parseInt(utcDate.toLocaleString('en-US', { timeZone: tz, day: 'numeric' }));
-  return { year, month, day };
-};
-
-// Format a timestamp as a Riga-local YYYY-MM-DD string (for the brush URL params).
-const fmtRigaYmd = (ts) => {
-  const { year, month, day } = getRigaDateParts(ts);
-  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-};
 
 // Apple-style Segmented Control
 const SegmentedControl = ({ options, value, onChange, className, size = 'default' }) => {
@@ -1350,26 +1252,23 @@ const HistoryTable = React.memo(({
     //
     // No carry-forward: only the day with the visible day-over-day drop is
     // the discount day, not the next day where price recovers.
-    const MIN_DISCOUNT_DROP = 0.04;
-    const EPSILON = 0.001;
     for (let i = 0; i < rows.length; i++) {
-        if (rows[i].hasExternalDiscount) {
-            rows[i].isDiscount = true;
-            continue;
-        }
-        if (i === 0 || !rows[i].hasDiscountLocation) continue;
         const prev = rows[i - 1];
-        if (prev.hasDiscountLocation) continue; // marker lingering from a prior day, not a fresh onset
         const curr = rows[i];
-        const anyFuelDropped = allFuelTypes.some(f => {
+        const anyFuelDropped = i === 0 ? false : allFuelTypes.some(f => {
             const prevFuel = prev.fuels[f];
             const currFuel = curr.fuels[f];
             if (!prevFuel || !currFuel) return false;
-            const dropLatest = prevFuel.latest - currFuel.latest;
-            const dropMin = prevFuel.latest - currFuel.min;
-            return Math.max(dropLatest, dropMin) >= MIN_DISCOUNT_DROP - EPSILON;
+            return droppedEnough(prevFuel.latest, currFuel.latest)
+                || droppedEnough(prevFuel.latest, currFuel.min);
         });
-        rows[i].isDiscount = anyFuelDropped;
+        rows[i].isDiscount = isDiscountDay({
+            hasExternalDiscount: curr.hasExternalDiscount,
+            isFirst: i === 0,
+            hasDiscountLocation: curr.hasDiscountLocation,
+            prevHasDiscountLocation: prev ? prev.hasDiscountLocation : false,
+            anyFuelDropped,
+        });
     }
 
     return rows;
@@ -2196,21 +2095,22 @@ export default function App() {
     // prices-page "uniform price" text from re-flagging days after a discount
     // ends (e.g. it lingered 2026-06-10→11, where post-discount settling looked
     // like a fresh 6¢ drop). No carry-forward.
-    const MIN_DISCOUNT_DROP = 0.04;
-    const EPSILON = 0.001;
     for (let i = 0; i < sorted.length; i++) {
-      if (sorted[i].hasExternalDiscount) { sorted[i].isDiscount = true; continue; }
-      if (i === 0 || !sorted[i].hasDiscountLocation) continue;
       const prev = sorted[i - 1];
-      if (prev.hasDiscountLocation) continue; // marker lingering from a prior day, not a fresh onset
       const curr = sorted[i];
-      const anyFuelDropped = NESTE_KEYS.some(k => {
+      const anyFuelDropped = i === 0 ? false : NESTE_KEYS.some(k => {
         const prevPrice = prev[k];
         const currPrice = curr[k];
         if (prevPrice === undefined || currPrice === undefined) return false;
-        return (prevPrice - currPrice) >= MIN_DISCOUNT_DROP - EPSILON;
+        return droppedEnough(prevPrice, currPrice);
       });
-      sorted[i].isDiscount = anyFuelDropped;
+      sorted[i].isDiscount = isDiscountDay({
+        hasExternalDiscount: curr.hasExternalDiscount,
+        isFirst: i === 0,
+        hasDiscountLocation: curr.hasDiscountLocation,
+        prevHasDiscountLocation: prev ? prev.hasDiscountLocation : false,
+        anyFuelDropped,
+      });
     }
 
     return sorted;
