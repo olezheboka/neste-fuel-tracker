@@ -1,16 +1,15 @@
-name: Hourly fuel-price scrape
+name: Manual fuel-price scrape
 
-# Replaces the Vercel Cron job. Vercel's Hobby plan caps cron at once/day, so to
-# run hourly on the free plan we trigger the existing CRON_SECRET-gated
-# /api/scrape endpoint from GitHub Actions (free) instead.
+# Manual trigger for the CRON_SECRET-gated /api/scrape endpoint. Hourly
+# scheduling is handled externally by cron-job.org (GitHub's scheduler proved
+# too unreliable — newly-added/changed schedules routinely failed to fire).
+# This workflow is kept only as a manual "Run workflow" fallback for testing.
 #
-# Setup: add a repository secret named CRON_SECRET with the same value as the
-# CRON_SECRET environment variable in the Vercel project.
+# Setup: a repository secret named CRON_SECRET, matching the CRON_SECRET
+# environment variable in the Vercel project.
 
 on:
-  schedule:
-    - cron: '30 * * * *'   # :30 past every hour (UTC); avoids :00 top-of-hour congestion
-  workflow_dispatch: {}    # manual "Run workflow" button for testing
+  workflow_dispatch: {}    # manual "Run workflow" button only
 
 # Never overlap runs.
 concurrency:
