@@ -4,7 +4,10 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "fixtures:refresh": "node scripts/refresh-fixtures.js",
+    "health:parsers": "node scripts/parser-health.js"
   },
   "keywords": [],
   "author": "",
@@ -20,5 +23,9 @@
     "pg": "^8.11.3",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7"
+  },
+  "devDependencies": {
+    "supertest": "^7.2.2",
+    "vitest": "^4.1.9"
   }
 }
