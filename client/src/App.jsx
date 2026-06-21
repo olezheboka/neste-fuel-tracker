@@ -433,7 +433,7 @@ const AddressChip = ({ addr, url, isMarker = false }) => {
         rel="noopener noreferrer"
         className="inline-flex items-start text-gray-500 hover:text-blue-600 transition-colors min-w-0"
       >
-        <MapPin size={10} className="text-green-500 shrink-0 mr-1 mt-0.5" />
+        <MapPin size={10} className="text-gray-400 shrink-0 mr-1 mt-0.5" />
         {/* Specific addresses must not wrap mid-word (#6); the "same price
             everywhere" marker is a long sentence and must wrap to fit the card. */}
         <span className={clsx("underline underline-offset-2", isMarker ? "whitespace-normal break-words" : "whitespace-nowrap")}>{addr}</span>
@@ -493,7 +493,7 @@ const StationRow = ({ rec, isCheapest }) => {
         <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wide" style={{ color: st.color }}>
           {st.label}
         </span>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 font-medium min-w-0">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs md:text-sm text-gray-500 font-medium min-w-0">
           {addressList.length > 0 ? (
             addressList.map((addr, i) => {
               const url = isMarker
@@ -2150,7 +2150,7 @@ export default function App() {
             entire scroll (first child of <main>, the scroll container). */}
         {latestPrices.length > 0 && (
           <div className={clsx(
-            "sticky top-0 z-30 bg-white/95 backdrop-blur-xl rounded-2xl border border-gray-200 shadow-[0_1px_8px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)] px-3 sm:px-4 transition-[padding] duration-300 ease-out motion-reduce:transition-none",
+            "sticky top-0 z-30 bg-white/95 backdrop-blur-xl rounded-2xl px-3 sm:px-4 shadow-[0_22px_48px_-16px_rgba(15,23,42,0.28),0_6px_14px_rgba(15,23,42,0.07)] hover:shadow-[0_28px_56px_-16px_rgba(15,23,42,0.32),0_8px_18px_rgba(15,23,42,0.08)] hover:-translate-y-0.5 motion-reduce:hover:translate-y-0 transition-[padding,box-shadow,transform] duration-300 ease-out motion-reduce:transition-none",
             filtersCompact ? "py-2 sm:py-2.5" : "py-3 sm:py-4"
           )}>
             <div className={clsx(
