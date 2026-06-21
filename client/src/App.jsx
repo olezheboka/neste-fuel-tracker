@@ -11,11 +11,12 @@ const PriceChangeCards = lazy(() => import('./InsightsPanel'));
 import { DateRangePicker } from './components/ui/DatePicker';
 import MultiSelect from './components/ui/MultiSelect';
 import ErrorBoundary from './ErrorBoundary';
-import { getRigaDateParts, fmtRigaYmd } from './lib/dates.js';
+import { fmtRigaYmd } from './lib/dates.js';
 import { hexToRgba } from './lib/format.js';
 import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
 import { initFilterSet } from './lib/filters.js';
+import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 if (!import.meta.env.PROD) console.log('[DEBUG] API_BASE:', API_BASE);
@@ -1965,153 +1966,9 @@ export default function App() {
 
   // Filter Data based on Interval and Group by Period (Day/Week/Month)
   // We keep a larger history window (e.g. 180 days) for the Brush, but the chart will default to showing recent data
-  const chartData = useMemo(() => {
-    if (!historyData.length) return [];
-
-    const now = new Date();
-    let cutoff = new Date();
-
-    // Limit to exactly 1 year (365 days) back
-    cutoff.setDate(now.getDate() - 365);
-
-    // Filter by date first. Chart now covers ALL stations (one line per station
-    // within each fuel chart); discount detection below stays Neste-based.
-    const filteredByTime = historyData.filter(d => new Date(d.timestamp) >= cutoff);
-
-    // Helper to get period key based on interval (always in Latvia/Riga timezone)
-    const getPeriodKey = (timestamp) => {
-      const { year, month, day } = getRigaDateParts(timestamp);
-      if (graphInterval === 'days') {
-        return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-      } else if (graphInterval === 'weeks') {
-        // ISO week calculation using UTC Date to avoid DST-related day shifts
-        const date = new Date(Date.UTC(year, month - 1, day));
-        date.setUTCDate(date.getUTCDate() + 3 - (date.getUTCDay() + 6) % 7);
-        const week1 = new Date(Date.UTC(date.getUTCFullYear(), 0, 4));
-        const weekNumber = 1 + Math.round(((date.getTime() - week1.getTime()) / 86400000 - 3 + (week1.getUTCDay() + 6) % 7) / 7);
-        return `${date.getUTCFullYear()}-W${String(weekNumber).padStart(2, '0')}`;
-      } else if (graphInterval === 'months') {
-        return `${String(month).padStart(2, '0')}.${year}.`;
-      }
-      return timestamp;
-    };
-
-    // Helper to get a normalized UTC timestamp for a period key (for consistent sorting)
-    // Uses Date.UTC so timestamps are immune to local-timezone DST shifts
-    const getPeriodTimestamp = (periodKey) => {
-      if (graphInterval === 'days') {
-        const [year, month, day] = periodKey.split('-').map(Number);
-        return Date.UTC(year, month - 1, day, 12, 0, 0);
-      } else if (graphInterval === 'weeks') {
-        const [year, weekStr] = periodKey.split('-W');
-        const jan4 = new Date(Date.UTC(parseInt(year), 0, 4));
-        const weekNum = parseInt(weekStr);
-        const mondayOfWeek = new Date(jan4.getTime() + (weekNum - 1) * 7 * 86400000);
-        mondayOfWeek.setUTCDate(mondayOfWeek.getUTCDate() - (mondayOfWeek.getUTCDay() + 6) % 7);
-        return mondayOfWeek.getTime();
-      } else if (graphInterval === 'months') {
-        const parts = periodKey.split('.');
-        const month = parseInt(parts[0]);
-        const year = parseInt(parts[1]);
-        return Date.UTC(year, month - 1, 15, 12, 0, 0);
-      }
-      return new Date(periodKey).getTime();
-    };
-
-    // Accumulate by period → composite series key `${fuelGroupId}__${source}`
-    // (e.g. "95__Neste"). Each station gets its own line within a fuel chart.
-    const periodData = new Map();
-
-    filteredByTime.forEach(item => {
-      const periodKey = getPeriodKey(item.timestamp);
-      if (!periodData.has(periodKey)) periodData.set(periodKey, { series: {}, locations: [] });
-      const period = periodData.get(periodKey);
-      const ck = `${fuelGroupId(item)}__${stationKey(item)}`;
-      if (!period.series[ck]) period.series[ck] = [];
-      period.series[ck].push({ price: item.price, timestamp: item.timestamp });
-      // Discount markers are a Neste signal — only collect Neste locations.
-      if (item.location && (item.source || 'Neste') === 'Neste') period.locations.push(item.location);
-    });
-
-    // Neste series keys, used for the discount drop-gate below.
-    const NESTE_KEYS = FUEL_GROUPS.map(g => `${g.id}__Neste`);
-
-    const result = Array.from(periodData.entries()).map(([periodKey, data]) => {
-      let formattedTime = periodKey;
-      if (graphInterval === 'days') {
-        const [year, month, day] = periodKey.split('-');
-        formattedTime = `${day}.${month}.${year}`;
-      } else if (graphInterval === 'weeks') {
-        const timestamp = getPeriodTimestamp(periodKey);
-        const start = new Date(timestamp);
-        const end = new Date(timestamp + 6 * 24 * 60 * 60 * 1000);
-        const startStr = start.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit', year: 'numeric' });
-        const endStr = end.toLocaleDateString('lv-LV', { timeZone: 'Europe/Riga', day: '2-digit', month: '2-digit', year: 'numeric' });
-        formattedTime = `${startStr} - ${endStr}`;
-      }
-
-      const entry = {
-        date: getPeriodTimestamp(periodKey),
-        periodKey,
-        formattedTime,
-        hasDiscountLocation: data.locations.some(l => DISCOUNT_MARKER_RE.test(l)),
-        hasExternalDiscount: data.locations.some(l => EXTERNAL_DISCOUNT_RE.test(l)),
-        isDiscount: false, // finalized in second pass after sorting
-      };
-
-      // Each station series → the period's LAST price (the plotted line value),
-      // plus the intraday min/max (drawn as an ErrorBar whisker) and the list of
-      // distinct within-day price changes with timestamps (shown in the
-      // tooltip), so all updates within a day are visible like the pre-redesign
-      // chart. Server-side dedup already collapses unchanged consecutive scrapes.
-      Object.keys(data.series).forEach(ck => {
-        const sortedItems = data.series[ck].sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
-        const prices = sortedItems.map(p => p.price);
-        const last = prices[prices.length - 1];
-        const min = Math.min(...prices);
-        const max = Math.max(...prices);
-        entry[ck] = last;
-        entry[`${ck}_min`] = min;
-        entry[`${ck}_max`] = max;
-        // Only attach a whisker range when the price actually moved within the
-        // period; otherwise leave it unset so the ErrorBar draws nothing.
-        if (max - min > 0.0001) entry[`${ck}_range`] = [last - min, max - last]; // [downErr, upErr] → min..max
-        entry[`${ck}_history`] = sortedItems
-          .filter((it, i, arr) => i === 0 || Math.abs(it.price - arr[i - 1].price) > 0.0001)
-          .map(d => ({ price: d.price, timestamp: d.timestamp }));
-      });
-
-      return entry;
-    });
-
-    const sorted = result.sort((a, b) => a.date - b.date);
-
-    // Finalize isDiscount (Neste-based). External confirmation is authoritative;
-    // otherwise require the marker to be NEW (absent the previous period) and
-    // any Neste fuel to drop ≥4¢ vs that period. The onset guard stops the
-    // prices-page "uniform price" text from re-flagging days after a discount
-    // ends (e.g. it lingered 2026-06-10→11, where post-discount settling looked
-    // like a fresh 6¢ drop). No carry-forward.
-    for (let i = 0; i < sorted.length; i++) {
-      const prev = sorted[i - 1];
-      const curr = sorted[i];
-      const anyFuelDropped = i === 0 ? false : NESTE_KEYS.some(k => {
-        const prevPrice = prev[k];
-        const currPrice = curr[k];
-        if (prevPrice === undefined || currPrice === undefined) return false;
-        return droppedEnough(prevPrice, currPrice);
-      });
-      sorted[i].isDiscount = isDiscountDay({
-        hasExternalDiscount: curr.hasExternalDiscount,
-        isFirst: i === 0,
-        hasDiscountLocation: curr.hasDiscountLocation,
-        prevHasDiscountLocation: prev ? prev.hasDiscountLocation : false,
-        anyFuelDropped,
-      });
-    }
-
-    return sorted;
-  }, [historyData, graphInterval]);
+  // Per-day chart series (one line per station within each fuel chart),
+  // discount detection Neste-based. Pure builder lives in lib/chart.js.
+  const chartData = useMemo(() => buildChartData(historyData), [historyData]);
 
   // Which fuel charts / station lines to render, honoring the global filters.
   const chartGroups = useMemo(() => {
@@ -2159,30 +2016,13 @@ export default function App() {
     const isFirstDataLoad = lastConfig.length === 0;
     setLastConfig({ length: chartDataFinal.length, interval: graphInterval });
 
-    let defaultVisibleCount = 30; // default for days
-    if (graphInterval === 'weeks') defaultVisibleCount = 4;
-    if (graphInterval === 'months') defaultVisibleCount = 3;
-
     // On the first data load, honor a timeline window shared via the URL
-    // (br_start/br_end → indices). Afterwards fall back to the default window.
+    // (br_start/br_end → indices). Afterwards fall back to the default window
+    // (last 30 days). Both helpers live in lib/chart.js.
     if (initialBrushDates && isFirstDataLoad && chartDataFinal.length) {
-      const lastIdx = chartDataFinal.length - 1;
-      let startIndex = chartDataFinal.findIndex((p) => fmtRigaYmd(p.date) >= initialBrushDates.s);
-      if (startIndex < 0) startIndex = 0;
-      let endIndex = lastIdx;
-      for (let i = lastIdx; i >= 0; i--) {
-        if (fmtRigaYmd(chartDataFinal[i].date) <= initialBrushDates.e) { endIndex = i; break; }
-      }
-      startIndex = Math.min(Math.max(0, startIndex), lastIdx);
-      endIndex = Math.min(Math.max(0, endIndex), lastIdx);
-      if (endIndex < startIndex) endIndex = startIndex;
-      if (endIndex - startIndex < 6) endIndex = Math.min(lastIdx, startIndex + 6); // Brush min span
-      setBrushIndices({ startIndex, endIndex });
+      setBrushIndices(resolveBrushFromDates(chartDataFinal, { s: initialBrushDates.s, e: initialBrushDates.e }));
     } else {
-      setBrushIndices({
-        startIndex: Math.max(0, chartDataFinal.length - defaultVisibleCount),
-        endIndex: chartDataFinal.length - 1
-      });
+      setBrushIndices(defaultBrushWindow(chartDataFinal.length, 30));
     }
   }
 
