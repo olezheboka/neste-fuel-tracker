@@ -433,7 +433,7 @@ const AddressChip = ({ addr, url, isMarker = false }) => {
         rel="noopener noreferrer"
         className="inline-flex items-start text-gray-500 hover:text-blue-600 transition-colors min-w-0"
       >
-        <MapPin size={10} className="text-green-500 shrink-0 mr-1 mt-0.5" />
+        <MapPin size={10} className="text-gray-400 shrink-0 mr-1 mt-0.5" />
         {/* Specific addresses must not wrap mid-word (#6); the "same price
             everywhere" marker is a long sentence and must wrap to fit the card. */}
         <span className={clsx("underline underline-offset-2", isMarker ? "whitespace-normal break-words" : "whitespace-nowrap")}>{addr}</span>
@@ -493,7 +493,7 @@ const StationRow = ({ rec, isCheapest }) => {
         <span className="text-[11px] sm:text-xs font-bold uppercase tracking-wide" style={{ color: st.color }}>
           {st.label}
         </span>
-        <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-gray-500 font-medium min-w-0">
+        <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs md:text-sm text-gray-500 font-medium min-w-0">
           {addressList.length > 0 ? (
             addressList.map((addr, i) => {
               const url = isMarker
