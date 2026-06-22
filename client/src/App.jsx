@@ -21,6 +21,10 @@ import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
 if (!import.meta.env.PROD) console.log('[DEBUG] API_BASE:', API_BASE);
 
+// Default chart timeline window: last 7 days. Used both for the initial Brush
+// window and the URL-omission check (br_start/br_end omitted when at default).
+const DEFAULT_CHART_DAYS = 7;
+
 const lngs = {
   lv: { nativeName: 'Latviešu', flag: '🇱🇻' },
   ru: { nativeName: 'Русский', flag: '🇷🇺' },
@@ -2026,11 +2030,11 @@ export default function App() {
 
     // On the first data load, honor a timeline window shared via the URL
     // (br_start/br_end → indices). Afterwards fall back to the default window
-    // (last 30 days). Both helpers live in lib/chart.js.
+    // (last 7 days). Both helpers live in lib/chart.js.
     if (initialBrushDates && isFirstDataLoad && chartDataFinal.length) {
       setBrushIndices(resolveBrushFromDates(chartDataFinal, { s: initialBrushDates.s, e: initialBrushDates.e }));
     } else {
-      setBrushIndices(defaultBrushWindow(chartDataFinal.length, 30));
+      setBrushIndices(defaultBrushWindow(chartDataFinal.length, DEFAULT_CHART_DAYS));
     }
   }
 
@@ -2100,9 +2104,9 @@ export default function App() {
     }
 
     // Sync the chart timeline window as dates — omit when it's the default
-    // (last 30 days / full range) so the URL stays clean.
+    // (last 7 days / full range) so the URL stays clean.
     if (brushIndices && chartDataFinal && chartDataFinal.length) {
-      const dStart = Math.max(0, chartDataFinal.length - 30);
+      const dStart = Math.max(0, chartDataFinal.length - DEFAULT_CHART_DAYS);
       const dEnd = chartDataFinal.length - 1;
       if (!(brushIndices.startIndex === dStart && brushIndices.endIndex === dEnd)) {
         const sPoint = chartDataFinal[brushIndices.startIndex];
