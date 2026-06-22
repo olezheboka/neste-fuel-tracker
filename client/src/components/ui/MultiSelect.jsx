@@ -32,20 +32,6 @@ export default function MultiSelect({ label, options, selected, onToggle, onTogg
         </button>
       </PopoverTrigger>
       <PopoverContent align={align} className="p-1.5 w-56 max-w-[80vw]">
-        {onToggleAll && !allSelected && (
-          <>
-            <button
-              type="button"
-              onClick={onToggleAll}
-              className="w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 active:scale-[0.99] transition-all"
-            >
-              <span className="text-xs font-semibold text-blue-600 uppercase tracking-wide">
-                {t('select_all')}
-              </span>
-            </button>
-            <div className="my-1 h-px bg-gray-100" />
-          </>
-        )}
         {options.map((o) => {
           const checked = selected.has(o.value);
           return (
@@ -83,6 +69,30 @@ export default function MultiSelect({ label, options, selected, onToggle, onTogg
             </div>
           );
         })}
+        {/* "Select all" lives at the BOTTOM and is always rendered (dimmed +
+            disabled once everything is selected) so the option rows stay
+            anchored and the popover height never jumps as selection changes. */}
+        {onToggleAll && (
+          <>
+            <div className="my-1 h-px bg-gray-100" />
+            <button
+              type="button"
+              onClick={onToggleAll}
+              disabled={allSelected}
+              className={clsx(
+                "w-full flex items-center gap-2 rounded-lg px-2.5 py-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-blue-500 transition-all",
+                allSelected ? "cursor-default" : "hover:bg-gray-100 active:scale-[0.99]"
+              )}
+            >
+              <span className={clsx(
+                "text-xs font-semibold uppercase tracking-wide",
+                allSelected ? "text-gray-300" : "text-blue-600"
+              )}>
+                {t('select_all')}
+              </span>
+            </button>
+          </>
+        )}
       </PopoverContent>
     </Popover>
   );
