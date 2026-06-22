@@ -61,7 +61,7 @@ export default function MultiSelect({ label, options, selected, onToggle, onTogg
                 <button
                   type="button"
                   onClick={() => onSelectOnly(o.value)}
-                  className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-gray-300 hover:text-blue-600 focus-visible:text-blue-600 px-2 py-1 mr-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors duration-150"
+                  className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-blue-600 hover:text-blue-700 focus-visible:text-blue-700 px-2 py-1 mr-1 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 transition-colors duration-150"
                 >
                   {t('only')}
                 </button>
