@@ -4,7 +4,7 @@ import axios from 'axios';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceArea, LabelList, ErrorBar } from 'recharts';
 import { useTranslation } from 'react-i18next';
 // framer-motion removed
-import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, Calculator, History, ChartSpline, Diff, Grid3X3, CircleGauge, FileSpreadsheet, AlertTriangle } from 'lucide-react';
+import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, Calculator, History, ChartSpline, Diff, Grid3X3, CircleGauge, FileSpreadsheet, AlertTriangle, CircleDollarSign } from 'lucide-react';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 const PriceChangeCards = lazy(() => import('./InsightsPanel'));
@@ -2225,7 +2225,8 @@ export default function App() {
             {/* Single, localized, keyword-bearing page heading (one H1 per page).
                 Each language path renders its own — the SEO signal for "degvielas
                 cenas" / "цены на топливо" / "fuel prices" in Latvia. */}
-            <h1 className="text-base sm:text-lg font-bold text-gray-900 mb-3">
+            <h1 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-900 mb-3">
+              <CircleDollarSign className="w-4 h-4 text-gray-400 shrink-0" />
               {t('seo_h1')}
             </h1>
             {lastCheck && (
