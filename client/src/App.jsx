@@ -17,6 +17,7 @@ import { setLangCookie } from './i18n';
 import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
 import { initFilterSet } from './lib/filters.js';
+import { loadPrefs, savePrefs } from './lib/prefs.js';
 import { pageFromPath, pagePath, PAGES, PAGE_META } from './lib/seo-meta.js';
 import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
 
@@ -1638,10 +1639,9 @@ export default function App() {
   const [showDiscounts, setShowDiscounts] = useState(() => {
     const params = new URLSearchParams(window.location.search);
     const discountParam = params.get('discounts');
-    const stored = localStorage.getItem('showDiscounts');
-    
     if (discountParam !== null) return discountParam === 'on';
-    return stored === null ? true : stored === 'true';
+    const stored = loadPrefs().discounts;
+    return stored === undefined ? true : !!stored;
   });
 
   // Client-side station / fuel filters for the prices view (default: all). A
@@ -1652,13 +1652,13 @@ export default function App() {
     const page = pageFromPath();
     if (page?.kind === 'station') return new Set([page.filterId]);
     if (page?.kind === 'fuel') return new Set(STATION_ORDER);
-    return initFilterSet('stations', 'selectedStations', STATION_ORDER);
+    return initFilterSet('stations', STATION_ORDER, loadPrefs().stations?.join(','));
   });
   const [selectedFuels, setSelectedFuels] = useState(() => {
     const page = pageFromPath();
     if (page?.kind === 'fuel') return new Set([page.filterId]);
     if (page?.kind === 'station') return new Set(FUEL_GROUP_IDS);
-    return initFilterSet('fuels', 'selectedFuels', FUEL_GROUP_IDS);
+    return initFilterSet('fuels', FUEL_GROUP_IDS, loadPrefs().fuels?.join(','));
   });
 
   // The landing page (if any) this path resolves to — stable for the life of
@@ -1700,6 +1700,11 @@ export default function App() {
     const raw = params.get('afuel');
     if (raw) {
       const picked = raw.split(',').filter((f) => FUEL_GROUP_IDS.includes(f));
+      if (picked.length) return new Set(picked);
+    }
+    const stored = loadPrefs().analyticsFuels;
+    if (Array.isArray(stored)) {
+      const picked = stored.filter((f) => FUEL_GROUP_IDS.includes(f));
       if (picked.length) return new Set(picked);
     }
     return new Set(FUEL_GROUP_IDS);
@@ -1814,8 +1819,10 @@ export default function App() {
     if (urlPreset && VALID_PRESETS.includes(urlPreset)) return urlPreset;
     // Explicit date params mean no preset
     if (params.get('h_start') || params.get('h_end')) return null;
-    const stored = localStorage.getItem('historyPreset_v2');
-    if (stored && VALID_PRESETS.includes(stored)) return stored;
+    const prefs = loadPrefs();
+    if (prefs.historyPreset && VALID_PRESETS.includes(prefs.historyPreset)) return prefs.historyPreset;
+    // A saved custom range (dates, no preset) → null so the dates below take over.
+    if (prefs.historyStart || prefs.historyEnd) return null;
     return '7'; // default preset
   });
 
@@ -1829,13 +1836,12 @@ export default function App() {
     const hStart = params.get('h_start');
     if (hStart) return hStart;
 
-    // localStorage preset or stored dates
-    const storedPreset = localStorage.getItem('historyPreset_v2');
-    if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
-      return computePresetDates(storedPreset).start;
+    // Persisted preset or stored dates
+    const prefs = loadPrefs();
+    if (prefs.historyPreset && VALID_PRESETS.includes(prefs.historyPreset)) {
+      return computePresetDates(prefs.historyPreset).start;
     }
-    const storedStart = localStorage.getItem('historyStartDate_v2');
-    if (storedStart) return storedStart;
+    if (prefs.historyStart) return prefs.historyStart;
 
     return computePresetDates('7').start;
   });
@@ -1850,13 +1856,12 @@ export default function App() {
     const hEnd = params.get('h_end');
     if (hEnd) return hEnd;
 
-    // localStorage preset or stored dates
-    const storedPreset = localStorage.getItem('historyPreset_v2');
-    if (storedPreset && VALID_PRESETS.includes(storedPreset)) {
-      return computePresetDates(storedPreset).end;
+    // Persisted preset or stored dates
+    const prefs = loadPrefs();
+    if (prefs.historyPreset && VALID_PRESETS.includes(prefs.historyPreset)) {
+      return computePresetDates(prefs.historyPreset).end;
     }
-    const storedEnd = localStorage.getItem('historyEndDate_v2');
-    if (storedEnd) return storedEnd;
+    if (prefs.historyEnd) return prefs.historyEnd;
 
     return computePresetDates('7').end;
   });
@@ -1873,17 +1878,18 @@ export default function App() {
   const initialBrushDates = useMemo(() => {
     const p = new URLSearchParams(window.location.search);
     const s = p.get('br_start'), e = p.get('br_end');
-    return s && e ? { s, e } : null;
+    if (s && e) return { s, e };
+    const prefs = loadPrefs();
+    if (prefs.brushStart && prefs.brushEnd) return { s: prefs.brushStart, e: prefs.brushEnd };
+    return null;
   }, []);
   const previousPricesRef = React.useRef([]);
 
   // NOTE: the URL-sync effect lives further down (just before `return`) so it can
   // reference chartDataFinal/brushIndices for the timeline (br_start/br_end) params.
 
-  // Persist showDiscounts preference
-  useEffect(() => {
-    localStorage.setItem('showDiscounts', String(showDiscounts));
-  }, [showDiscounts]);
+  // showDiscounts is persisted via the unified prefs write in the URL-sync effect
+  // below (single source of truth — see lib/prefs.js).
 
   // NOTE: initial language is resolved once in i18n.js (getInitialLanguage:
   // URL `lang` → localStorage → 'en') BEFORE React mounts. A second
@@ -2125,35 +2131,19 @@ export default function App() {
     // Sync History Filters — use preset param when active, concrete dates otherwise.
     // The default preset ('7') is omitted from the URL to keep a fresh visit clean.
     if (historyPreset) {
-      localStorage.setItem('historyPreset_v2', historyPreset);
       if (historyPreset !== '7') params.set('h_preset', historyPreset);
-    } else {
-      localStorage.removeItem('historyPreset_v2');
-      if (historyStartDate && historyEndDate) {
-        params.set('h_start', historyStartDate);
-        params.set('h_end', historyEndDate);
-      }
+    } else if (historyStartDate && historyEndDate) {
+      params.set('h_start', historyStartDate);
+      params.set('h_end', historyEndDate);
     }
-    localStorage.setItem('historyStartDate_v2', historyStartDate);
-    localStorage.setItem('historyEndDate_v2', historyEndDate);
 
     // Sync station / fuel filters — omit the param when all are selected so the
     // default state keeps the URL clean.
-    const allStations = STATION_ORDER.every((s) => selectedStations.has(s));
-    if (allStations) {
-      localStorage.removeItem('selectedStations');
-    } else {
-      const v = STATION_ORDER.filter((s) => selectedStations.has(s)).join(',');
-      params.set('stations', v);
-      localStorage.setItem('selectedStations', v);
+    if (!STATION_ORDER.every((s) => selectedStations.has(s))) {
+      params.set('stations', STATION_ORDER.filter((s) => selectedStations.has(s)).join(','));
     }
-    const allFuels = FUEL_GROUP_IDS.every((f) => selectedFuels.has(f));
-    if (allFuels) {
-      localStorage.removeItem('selectedFuels');
-    } else {
-      const v = FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)).join(',');
-      params.set('fuels', v);
-      localStorage.setItem('selectedFuels', v);
+    if (!FUEL_GROUP_IDS.every((f) => selectedFuels.has(f))) {
+      params.set('fuels', FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)).join(','));
     }
 
     // Sync the active Analytics fuel selection — only meaningful when there is more
@@ -2164,20 +2154,47 @@ export default function App() {
       params.set('afuel', selectedAvailable.join(','));
     }
 
-    // Sync the chart timeline window as dates — omit when it's the default
-    // (last 7 days / full range) so the URL stays clean.
+    // Persist EVERY selection to the unified store so a returning visitor's bare
+    // (query-less) load restores them all — including the analytics fuels and the
+    // chart window, which used to live only in the URL and so were forgotten on a
+    // plain visit. The URL above stays the shareable/deep-link view; this is the
+    // durable memory. (Language is persisted separately via i18nextLng above.)
+    const patch = {
+      discounts: showDiscounts,
+      stations: STATION_ORDER.filter((s) => selectedStations.has(s)),
+      fuels: FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)),
+      historyPreset: historyPreset || null,
+      historyStart: historyStartDate,
+      historyEnd: historyEndDate,
+      analyticsFuels: [...analyticsFuelSelection],
+    };
+
+    // Sync the chart timeline window as dates — omit from the URL when it's the
+    // default (last 30 days / full range) so the URL stays clean. Only persist the
+    // window once the brush is actually resolved (brushIndices is null until the
+    // first data load) — otherwise the early render passes would clobber a restored
+    // window with null before it gets applied. While unresolved, leave the stored
+    // value untouched so it survives to seed initialBrushDates.
     if (brushIndices && chartDataFinal && chartDataFinal.length) {
       const dStart = Math.max(0, chartDataFinal.length - DEFAULT_CHART_DAYS);
       const dEnd = chartDataFinal.length - 1;
+      let brushStart = null, brushEnd = null;
       if (!(brushIndices.startIndex === dStart && brushIndices.endIndex === dEnd)) {
         const sPoint = chartDataFinal[brushIndices.startIndex];
         const ePoint = chartDataFinal[brushIndices.endIndex];
         if (sPoint && ePoint) {
-          params.set('br_start', fmtRigaYmd(sPoint.date));
-          params.set('br_end', fmtRigaYmd(ePoint.date));
+          brushStart = fmtRigaYmd(sPoint.date);
+          brushEnd = fmtRigaYmd(ePoint.date);
+          params.set('br_start', brushStart);
+          params.set('br_end', brushEnd);
         }
       }
+      // null here = window is the default → clear any stored custom window.
+      patch.brushStart = brushStart;
+      patch.brushEnd = brushEnd;
     }
+
+    savePrefs(patch);
 
     const qs = params.toString().replace(/%2C/g, ',');
     const newRelativePathQuery = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;

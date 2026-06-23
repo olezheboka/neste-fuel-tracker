@@ -17,12 +17,14 @@ export const serializeFilterSet = (set, all) => {
   return csv.length ? csv : null;
 };
 
-// Read a filter Set from URL param (CSV) → localStorage → default to "all".
-// Reads window/localStorage; guarded so it degrades to "all" under SSR/parse errors.
-export const initFilterSet = (paramKey, lsKey, all) => {
+// Read a filter Set from URL param (CSV) → persisted fallback (CSV) → default
+// to "all". `fallbackRaw` is the value from the unified prefs store (see
+// lib/prefs.js); persistence is no longer read here directly. Guarded so it
+// degrades to "all" under SSR / parse errors.
+export const initFilterSet = (paramKey, all, fallbackRaw) => {
   try {
     const params = new URLSearchParams(window.location.search);
-    const raw = params.get(paramKey) ?? localStorage.getItem(lsKey);
+    const raw = params.get(paramKey) ?? fallbackRaw;
     const parsed = parseFilterCsv(raw, all);
     if (parsed) return parsed;
   } catch { /* SSR / parsing guard */ }
