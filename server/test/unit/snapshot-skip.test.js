@@ -1,9 +1,12 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import Module from 'module';
 
-// writeSnapshot() rewrites a Blob only when its price content changes, so that
-// identical re-scrapes (the common case) cost zero billable "advanced" Blob
-// operations. These tests pin that skip behaviour.
+// writeSnapshot() rewrites a Blob only when its price content changes, or when
+// the existing latest.json has gone stale (LATEST_MAX_AGE_MS), so that identical
+// re-scrapes (the common case — prices move ~once/day) cost zero billable
+// "advanced" Blob operations while still bounding how long middleware.js's
+// unvalidated, direct-from-Blob "prices updated" timestamp can lag. These tests
+// pin that skip/force-write behaviour.
 //
 // snapshot.js does a lazy CommonJS `require('@vercel/blob')` inside the function;
 // vi.mock doesn't reach that nested native require, so we patch Module._load to
@@ -42,6 +45,7 @@ describe('writeSnapshot content-aware Blob skipping', () => {
 
     afterEach(() => {
         Module._load = realLoad;
+        vi.useRealTimers();
     });
 
     it('should_write_both_blobs_on_first_snapshot', async () => {
@@ -49,7 +53,7 @@ describe('writeSnapshot content-aware Blob skipping', () => {
         expect([...calls].sort()).toEqual(['prices/history.json', 'prices/latest.json']);
     });
 
-    it('should_skip_both_when_only_the_timestamp_changed', async () => {
+    it('should_skip_both_when_only_the_timestamp_changed_and_not_stale', async () => {
         await writeSnapshot([row(1.5, 't1')], [row(1.5, '2026-06-21T08:00:00Z')]);
         calls.length = 0;
         // Same prices, later timestamp (same Riga day) — must not rewrite.
@@ -84,13 +88,30 @@ describe('writeSnapshot content-aware Blob skipping', () => {
     });
 
     it('should_seed_signatures_on_hydrate_so_an_unchanged_first_write_skips', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-06-21T08:30:00Z'));
         process.env.BLOB_URL_PREFIX = 'https://store.public.blob.vercel-storage.com';
         global.fetch = vi.fn(async () => ({ ok: true, json: async () => [row(1.5, '2026-06-21T08:00:00Z')] }));
 
         await hydrateFromBlob();
         calls.length = 0;
-        // Identical prices to what was hydrated — a fresh instance must not rewrite.
+        // Identical prices to what was hydrated, well within LATEST_MAX_AGE_MS —
+        // a fresh instance must not rewrite.
         await writeSnapshot([row(1.5, 't2')], [row(1.5, '2026-06-21T09:00:00Z')]);
         expect(calls).toEqual([]);
+    });
+
+    it('should_force_rewrite_latest_when_existing_data_has_gone_stale', async () => {
+        vi.useFakeTimers();
+        vi.setSystemTime(new Date('2026-06-21T08:00:00Z'));
+        await writeSnapshot([row(1.5, '2026-06-21T08:00:00Z')], [row(1.5, '2026-06-21T08:00:00Z')]);
+        calls.length = 0;
+
+        // Same price, but more than LATEST_MAX_AGE_MS (2h) later — must force a
+        // latest.json rewrite even though content is unchanged, so middleware's
+        // directly-read "prices updated" timestamp can't lag indefinitely.
+        vi.setSystemTime(new Date('2026-06-21T10:30:00Z'));
+        await writeSnapshot([row(1.5, '2026-06-21T10:30:00Z')], [row(1.5, '2026-06-21T08:00:00Z')]);
+        expect(calls).toEqual(['prices/latest.json']);
     });
 });

@@ -16,12 +16,32 @@ let memLatest = null;   // [{ type, price, location, timestamp }, ...]
 let memHistory = null;  // deduplicated daily rows — same shape, ~1 row/day/fuel
 let memWrittenAt = 0;   // ms epoch of the last setMemory() — drives TTL revalidation
 
-// Signatures of the price data last persisted to Blob. We rewrite a blob only
-// when its signature changes, so identical re-scrapes (the common case — prices
+// Signatures of the data last persisted to Blob. We rewrite a blob only when its
+// signature changes (or, for latest.json, when it's gone stale — see
+// LATEST_MAX_AGE_MS below), so identical re-scrapes (the common case — prices
 // move ~once/day) cost zero "advanced" Blob operations. Seeded on hydrate so the
 // skip survives cold starts.
 let lastLatestSig = null;
 let lastHistorySig = null;
+
+// Epoch ms of the data currently believed to be persisted in latest.json — i.e.
+// the scrape timestamp of the last write (or, on hydrate, of whatever the blob
+// already contained). Drives the staleness force-write below; NOT the same as
+// memWrittenAt, which is this process's own cache time.
+let latestDataAt = 0;
+
+// middleware.js reads latest.json directly from the Blob CDN, unvalidated
+// against the DB, for every page's SSR first paint. If we only rewrote on price
+// changes, its `timestamp` would freeze at the last price *change* instead of
+// the last scrape — misleading the "prices updated" display for however long
+// prices stay flat. Force a write past this age so that staleness is bounded
+// instead of unbounded, while still skipping the (common) unchanged-content case.
+const LATEST_MAX_AGE_MS = 2 * 60 * 60 * 1000;
+
+function tsToMs(t) {
+    if (t == null) return NaN;
+    return t instanceof Date ? t.getTime() : new Date(t).getTime();
+}
 
 // Stable content fingerprints that EXCLUDE the volatile per-scrape timestamp, so
 // two scrapes of identical prices compare equal even though their timestamps differ.
@@ -76,17 +96,15 @@ async function writeSnapshot(latest, history) {
     const token = process.env.BLOB_READ_WRITE_TOKEN;
     if (!token) return; // Blob not configured — memory-only
 
-    // Skip blobs whose price content is unchanged. Each put() is a billable
-    // "advanced" Blob operation; prices rarely change, so this avoids ~95% of writes.
     const newLatestSig = sigLatest(latest);
     const newHistorySig = sigHistory(history);
-    const writeLatest = newLatestSig !== lastLatestSig;
+    const latestStale = Date.now() - latestDataAt >= LATEST_MAX_AGE_MS;
+    const writeLatest = newLatestSig !== lastLatestSig || latestStale;
     const writeHistory = newHistorySig !== lastHistorySig;
 
-    if (!writeLatest && !writeHistory) {
-        console.log('[SNAPSHOT] Blob unchanged; skipped writes.');
-        return;
-    }
+    if (!writeLatest) console.log('[SNAPSHOT] latest.json unchanged; skipped write.');
+    if (!writeHistory) console.log('[SNAPSHOT] history.json unchanged; skipped write.');
+    if (!writeLatest && !writeHistory) return;
 
     try {
         const { put } = require('@vercel/blob');
@@ -106,9 +124,12 @@ async function writeSnapshot(latest, history) {
         if (writeHistory) jobs.push(put('prices/history.json', JSON.stringify(history), opts));
 
         const [first] = await Promise.all(jobs);
-        // Only advance signatures for blobs that actually succeeded, so a failed
-        // write retries on the next scrape.
-        if (writeLatest) lastLatestSig = newLatestSig;
+        // Only advance signatures/staleness clock for writes that actually
+        // happened, so a failed write retries on the next scrape.
+        if (writeLatest) {
+            lastLatestSig = newLatestSig;
+            latestDataAt = tsToMs(latest[0]?.timestamp) || Date.now();
+        }
         if (writeHistory) lastHistorySig = newHistorySig;
         console.log(
             `[SNAPSHOT] Blob updated (${[writeLatest && 'latest', writeHistory && 'history'].filter(Boolean).join(', ')}). ` +
@@ -140,10 +161,13 @@ async function hydrateFromBlob() {
 
         const [latest, history] = await Promise.all([lr.json(), hr.json()]);
         setMemory(latest, history);
-        // Seed the skip signatures so this freshly-hydrated instance won't
-        // redundantly rewrite blobs whose prices haven't changed.
+        // Seed the skip signatures (and latest.json's staleness clock, from the
+        // blob's own data timestamp rather than "now") so a freshly-hydrated
+        // instance neither redundantly rewrites unchanged content nor resets the
+        // staleness countdown on every cold start.
         lastLatestSig = sigLatest(latest);
         lastHistorySig = sigHistory(history);
+        latestDataAt = tsToMs(latest[0]?.timestamp) || Date.now();
         console.log('[SNAPSHOT] Hydrated from Blob CDN.');
         return true;
     } catch (e) {
