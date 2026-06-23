@@ -2016,11 +2016,16 @@ export default function App() {
     const run = () => { lastFetchAt = Date.now(); fetchData(); };
 
     run();
-    // Auto-refresh data every 15 minutes to catch automated backend updates.
+    // Auto-refresh every 5 minutes to catch automated backend updates. The cron
+    // scrapes ~every 30 min, but the SSR first paint reads the Blob snapshot,
+    // which we deliberately rewrite only on price change / every couple hours to
+    // save Blob writes — so an open tab would otherwise show that lagging time
+    // until the next poll. A 5-min poll (DB-backed /prices/latest, no Blob cost)
+    // keeps the displayed "prices updated" time tracking the latest scrape.
     // setInterval is throttled/paused in background tabs and while the machine
     // sleeps, so it can't be relied on alone — the visibility handler covers
     // returning to a long-open tab.
-    const interval = setInterval(run, 15 * 60 * 1000);
+    const interval = setInterval(run, 5 * 60 * 1000);
 
     // Refetch when the user returns to the tab (or refocuses the window) after
     // it's been idle a while. The 30-min cron may have produced newer prices
