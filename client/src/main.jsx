@@ -17,6 +17,13 @@ if (import.meta.env.PROD) {
   });
 }
 
+// On landing pages, prerender.mjs stamps a static `#seo-intro` paragraph above
+// `#root` (crawler-visible body copy for the pre-hydration window). App now
+// renders the same copy inline under its H1 (see `pageMeta` in App.jsx), so
+// drop the static one once JS takes over — otherwise it sits permanently above
+// the app header as duplicate, oddly-placed text.
+document.getElementById('seo-intro')?.remove();
+
 // Ultimate backstop: should a render fault ever escape the in-app boundaries,
 // show a minimal recover affordance instead of a blank white page. The real fix
 // lives in App (stable boundary reset keys so a transient chart throw can't

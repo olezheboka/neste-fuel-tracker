@@ -17,7 +17,7 @@ import { setLangCookie } from './i18n';
 import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
 import { initFilterSet } from './lib/filters.js';
-import { pageFromPath, pagePath, PAGES } from './lib/seo-meta.js';
+import { pageFromPath, pagePath, PAGES, PAGE_META } from './lib/seo-meta.js';
 import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
@@ -1661,6 +1661,10 @@ export default function App() {
     return initFilterSet('fuels', 'selectedFuels', FUEL_GROUP_IDS);
   });
 
+  // The landing page (if any) this path resolves to — stable for the life of
+  // the mount since the path doesn't change without a navigation.
+  const currentPage = useMemo(() => pageFromPath(), []);
+
   // Fuels actually sold by the currently selected stations. A group disappears
   // when no selected station sells it — gas drops for Neste-only, premium diesel
   // ('pro') drops for Virši-only — without mutating the persisted selection.
@@ -2180,6 +2184,12 @@ export default function App() {
     window.history.replaceState(null, '', newRelativePathQuery);
   }, [i18n.language, showDiscounts, historyStartDate, historyEndDate, historyPreset, selectedStations, selectedFuels, analyticsFuelSelection, analyticsFuelList, brushIndices, chartDataFinal]);
 
+  // Per-page SEO copy (provider/fuel landing pages only — null on the plain
+  // language home). Drives the H1 below and the intro paragraph right under
+  // it, replacing the static `#seo-intro` shell paragraph (see index.html /
+  // prerender.mjs) that previously rendered above the whole app header.
+  const pageMeta = currentPage ? PAGE_META[currentPage.slug]?.[i18n.language] : null;
+
   return (
     <div className="min-h-screen bg-[#f5f5f7] text-gray-900 pb-24">
 
@@ -2225,6 +2235,14 @@ export default function App() {
       </header>
 
       <main className="max-w-5xl mx-auto px-3 sm:px-6 pt-4 sm:pt-6 pb-10 space-y-8">
+
+        {/* Landing-page intro copy — below the app header, above everything
+            else (filters + the H1 it describes). See `pageMeta` above. */}
+        {pageMeta?.intro && (
+          <p className="text-xs sm:text-sm text-gray-500 leading-relaxed">
+            {pageMeta.intro}
+          </p>
+        )}
 
         {/* Sticky global filter bar — the single persistent control; scopes BOTH
             the prices view and all of analytics. Pinned to the viewport top for the
@@ -2282,7 +2300,7 @@ export default function App() {
                 cenas" / "цены на топливо" / "fuel prices" in Latvia. */}
             <h1 className="flex items-center gap-2 text-base sm:text-lg font-semibold text-gray-900 mb-3">
               <CircleDollarSign className="w-4 h-4 text-gray-400 shrink-0" />
-              {t('seo_h1')}
+              {pageMeta?.h1 || t('seo_h1')}
             </h1>
             {lastCheck && (
               <div className="flex items-center justify-start gap-1.5 sm:gap-2 text-gray-400 mb-2">
