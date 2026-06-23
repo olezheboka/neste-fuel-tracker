@@ -1,6 +1,6 @@
 import { serializeForScript } from './edge-serialize.js';
 import { PAGES, PAGE_META, pageFromPath } from './client/src/lib/seo-meta.js';
-import { fuelGroupId, stationKey } from './client/src/lib/fuel.js';
+import { fuelGroupId, stationKey, STATIONS, FUEL_GROUPS } from './client/src/lib/fuel.js';
 
 // Run on the three canonical language homes, the bare `/` entry (redirected here
 // rather than via a static vercel.json rule, so a returning visitor's `lang`
@@ -28,10 +28,19 @@ export { serializeForScript };
 // mount, so this exists purely so non-JS crawlers see today's numbers + station and
 // fuel keywords, and to paint meaningful content immediately (LCP).
 const LABELS = {
-  lv: { h1: 'Degvielas cenas Latvijā šodien', station: 'DUS', fuel: 'Degviela', price: 'Cena' },
-  ru: { h1: 'Цены на топливо в Латвии сегодня', station: 'АЗС', fuel: 'Топливо', price: 'Цена' },
-  en: { h1: 'Fuel prices in Latvia today', station: 'Station', fuel: 'Fuel', price: 'Price' },
+  lv: { h1: 'Degvielas cenas Latvijā šodien', gas: 'Gāze' },
+  ru: { h1: 'Цены на топливо в Латвии сегодня', gas: 'Газ' },
+  en: { h1: 'Fuel prices in Latvia today', gas: 'LPG' },
 };
+
+// id -> short display code, matching the app's fuel-label pills (App.jsx).
+const FUEL_DISPLAY_ID = { diesel: 'D', pro: 'D+' };
+const fuelDisplayLabel = (fuelId, lang) =>
+  fuelId === 'gas' ? LABELS[lang].gas : FUEL_DISPLAY_ID[fuelId] || fuelId;
+
+// Same cheapest-row highlight as App.jsx's CHEAPEST_COLOR.
+const CHEAPEST_COLOR = '#16a34a';
+const CARD_SHADOW = '0 1px 8px rgba(0,0,0,0.05),0 1px 2px rgba(0,0,0,0.03)';
 
 const escHtml = (s) =>
   String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -47,25 +56,60 @@ function getCookie(request, name) {
   return match ? decodeURIComponent(match[1]) : null;
 }
 
-// Build a compact, crawlable table from the latest-prices array
-// ([{ type, price, source, ... }]). Station + fuel + per-litre price = the keyword
-// + freshness signal we want in the raw HTML. `page` (from pageFromPath), when
-// present, narrows the rows to that one station/fuel and swaps in its own h1.
+// Build a crawlable price snapshot from the latest-prices array
+// ([{ type, price, source, ... }]), styled inline to match the app's own card
+// look (see FuelGroupBlock/StationRow in App.jsx) so the pre-hydration paint
+// isn't a jarring "plain text table" flash — it already looks like the real UI.
+// Station + fuel + per-litre price = the keyword + freshness signal we want in
+// the raw HTML. `page` (from pageFromPath), when present, narrows the rows to
+// that one station/fuel and swaps in its own h1.
 function buildSeoBlock(prices, lang, page) {
   const L = LABELS[lang] || LABELS.lv;
   const h1 = page ? PAGE_META[page.slug][lang].h1 : L.h1;
   let filtered = Array.isArray(prices) ? prices : [];
   if (page?.kind === 'station') filtered = filtered.filter((p) => stationKey(p) === page.filterId);
   if (page?.kind === 'fuel') filtered = filtered.filter((p) => fuelGroupId(p) === page.filterId);
-  const rows = filtered
-    .filter((p) => p && typeof p.price === 'number')
-    .sort((a, b) => String(a.source || '').localeCompare(String(b.source || '')) ||
-      String(a.type || '').localeCompare(String(b.type || '')))
-    .map((p) => `<tr><td>${escHtml(p.source || '')}</td><td>${escHtml(p.type || '')}</td><td>${p.price.toFixed(3)} €/l</td></tr>`)
-    .join('');
-  return `<div id="seo-prices"><h1>${escHtml(h1)}</h1>` +
-    `<table><thead><tr><th>${escHtml(L.station)}</th><th>${escHtml(L.fuel)}</th><th>${escHtml(L.price)}</th></tr></thead>` +
-    `<tbody>${rows}</tbody></table></div>`;
+  filtered = filtered.filter((p) => p && typeof p.price === 'number');
+
+  const byGroup = new Map();
+  for (const p of filtered) {
+    const id = fuelGroupId(p);
+    if (!byGroup.has(id)) byGroup.set(id, []);
+    byGroup.get(id).push(p);
+  }
+
+  const groupsHtml = FUEL_GROUPS.map((g) => g.id)
+    .filter((id) => byGroup.has(id))
+    .map((id) => {
+      const rows = [...byGroup.get(id)].sort((a, b) => a.price - b.price);
+      const rowsHtml = rows.map((p, i) => {
+        const st = STATIONS[stationKey(p)] || { label: p.source || '', color: '#334155' };
+        const cheapest = i === 0;
+        const rowStyle = cheapest ? `background:${hexToRgba(CHEAPEST_COLOR, 0.09)};border-radius:10px;` : '';
+        const priceStyle = cheapest
+          ? `background:${CHEAPEST_COLOR};color:#fff;padding:2px 8px;border-radius:9999px;`
+          : 'color:#0f172a;';
+        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;${rowStyle}">` +
+          `<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:${st.color}">${escHtml(st.label)}</span>` +
+          `<span style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;${priceStyle}">${p.price.toFixed(3)} €/l</span>` +
+          `</div>`;
+      }).join('');
+      return `<div style="background:#fff;border-radius:16px;padding:12px 14px;box-shadow:${CARD_SHADOW}">` +
+        `<span style="display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:8px;background:#f1f5f9;color:#334155;margin-bottom:6px;">${escHtml(fuelDisplayLabel(id, lang))}</span>` +
+        rowsHtml +
+        `</div>`;
+    }).join('');
+
+  return `<div id="seo-prices" style="max-width:840px;margin:0 auto;padding:16px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc;">` +
+    `<h1 style="font-size:20px;font-weight:800;color:#0f172a;text-align:center;margin:0 0 16px;">${escHtml(h1)}</h1>` +
+    `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">${groupsHtml}</div>` +
+    `</div>`;
+}
+
+function hexToRgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  const r = (n >> 16) & 255, g = (n >> 8) & 255, b = n & 255;
+  return `rgba(${r},${g},${b},${alpha})`;
 }
 
 export default async function middleware(request) {
