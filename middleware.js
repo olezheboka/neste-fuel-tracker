@@ -169,21 +169,22 @@ export default async function middleware(request) {
     const seoBlock = buildSeoBlock(latestPrices, lang, page);
     html = html.replace('<div id="root"></div>', `<div id="root">${seoBlock}</div>`);
 
-    // 5. Return the modified HTML, preserving the origin's security headers but
-    // overriding cache-control: the bypassed static asset's own header is
-    // `public, max-age=0, must-revalidate`, which Vercel's edge treats as
-    // stale-while-revalidate-able — each POP happily keeps serving its own
-    // cached (Blob-snapshot-as-of-fetch-time) copy in the background while
-    // "revalidating", so the injected prices can freeze for a long time even
-    // though writeSnapshot() itself is rewriting the Blob on schedule. This is
-    // a per-request, personalized injection (it just read the live Blob), so it
-    // must never be cached by the CDN.
+    // 5. Return the freshly-injected HTML. We deliberately DO NOT spread the
+    // bypassed static shell's headers: doing so leaked its caching/validation
+    // headers (`etag`, `last-modified`, `age`, `x-vercel-cache`, and its own
+    // `cache-control: public, max-age=0, must-revalidate`) onto this dynamic
+    // response, letting the CDN/browser revalidate to — and keep serving — a
+    // stale snapshot, which is what froze the "prices updated" timestamp. It
+    // could also mismatch `content-encoding` vs. our decoded text body. This is
+    // a per-request injection of just-read live prices, so it must never be
+    // cached. The site's security headers (CSP/HSTS/etc.) are applied
+    // separately by vercel.json's `headers` rule on `/(.*)`, so dropping the
+    // spread doesn't lose them.
     return new Response(html, {
       headers: {
-        ...Object.fromEntries(htmlResponse.headers),
         'content-type': 'text/html; charset=utf-8',
-        'x-middleware-injected': '1',
         'cache-control': 'private, no-store, max-age=0, must-revalidate',
+        'x-middleware-injected': '1',
       },
     });
   } catch (error) {

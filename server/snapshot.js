@@ -111,17 +111,24 @@ async function writeSnapshot(latest, history) {
         // @vercel/blob v2 throws when overwriting an existing pathname unless
         // allowOverwrite is set. We intentionally rewrite the same two fixed
         // pathnames (addRandomSuffix: false), so this is required.
-        const opts = {
+        const baseOpts = {
             access: 'public',
             contentType: 'application/json',
             addRandomSuffix: false,
             allowOverwrite: true,
-            cacheControlMaxAge: 3600,
             token,
         };
+        // latest.json is read by middleware.js on every SSR paint for the "prices
+        // updated" display, so it must surface a fresh write quickly. The Blob CDN
+        // serves the bare public URL from cache for cacheControlMaxAge seconds and
+        // does NOT purge on overwrite — a long TTL there is exactly what froze the
+        // displayed timestamp for hours even though the origin blob was current.
+        // 60s bounds that read-staleness without changing how often we write (so
+        // no extra billable "advanced" Blob operations). history.json is large
+        // (~200KB) and only read on cold-start hydration, so it keeps the long TTL.
         const jobs = [];
-        if (writeLatest) jobs.push(put('prices/latest.json', JSON.stringify(latest), opts));
-        if (writeHistory) jobs.push(put('prices/history.json', JSON.stringify(history), opts));
+        if (writeLatest) jobs.push(put('prices/latest.json', JSON.stringify(latest), { ...baseOpts, cacheControlMaxAge: 60 }));
+        if (writeHistory) jobs.push(put('prices/history.json', JSON.stringify(history), { ...baseOpts, cacheControlMaxAge: 3600 }));
 
         const [first] = await Promise.all(jobs);
         // Only advance signatures/staleness clock for writes that actually
