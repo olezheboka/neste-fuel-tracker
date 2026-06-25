@@ -113,16 +113,28 @@ async function initializeDatabase() {
     if (initPromise) return initPromise;
 
     initPromise = (async () => {
-        try {
-            if (!IS_PRODUCTION) console.log('[Server] Initializing DB...');
-            await initDb();
-            dbReady = true;
-            if (!IS_PRODUCTION) console.log('[Server] Database initialized');
-            return { success: true };
-        } catch (e) {
-            console.error('[Server] Failed to initialize DB:', e.message);
-            initPromise = null; // Allow retry
-            throw e;
+        // Cold serverless instances (every instance right after a deploy) race a
+        // cold / over-subscribed Prisma Postgres, so the first connect can
+        // transiently time out. Retry a few times before giving up so a single
+        // page load doesn't 503 — that 503 is what made /api/prices/latest fail
+        // and the client fall back to the stale Blob "prices updated" time, but
+        // only right after each deploy (warm instances reconnect instantly).
+        const ATTEMPTS = 3;
+        for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+            try {
+                if (!IS_PRODUCTION) console.log('[Server] Initializing DB...');
+                await initDb();
+                dbReady = true;
+                if (!IS_PRODUCTION) console.log('[Server] Database initialized');
+                return { success: true };
+            } catch (e) {
+                console.error(`[Server] DB init attempt ${attempt}/${ATTEMPTS} failed:`, e.message);
+                if (attempt === ATTEMPTS) {
+                    initPromise = null; // Allow a fresh attempt on the next request
+                    throw e;
+                }
+                await new Promise(r => setTimeout(r, 500 * attempt));
+            }
         }
     })();
     return initPromise;
@@ -306,6 +318,12 @@ const ensureDb = async (req, res, next) => {
             await initializeDatabase();
         } catch (e) {
             console.error('[Server] DB init failed during request:', e.message);
+            // Defense in depth: if a hydrated/in-memory snapshot exists (from the
+            // Blob), let the request through so read routes serve THAT via
+            // getFreshSnapshot's fallback, instead of blanking the page with a 503
+            // on a transient cold-start DB hiccup. Writes surface their own errors
+            // downstream. With no snapshot to fall back on, 503 as before.
+            if (getMemory()) return next();
             return res.status(503).json({ error: 'Service temporarily unavailable' });
         }
     }

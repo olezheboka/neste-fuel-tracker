@@ -153,9 +153,17 @@ async function openDb() {
             const pool = new Pool({
                 connectionString: process.env.POSTGRES_URL,
                 ssl: { rejectUnauthorized: false },
-                max: 3,
-                connectionTimeoutMillis: 10000,
-                idleTimeoutMillis: 30000,
+                // Serverless tuning. Every instance is cold right after a deploy and
+                // they all race to connect at once; the previous max:3 over-subscribed
+                // Prisma Postgres's connection budget (a connection storm), and the 10s
+                // connect timeout was shorter than a cold Prisma Postgres takes to wake
+                // — together that 503'd the first page load after each deploy. Fewer
+                // connections per instance + a longer wake budget + faster idle release
+                // (so a deploy storm drains quickly) make the cold connect reliable.
+                max: 2,
+                connectionTimeoutMillis: 20000,
+                idleTimeoutMillis: 10000,
+                keepAlive: true,
             });
 
             console.log('[DB] pg.Pool created.');
