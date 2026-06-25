@@ -513,7 +513,8 @@ const AddressChip = ({ addr, url, isMarker = false }) => {
 };
 
 // One station's price within a fuel group: colored brand name + inline
-// address list (reusing AddressChip) + price. The cheapest row is highlighted.
+// address list (reusing AddressChip) + price. The cheapest row(s) are
+// highlighted — all stations tied at the group minimum, not just the first.
 const StationRow = ({ rec, isCheapest }) => {
   const { t } = useTranslation();
   const st = STATIONS[stationKey(rec)] || { label: stationKey(rec), color: '#6b7280' };
@@ -577,6 +578,10 @@ const StationRow = ({ rec, isCheapest }) => {
 // StationRow per station sorted cheapest-first.
 const FuelGroupBlock = ({ group, rows }) => {
   const { t } = useTranslation();
+  // Round to 3 decimals (the display precision) before comparing, so float
+  // noise never splits a true tie. All stations matching the minimum are
+  // marked, not just the first — ties happen often enough to matter.
+  const minPriceKey = rows.length ? Math.min(...rows.map(r => Math.round(r.price * 1000))) : null;
 
   return (
     <div className="rounded-2xl bg-white p-3 sm:p-4 shadow-[0_1px_8px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
@@ -586,8 +591,8 @@ const FuelGroupBlock = ({ group, rows }) => {
         </span>
       </div>
       <div className="space-y-0.5">
-        {rows.map((rec, i) => (
-          <StationRow key={`${stationKey(rec)}-${rec.type}`} rec={rec} isCheapest={i === 0} />
+        {rows.map((rec) => (
+          <StationRow key={`${stationKey(rec)}-${rec.type}`} rec={rec} isCheapest={Math.round(rec.price * 1000) === minPriceKey} />
         ))}
       </div>
     </div>
@@ -1498,7 +1503,7 @@ const HistoryTable = React.memo(({
                                 return (
                                   <td key={group.cols[i]} className={clsx("text-right px-1 sm:px-4 py-2 align-middle", isLast && "pr-2 sm:pr-4")}>
                                     <span
-                                      className={clsx("inline-block text-[11px] sm:text-sm font-bold leading-tight tabular-nums rounded-md px-1.5 py-0.5", isCheapest ? "text-white" : "text-gray-900")}
+                                      className={clsx("text-[11px] sm:text-sm font-bold leading-tight tabular-nums rounded-md px-1.5 py-0.5", isCheapest ? "text-white" : "text-gray-900")}
                                       style={isCheapest ? { backgroundColor: CHEAPEST_COLOR } : undefined}
                                     >
                                       €{price.toFixed(3)}
