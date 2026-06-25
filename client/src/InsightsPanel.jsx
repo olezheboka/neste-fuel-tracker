@@ -14,6 +14,15 @@ const getEndOfDayInLatvia = (date) => {
     return new Date(tempDate.getTime() - offset);
 };
 
+// Shift a YMD date-key string by a number of calendar days (pure date-string
+// arithmetic, no timezone math — the key is already a Riga calendar date).
+const shiftYMD = (ymd, deltaDays) => {
+    const [y, m, d] = ymd.split('-').map(Number);
+    const dt = new Date(Date.UTC(y, m - 1, d));
+    dt.setUTCDate(dt.getUTCDate() + deltaDays);
+    return dt.toISOString().slice(0, 10);
+};
+
 const PERIODS = [
     { key: 'period_24h', days: 1 },
     { key: 'period_7d', days: 7 },
@@ -41,21 +50,42 @@ const ChangeCell = ({ value }) => {
     );
 };
 
-export default function PriceChangeCards({ groups }) {
+export default function PriceChangeCards({ groups, todayKey }) {
     const { t } = useTranslation();
 
-    const cutoffs = useMemo(() => {
-        const now = new Date();
-        return PERIODS.map(p => getEndOfDayInLatvia(new Date(now.getTime() - p.days * 24 * 60 * 60 * 1000)));
-    }, []);
+    // 24h cutoff stays rolling/intraday (sub-day granularity matters there).
+    const cutoff24h = useMemo(() => getEndOfDayInLatvia(new Date(new Date().getTime() - 24 * 60 * 60 * 1000)), []);
 
-    const changesFor = (history) => {
+    // 7d/30d/90d targets are calendar-day buckets, aligned with the History
+    // table's presets: an "N day" window spans N calendar days inclusive of
+    // today, so the baseline is today minus (N-1) days (e.g. "7d" -> today-6,
+    // matching the table's 7-day preset start date). This keeps Dynamics and
+    // the table/chart agreeing on what "N days ago" means.
+    const targetKeys = useMemo(
+        () => PERIODS.map(p => (p.days === 1 ? null : shiftYMD(todayKey, -(p.days - 1)))),
+        [todayKey]
+    );
+
+    const changesFor = (station) => {
+        const { history, dailyMap } = station;
         if (!history || history.length === 0) return PERIODS.map(() => null);
         const desc = [...history].sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
         const current = desc[0].price;
-        return cutoffs.map(cutoff => {
-            const past = desc.find(d => new Date(d.timestamp) <= cutoff);
-            return past ? current - past.price : null;
+        return PERIODS.map((p, i) => {
+            if (p.days === 1) {
+                const past = desc.find(d => new Date(d.timestamp) <= cutoff24h);
+                return past ? current - past.price : null;
+            }
+            // Walk backward from the target date to the nearest earlier
+            // bucket with data, in case that exact day has a scrape gap.
+            let key = targetKeys[i];
+            let guard = 0;
+            while (!dailyMap.has(key) && guard < 14) {
+                key = shiftYMD(key, -1);
+                guard++;
+            }
+            const past = dailyMap.get(key);
+            return past !== undefined ? current - past : null;
         });
     };
 
@@ -87,7 +117,7 @@ export default function PriceChangeCards({ groups }) {
 
                     <div className="space-y-0.5">
                         {group.stations.map(st => {
-                            const changes = changesFor(st.history);
+                            const changes = changesFor(st);
                             return (
                                 <div
                                     key={st.key}

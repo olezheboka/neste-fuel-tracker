@@ -1777,6 +1777,10 @@ export default function App() {
   // it (from latest), each with its own history slice for trend computation.
   // Respects BOTH global filters. History is multi-station now; stations without
   // enough history just render em dashes until data accumulates.
+  // `dailyMap` (dateKey -> latest price that day) buckets by Riga calendar date
+  // using the same `fmtRigaYmd` helper the History table's bucketing relies on,
+  // so the 7d/30d/90d deltas shown here always agree with what the table/chart
+  // display for the same window — single source of truth for "today vs N days ago".
   const insightsGroups = useMemo(() => {
     return FUEL_GROUPS
       .filter((g) => analyticsFuels.has(g.id))
@@ -1786,12 +1790,26 @@ export default function App() {
             selectedStations.has(src) &&
             latestPrices.some((r) => stationKey(r) === src && fuelGroupId(r) === g.id)
           )
-          .map((src) => ({
-            key: src,
-            label: (STATIONS[src] || {}).label || src,
-            color: (STATIONS[src] || {}).color || '#6b7280',
-            history: historyData.filter((r) => stationKey(r) === src && fuelGroupId(r) === g.id),
-          }));
+          .map((src) => {
+            const stationHistory = historyData.filter((r) => stationKey(r) === src && fuelGroupId(r) === g.id);
+            const dailyMap = new Map();
+            stationHistory.forEach((r) => {
+              const dateKey = fmtRigaYmd(r.timestamp);
+              const cur = dailyMap.get(dateKey);
+              if (!cur || new Date(r.timestamp) > new Date(cur.timestamp)) {
+                dailyMap.set(dateKey, { price: r.price, timestamp: r.timestamp });
+              }
+            });
+            const priceDailyMap = new Map();
+            dailyMap.forEach((v, k) => priceDailyMap.set(k, v.price));
+            return {
+              key: src,
+              label: (STATIONS[src] || {}).label || src,
+              color: (STATIONS[src] || {}).color || '#6b7280',
+              history: stationHistory,
+              dailyMap: priceDailyMap,
+            };
+          });
         return { id: g.id, color: g.color, labelKey: g.labelKey, stations };
       })
       .filter((g) => g.stations.length > 0);
@@ -2565,7 +2583,7 @@ export default function App() {
                 <InsightsSkeleton />
               ) : (
                 <Suspense fallback={<InsightsSkeleton />}>
-                  <PriceChangeCards groups={insightsGroups.filter(g => effectiveAnalyticsFuels.has(g.id))} />
+                  <PriceChangeCards groups={insightsGroups.filter(g => effectiveAnalyticsFuels.has(g.id))} todayKey={fmtRigaYmd(new Date())} />
                 </Suspense>
               )}
             </div>
