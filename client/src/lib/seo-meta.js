@@ -67,8 +67,28 @@ export const FAQ = {
       a: 'Visas cenas tiek nolasītas tieši no degvielas tīklu oficiālajām mājaslapām (Neste, Circle K, Virši, Viada), nevis no trešo pušu vai lietotāju ziņotiem datiem — tāpēc tās atbilst stacijās redzamajām cenām.',
     },
     {
+      q: 'Vai parādītajās cenās ir iekļautas atlaides?',
+      a: 'Parādītās cenas ir publiskās cenas, kas norādītas pašās stacijās — tās pašas, kas redzamas staciju cenu tablo. Personīgās lojalitātes kartes atlaides, kas katram atšķiras, tajās nav iekļautas. Savukārt Neste īpašās atlaižu dienas — retās dienas, kad Neste pazemina cenas visiem — grafikā atzīmējam ar atlaides indikatoru.',
+    },
+    {
       q: 'Cik bieži tiek atjauninātas degvielas cenas?',
       a: 'Cenas tiek nolasītas automātiski vismaz katras 30 minūtes, tāpēc dati ir aktuāli visas dienas garumā.',
+    },
+    {
+      q: 'Vai cenometrs.lv ir bezmaksas?',
+      a: 'Jā, cenometrs.lv ir pilnīgi bezmaksas. Nav nepieciešama reģistrācija — atver lapu un uzreiz redzi visu četru tīklu aktuālās un vēsturiskās degvielas cenas.',
+    },
+    {
+      q: 'Kur šodien ir vislētākā degviela Latvijā?',
+      a: 'cenometrs.lv reāllaikā salīdzina Neste, Circle K, Virši un Viada un sakārto tās no lētākās uz dārgāko, tāpēc lētākā stacija katram degvielas veidam vienmēr ir augšā. Cenas atjaunojas vismaz reizi 30 minūtēs, tāpēc vienmēr redzi, kur šobrīd uzpildīties lētāk.',
+    },
+    {
+      q: 'Cik šodien maksā 95 benzīns un dīzelis?',
+      a: 'Aktuālās 95, 98, dīzeļa, D+ un gāzes cenas redzamas lapas augšā, sakārtotas no lētākās uz dārgāko visos četros tīklos. Atver degvielas grafiku, lai redzētu, kā šodienas cena salīdzinās ar pēdējām dienām un nedēļām.',
+    },
+    {
+      q: 'Kurā degvielas tīklā ir vislētākā degviela?',
+      a: 'Tas mainās katru dienu un atkarībā no degvielas veida, tāpēc nav vienas pastāvīgas atbildes — tieši to cenometrs.lv arī seko. Cenu vēstures tabula rāda katra tīkla vidējo, minimālo un maksimālo cenu izvēlētajā periodā un izceļ vidēji lētāko.',
     },
     {
       q: 'Ja mani interesē tikai 95. benzīns, dīzelis vai konkrēts tīkls?',
@@ -77,6 +97,10 @@ export const FAQ = {
     {
       q: 'Kāpēc noderīgs cenu grafiks, vēsture un dinamika?',
       a: 'Vēsturiskie dati parāda, vai cena pēdējās dienās ir kāpusi vai kritusi, palīdz izvēlēties izdevīgāku brīdi lielākai uzpildei un atklāj, kurš tīkls konkrētam degvielas veidam ilgtermiņā ir lētākais — noderīgi ikdienas autovadītājam, kas vēlas plānot izdevumus, nevis tikai redzēt šodienas cenu.',
+    },
+    {
+      q: 'Vai degvielas cenas pieaugs vai kritīsies?',
+      a: 'cenometrs.lv neprognozē cenas, taču parāda to virzību: katras degvielas grafiks un izmaiņas pēdējās dienās un nedēļās atklāj, vai cenas pēdējā laikā ir kāpušas vai kritušās, lai tu vari izlemt, kad uzpildīties.',
     },
   ],
   ru: [
@@ -89,8 +113,28 @@ export const FAQ = {
       a: 'Все цены считываются напрямую с официальных сайтов сетей АЗС (Neste, Circle K, Virši, Viada), а не из сторонних или пользовательских источников — поэтому они совпадают с ценами на самих заправках.',
     },
     {
+      q: 'Включены ли в показанные цены скидки?',
+      a: 'Показанные цены — это публичные цены на самих заправках, те же, что на ценовом табло станции. Персональные скидки по карте лояльности, которые у каждого свои, в них не входят. При этом особые дни скидок Neste — редкие дни, когда Neste снижает цены для всех — мы отмечаем на графике индикатором скидки.',
+    },
+    {
       q: 'Как часто обновляются цены на топливо?',
       a: 'Цены считываются автоматически не реже чем каждые 30 минут, поэтому данные актуальны в течение всего дня.',
+    },
+    {
+      q: 'cenometrs.lv бесплатный?',
+      a: 'Да, cenometrs.lv полностью бесплатный. Регистрация не нужна — откройте страницу и сразу увидите актуальные и исторические цены на топливо всех четырёх сетей.',
+    },
+    {
+      q: 'Где сегодня дешевле всего заправиться в Латвии?',
+      a: 'cenometrs.lv в реальном времени сравнивает Neste, Circle K, Virši и Viada и сортирует их от дешёвых к дорогим, поэтому самая дешёвая заправка по каждому виду топлива всегда вверху. Цены обновляются не реже чем раз в 30 минут, так что всегда видно, где сейчас выгоднее заправиться.',
+    },
+    {
+      q: 'Сколько стоит бензин 95 и дизель сегодня?',
+      a: 'Актуальные цены на 95, 98, дизель, D+ и газ показаны вверху страницы и отсортированы от дешёвых к дорогим по всем четырём сетям. Откройте график топлива, чтобы увидеть, как сегодняшняя цена соотносится с последними днями и неделями.',
+    },
+    {
+      q: 'В какой сети заправок дешевле всего?',
+      a: 'Это меняется ежедневно и зависит от вида топлива, поэтому единого постоянного ответа нет — именно это и отслеживает cenometrs.lv. Таблица истории цен показывает среднюю, минимальную и максимальную цену каждой сети за выбранный период и выделяет самую дешёвую в среднем.',
     },
     {
       q: 'А если меня интересует только бензин 95, дизель или конкретная сеть?',
@@ -99,6 +143,10 @@ export const FAQ = {
     {
       q: 'Зачем нужны график, история и динамика цен?',
       a: 'По истории видно, росла или падала цена в последние дни — это помогает выбрать более удачный момент для крупной заправки. А ещё она показывает, какая сеть на конкретном виде топлива в долгосрочной перспективе дешевле. Это полезно обычному водителю, который хочет планировать расходы, а не просто смотреть цену на сегодня.',
+    },
+    {
+      q: 'Цены на топливо вырастут или упадут?',
+      a: 'cenometrs.lv не прогнозирует цены, но показывает их направление: график каждого вида топлива и индикаторы изменений за последние дни и недели показывают, росли цены в последнее время или падали, чтобы вы могли решить, когда заправиться.',
     },
   ],
   en: [
@@ -111,8 +159,28 @@ export const FAQ = {
       a: 'All prices are read directly from the official fuel provider websites (Neste, Circle K, Virši, Viada) rather than third-party or user-submitted sources, so they match what you\'ll see at the pump.',
     },
     {
+      q: 'Do the displayed prices include discounts?',
+      a: 'The prices shown are the public prices posted at the stations — the same ones on the station\'s price board. They don\'t include personal loyalty-card discounts, which vary per customer. Separately, we mark Neste\'s special discount days — occasional days when Neste lowers its prices for everyone — with a discount indicator on the chart.',
+    },
+    {
       q: 'How often are fuel prices updated?',
       a: 'Prices are read automatically at least every 30 minutes, so the data stays current throughout the day.',
+    },
+    {
+      q: 'Is cenometrs.lv free to use?',
+      a: 'Yes, cenometrs.lv is completely free. There\'s no sign-up — open the page and you immediately see current and historical fuel prices for all four networks.',
+    },
+    {
+      q: 'Where is the cheapest fuel in Latvia today?',
+      a: 'cenometrs.lv compares Neste, Circle K, Virši and Viada in real time and ranks them from cheapest to most expensive, so the cheapest station for each fuel is always on top. Prices refresh at least every 30 minutes, so you always see where to fill up for less right now.',
+    },
+    {
+      q: 'How much do 95 petrol and diesel cost today?',
+      a: 'Current 95, 98, diesel, D+ and LPG prices are shown at the top of the page, sorted from cheapest to most expensive across all four networks. Open a fuel\'s chart to see how today\'s price compares with recent days and weeks.',
+    },
+    {
+      q: 'Which fuel network is cheapest in Latvia?',
+      a: 'It changes daily and by fuel type, so there\'s no single permanent answer — that\'s exactly what cenometrs.lv tracks. The price history table shows each network\'s average, minimum and maximum over your chosen period and highlights the cheapest on average.',
     },
     {
       q: 'What if I only care about 95 petrol, diesel, or one specific station?',
@@ -121,6 +189,10 @@ export const FAQ = {
     {
       q: 'Why bother with the chart, price history or dynamics?',
       a: 'Historical data shows whether a price has risen or fallen recently, helps you pick a better moment for a bigger fill-up, and reveals which network is cheapest for a given fuel type over the long run — useful for an everyday driver who wants to plan ahead rather than just see today\'s price.',
+    },
+    {
+      q: 'Will fuel prices go up or down?',
+      a: 'cenometrs.lv doesn\'t forecast prices, but it shows where they\'ve been heading: each fuel\'s chart and the day- and week-over-week change indicators reveal whether prices have been rising or falling recently, so you can decide when to fill up.',
     },
   ],
 };
