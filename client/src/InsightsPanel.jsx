@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
+import StateBlock from './components/StateBlock';
+import { analyticsEmptyProps } from './lib/analyticsEmpty';
 
 const getEndOfDayInLatvia = (date) => {
     const latvianDateStr = date.toLocaleString('en-CA', {
@@ -50,7 +52,7 @@ const ChangeCell = ({ value }) => {
     );
 };
 
-export default function PriceChangeCards({ groups, todayKey }) {
+export default function PriceChangeCards({ groups, todayKey, hasAnyHistory = true, onWiden = null }) {
     const { t } = useTranslation();
 
     // 24h cutoff stays rolling/intraday (sub-day granularity matters there).
@@ -92,7 +94,7 @@ export default function PriceChangeCards({ groups, todayKey }) {
     };
 
     if (!groups || groups.length === 0) {
-        return <div className="text-center text-gray-400 py-6 text-sm">{t('avg_prices.no_data')}</div>;
+        return <StateBlock size="sm" {...analyticsEmptyProps({ t, hasAnyHistory, onWiden })} />;
     }
 
     return (

@@ -5,6 +5,8 @@ import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import { useTranslation } from 'react-i18next';
 // framer-motion removed
 import { Calendar, RefreshCw, MapPin, Info, X, TrendingUp, TrendingDown, Minus, BarChart3, ChevronDown, ChevronUp, Copy, Check, Calculator, History, ChartSpline, Diff, Grid3X3, CircleGauge, FileSpreadsheet, AlertTriangle, CircleDollarSign } from 'lucide-react';
+import StateBlock from './components/StateBlock';
+import { analyticsEmptyProps } from './lib/analyticsEmpty';
 import clsx from 'clsx';
 import { twMerge } from 'tailwind-merge';
 const PriceChangeCards = lazy(() => import('./InsightsPanel'));
@@ -1444,7 +1446,11 @@ const HistoryTable = React.memo(({
         {loading && historyData.length === 0 ? (
           <HistoryTableSkeleton />
         ) : tableRowsMulti.length === 0 ? (
-          <p className="text-sm text-gray-400 text-center py-10">{t('avg_prices.no_data')}</p>
+          <StateBlock {...analyticsEmptyProps({
+            t,
+            hasAnyHistory: historyData.length > 0,
+            onWiden: activePreset !== '90' ? () => setPreset(90) : null,
+          })} />
         ) : (
           <div className="space-y-8">
             {/* Detail Table — daily price per station, grouped by fuel, with
@@ -1897,6 +1903,16 @@ export default function App() {
 
     return computePresetDates('7').end;
   });
+
+  // Apply a history-range preset across the three coupled state slices. Used by
+  // the "Show 90 days" recovery action on empty analytics sections.
+  const applyHistoryPreset = useCallback((preset) => {
+    const dates = computePresetDates(preset);
+    if (!dates) return;
+    setHistoryStartDate(dates.start);
+    setHistoryEndDate(dates.end);
+    setHistoryPreset(preset);
+  }, []);
 
   const [brushIndices, setBrushIndices] = useState(null); // Controlled state for Brush
   // True only while a slider handle is actively dragged. Used as a *stable* error-
@@ -2407,9 +2423,7 @@ export default function App() {
                 ))}
               </div>
             ) : (
-              <div className="text-center text-gray-400 py-10">
-                {t('no_data')}
-              </div>
+              <StateBlock message={t('states.empty')} />
             )}
             {/* Boxed slate callout — matches the Price History disclaimer
                 (avg_prices.latest_disclaimer) for a consistent house style. */}
@@ -2566,7 +2580,11 @@ export default function App() {
                   </div>
                 </div>
               ) : historyData.length > 0 ? (
-                <div className="text-center text-gray-400 py-10 text-sm">{t('no_data')}</div>
+                <StateBlock size="sm" {...analyticsEmptyProps({
+                  t,
+                  hasAnyHistory: true,
+                  onWiden: historyPreset !== '90' ? () => applyHistoryPreset('90') : null,
+                })} />
               ) : null}
             </div>
             </div>
@@ -2583,7 +2601,12 @@ export default function App() {
                 <InsightsSkeleton />
               ) : (
                 <Suspense fallback={<InsightsSkeleton />}>
-                  <PriceChangeCards groups={insightsGroups.filter(g => effectiveAnalyticsFuels.has(g.id))} todayKey={fmtRigaYmd(new Date())} />
+                  <PriceChangeCards
+                    groups={insightsGroups.filter(g => effectiveAnalyticsFuels.has(g.id))}
+                    todayKey={fmtRigaYmd(new Date())}
+                    hasAnyHistory={historyData.length > 0}
+                    onWiden={historyPreset !== '90' ? () => applyHistoryPreset('90') : null}
+                  />
                 </Suspense>
               )}
             </div>
