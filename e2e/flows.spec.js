@@ -8,6 +8,13 @@ import { mockApi } from './fixtures/mock-api.js';
 // Note: fuel/station labels are title-case in the DOM ("95 Petrol") and only
 // uppercased via CSS, so locators use the DOM casing.
 
+// The home FAQ (App.jsx) lives inside <main> for layout spacing, but its static
+// copy mentions every station/fuel by name regardless of the active filter —
+// so "X is filtered out" assertions must exclude it, or they'd see the FAQ's
+// always-present mentions and fail. Scopes to <main>'s other direct children
+// (the footer, outside <main>, is excluded the same way it always was).
+const filteredContent = (page) => page.locator('main > *:not([aria-labelledby="faq-heading"])');
+
 // These flows assert English DOM labels ("95 Petrol", etc.), so they run against
 // the /en/ language document (language now lives in the URL path).
 test.beforeEach(async ({ page }) => {
@@ -23,10 +30,11 @@ test('should_filter_to_one_provider_via_the_stations_dropdown', async ({ page })
   await page.mouse.click(2, 2); // outside-click to dismiss the popover before asserting
 
   await expect(page).toHaveURL(/stations=Neste/);
-  // Scoped to <main>: the footer always links to all stations/fuels regardless
-  // of the active filter, so an unscoped getByText would match it too.
-  await expect(page.locator('main').getByText('Viada')).toHaveCount(0);     // other chains gone (global filter)
-  await expect(page.locator('main').getByText('Circle K')).toHaveCount(0);
+  // Scoped to exclude the footer and FAQ: both always mention all
+  // stations/fuels regardless of the active filter, so an unscoped getByText
+  // would match them too.
+  await expect(filteredContent(page).getByText('Viada')).toHaveCount(0);     // other chains gone (global filter)
+  await expect(filteredContent(page).getByText('Circle K')).toHaveCount(0);
 });
 
 test('should_filter_to_one_fuel_via_the_fuel_dropdown', async ({ page }) => {
@@ -36,8 +44,8 @@ test('should_filter_to_one_fuel_via_the_fuel_dropdown', async ({ page }) => {
   await page.mouse.click(2, 2); // outside-click to dismiss the popover
 
   await expect(page).toHaveURL(/fuels=95/);
-  await expect(page.locator('main').getByText('95 Petrol').first()).toBeVisible();
-  await expect(page.locator('main').getByText('98 Petrol')).toHaveCount(0);
+  await expect(filteredContent(page).getByText('95 Petrol').first()).toBeVisible();
+  await expect(filteredContent(page).getByText('98 Petrol')).toHaveCount(0);
 });
 
 test('should_toggle_discount_shading_on_and_off', async ({ page }) => {
@@ -62,14 +70,14 @@ test('should_restore_filters_from_the_url_after_reload', async ({ page }) => {
 
   await page.reload();
   await expect(page).toHaveURL(/stations=Neste/);
-  await expect(page.locator('main').getByText('Viada')).toHaveCount(0); // filter persisted
+  await expect(filteredContent(page).getByText('Viada')).toHaveCount(0); // filter persisted
 });
 
 test('should_deep_link_station_and_fuel_filters', async ({ page }) => {
   await page.goto('/en/?stations=Neste&fuels=95');
-  await expect(page.locator('main').getByText('95 Petrol').first()).toBeVisible();
-  await expect(page.locator('main').getByText('98 Petrol')).toHaveCount(0);
-  await expect(page.locator('main').getByText('Viada')).toHaveCount(0);
+  await expect(filteredContent(page).getByText('95 Petrol').first()).toBeVisible();
+  await expect(filteredContent(page).getByText('98 Petrol')).toHaveCount(0);
+  await expect(filteredContent(page).getByText('Viada')).toHaveCount(0);
 });
 
 test('should_render_the_charts_and_timeline_slider', async ({ page }) => {
