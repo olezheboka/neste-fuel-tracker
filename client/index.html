@@ -11,12 +11,23 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" />
   <title>Degvielas cenas Latvijā šodien — Neste, Circle K, Virši, Viada | cenometrs.lv</title>
   <meta name="description" content="Salīdzini degvielas cenas Latvijā: 95, 98, dīzelis, D+ un gāze. Aktuālās un vēsturiskās cenas no Neste, Circle K, Virši un Viada — atjaunots katru stundu." />
+  <!-- Page-invariant social tags (same image/card across all 30 pages). Per-page
+       og/twitter title+description, canonical, hreflang and JSON-LD are stamped by
+       scripts/prerender.mjs. -->
+  <meta property="og:site_name" content="cenometrs.lv" />
+  <meta property="og:image" content="https://www.cenometrs.lv/og-image.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="cenometrs.lv — degvielas cenas Latvijā / цены на топливо в Латвии" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:image" content="https://www.cenometrs.lv/og-image.png" />
   <!-- __INITIAL_PRICES_INJECTED_HERE__ -->
 </head>
 
 <body>
   <!-- __PAGE_INTRO__ -->
   <div id="root"></div>
+  <!-- __PAGE_FAQ__ -->
   <script type="module" src="/src/main.jsx"></script>
 </body>
 

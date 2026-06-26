@@ -20,7 +20,7 @@ import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
 import { initFilterSet } from './lib/filters.js';
 import { loadPrefs, savePrefs } from './lib/prefs.js';
-import { pageFromPath, pagePath, PAGES, PAGE_META } from './lib/seo-meta.js';
+import { pageFromPath, pagePath, PAGES, PAGE_META, FAQ } from './lib/seo-meta.js';
 import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
 
 const API_BASE = import.meta.env.PROD ? '/api' : 'http://localhost:3000/api';
@@ -166,9 +166,38 @@ const SegmentedControl = ({ options, value, onChange, className, size = 'default
     );
   };
 
+// Home-page FAQ accordion. Mirrors the static `#seo-faq` block prerender.mjs
+// stamps for crawlers (main.jsx removes that on mount), and the same FAQ source
+// feeds the FAQPage JSON-LD — visible text and structured data must match for
+// Google's FAQ rich result. Native <details> so it stays open/closable and
+// crawlable without extra JS.
+const HomeFaq = ({ lang, t }) => {
+  const items = FAQ[lang] || FAQ.lv;
+  return (
+    <section aria-labelledby="faq-heading" className="max-w-3xl mx-auto px-3 sm:px-6 mt-2">
+      <h2 id="faq-heading" className="text-base sm:text-lg font-semibold text-gray-900 mb-3">
+        {t('faq_heading')}
+      </h2>
+      <div className="divide-y divide-gray-200 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.05),0_1px_2px_rgba(0,0,0,0.03)]">
+        {items.map((it) => (
+          <details key={it.q} className="group px-4 sm:px-5 py-3">
+            <summary className="flex items-center justify-between gap-3 cursor-pointer list-none text-sm sm:text-[15px] font-medium text-gray-900 marker:hidden">
+              {it.q}
+              <ChevronDown className="w-4 h-4 text-gray-400 shrink-0 transition-transform group-open:rotate-180" />
+            </summary>
+            <p className="mt-2 text-sm text-gray-500 leading-relaxed">{it.a}</p>
+          </details>
+        ))}
+      </div>
+    </section>
+  );
+};
+
 // Internal links to the P1 provider/fuel landing pages — without these the 27
 // pages are only reachable via the sitemap, which crawlers treat as a much
-// weaker discovery/relevance signal than an actual on-site link.
+// weaker discovery/relevance signal than an actual on-site link. Anchor text is
+// keyword-rich (label + localized "fuel prices") rather than a bare brand/fuel
+// code, so each link reinforces the target page's topic.
 const SiteFooter = ({ lang, t }) => {
   const stationPages = PAGES.filter((p) => p.kind === 'station');
   const fuelPages = PAGES.filter((p) => p.kind === 'fuel');
@@ -181,7 +210,7 @@ const SiteFooter = ({ lang, t }) => {
             {stationPages.map((p) => (
               <li key={p.slug}>
                 <a href={pagePath(lang, p.slug)} className="hover:text-gray-900 transition-colors">
-                  {STATIONS[p.filterId].label}
+                  {STATIONS[p.filterId].label} {t('footer_prices_label')}
                 </a>
               </li>
             ))}
@@ -193,7 +222,7 @@ const SiteFooter = ({ lang, t }) => {
             {fuelPages.map((p) => (
               <li key={p.slug}>
                 <a href={pagePath(lang, p.slug)} className="hover:text-gray-900 transition-colors">
-                  {t(FUEL_GROUPS.find((g) => g.id === p.filterId).labelKey)}
+                  {t(FUEL_GROUPS.find((g) => g.id === p.filterId).labelKey)} {t('footer_prices_label')}
                 </a>
               </li>
             ))}
@@ -2633,6 +2662,10 @@ export default function App() {
         <div className="h-8" />
 
       </main>
+
+      {/* FAQ only on the language home (not the per-station/fuel landing pages),
+          matching where the FAQPage JSON-LD + static #seo-faq block are emitted. */}
+      {!currentPage && <HomeFaq lang={i18n.language} t={t} />}
 
       <SiteFooter lang={i18n.language} t={t} />
     </div >
