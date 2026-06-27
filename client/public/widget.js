@@ -1,34 +1,43 @@
 /* cenometrs.lv — embeddable fuel-price widget.
  *
  * Embed on any site with:
- *   <div class="cenometrs-widget" data-lang="lv" data-layout="card" data-size="md"></div>
+ *   <div class="cenometrs-widget" data-lang="lv" data-size="medium"></div>
  *   <script async src="https://www.cenometrs.lv/widget.js"></script>
  *
  * Attributes (all optional):
- *   data-lang   lv | ru | en           (default lv)
- *   data-layout card | strip | compact (default card)
- *   data-size   sm | md | lg           (default md)
- *   data-theme  light | dark           (default light)
+ *   data-lang   lv | ru | en              (default lv)
+ *   data-size   small | medium | large    (default medium) — iOS-style tiles:
+ *                 small  = one featured fuel price (square)
+ *                 medium = wide grid of fuel prices
+ *                 large  = full per-fuel list
+ *   data-theme  light | dark              (default light)
  *   data-fuels  csv subset, e.g. "diesel,95" (default all)
  *
+ *   Legacy data-layout (card|strip|compact) is still accepted and mapped to
+ *   large|medium|small for backward-compat with older embeds.
+ *
  * Renders the cheapest current price per fuel and links back to cenometrs.lv.
- * Vanilla, dependency-free, self-contained. Talks only to cenometrs.lv, so the
- * API origin is hardcoded (the widget runs on third-party domains).
+ * The whole tile is one click target. Vanilla, dependency-free, self-contained.
+ * Talks only to cenometrs.lv, so the API origin is hardcoded (the widget runs
+ * on third-party domains).
  */
 (function () {
   'use strict';
 
   var ORIGIN = 'https://www.cenometrs.lv';
   var CACHE_KEY = 'cenometrs_widget_v1';
-  var CACHE_TTL = 5 * 60 * 1000; // 5 min — data changes hourly; be polite to the API.
+  var CACHE_TTL = 5 * 60 * 1000; // 5 min — data changes every ~30 min; be polite to the API.
 
+  // Full fuel names per language (no abbreviations) — mirrors the main app's
+  // i18n.js fuel-name translations (client/src/i18n.js: 'Futura D', 'Pro Diesel').
   var I18N = {
-    lv: { title: 'Degvielas cenas Latvijā', cta: 'Visas cenas', updated: 'Atjaunots', gas: 'Gāze', fuel: 'Degviela', from: 'no' },
-    ru: { title: 'Цены на топливо в Латвии', cta: 'Все цены', updated: 'Обновлено', gas: 'Газ', fuel: 'Топливо', from: 'от' },
-    en: { title: 'Fuel prices in Latvia', cta: 'All prices', updated: 'Updated', gas: 'LPG', fuel: 'Fuel', from: 'from' },
+    lv: { title: 'Lētākā degviela šodien', gas: 'Gāze', fuelNames: { '95': '95', '98': '98', diesel: 'Dīzelis', pro: 'Pro dīzelis' } },
+    ru: { title: 'Дешёвое топливо сегодня', gas: 'Газ', fuelNames: { '95': '95', '98': '98', diesel: 'Дизель', pro: 'Про дизель' } },
+    en: { title: 'Cheapest fuel today', gas: 'LPG', fuelNames: { '95': '95', '98': '98', diesel: 'Diesel', pro: 'Pro Diesel' } },
   };
-  var FUEL_CODE = { '95': '95', '98': '98', diesel: 'D', pro: 'D+' };
-  var SCALE = { sm: 0.86, md: 1, lg: 1.18 };
+  // Small tile features one fuel; prefer the everyday fuels (Diesel, then 95)
+  // over the per-liter-cheapest, which is usually LPG.
+  var FEATURE_PREF = ['diesel', '95', '98', 'pro', 'gas'];
 
   function attr(el, name, fallback) {
     var v = (el.getAttribute('data-' + name) || '').toLowerCase().trim();
@@ -54,17 +63,53 @@
     return only.length ? fuels.filter(function (f) { return only.indexOf(f.id) !== -1; }) : fuels;
   }
 
-  function codeOf(f, t) { return FUEL_CODE[f.id] || t.gas; }
+  function codeOf(f, t) { return t.fuelNames[f.id] || t.gas; }
 
-  function fmtUpdated(data, t) {
-    if (!data || !data.updated) return '';
-    try {
-      var d = new Date(data.updated), p = function (n) { return ('0' + n).slice(-2); };
-      return t.updated + ' ' + p(d.getDate()) + '.' + p(d.getMonth() + 1) + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
-    } catch { return ''; }
+  // Pick the single fuel the Small tile features.
+  function featured(fuels) {
+    if (fuels.length <= 1) return fuels[0];
+    for (var i = 0; i < FEATURE_PREF.length; i++) {
+      for (var j = 0; j < fuels.length; j++) {
+        if (fuels[j].id === FEATURE_PREF[i]) return fuels[j];
+      }
+    }
+    return fuels[0];
   }
 
   var FONT = 'ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,sans-serif';
+
+  // Subtle "cenometrs.lv" branding shown on every tile (#9). Doubles as the CTA.
+  function brand(c, arrow) {
+    return '<span style="font:600 11px/1 ' + FONT + ';color:' + c.muted + ';letter-spacing:.01em;">cenometrs.lv' +
+      (arrow ? ' <span style="color:' + c.accent + ';">→</span>' : '') + '</span>';
+  }
+
+  // Price with a subtle per-liter unit (" €/l"); `unitPx` sizes the muted suffix.
+  function priceHtml(f, c, unitPx) {
+    return f.price.toFixed(3) +
+      '<span style="font:700 ' + unitPx + 'px/1 ' + FONT + ';color:' + c.muted + ';"> €/l</span>';
+  }
+
+  // Up to `k` station addresses for this fuel (server sends up to 6), each on its
+  // own truncated line. '' when none survived filtering (e.g. a discounted Neste
+  // row carries only a marker, not an address).
+  function addrLines(f, c, px, indentPx, k) {
+    var list = (f.addresses || []).slice(0, k);
+    if (!list.length) return '';
+    return list.map(function (a) {
+      return '<div style="font:500 ' + px + 'px/1.3 ' + FONT + ';color:' + c.muted +
+        ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;' +
+        (indentPx ? 'padding-left:' + indentPx + 'px;' : '') + '">' + esc(a) + '</div>';
+    }).join('');
+  }
+
+  // How many addresses to show per fuel — more when fewer fuels share the tile,
+  // so a single-fuel widget fills its space with stations instead of whitespace.
+  function addrCount(size, n) {
+    if (size === 'small') return 3;            // always one featured fuel
+    if (size === 'large') return n <= 1 ? 5 : n === 2 ? 3 : n === 3 ? 2 : 1;
+    return n <= 1 ? 3 : n === 2 ? 2 : 1;       // medium
+  }
 
   function fetchPrices() {
     try {
@@ -84,74 +129,94 @@
       .catch(function () { return null; });
   }
 
-  // --- Layouts ----------------------------------------------------------------
+  // --- Layouts (iOS-style tiles) ----------------------------------------------
 
-  function renderCard(el, data, lang, c, s, fuels, t, href) {
-    var px = function (n) { return Math.round(n * s); };
-    var rows = fuels.map(function (f) {
-      return '<div style="display:flex;align-items:center;gap:8px;padding:' + px(7) + 'px ' + px(10) + 'px;border-radius:10px;background:' + c.card + ';">' +
-        '<span style="font:700 ' + px(12) + 'px/1 ' + FONT + ';min-width:' + px(30) + 'px;color:' + c.text + ';">' + esc(codeOf(f, t)) + '</span>' +
-        '<span style="flex:1;font:500 ' + px(12) + 'px/1.2 ' + FONT + ';color:' + c.muted + ';">' + esc(f.stationLabel) + '</span>' +
-        '<span style="font:700 ' + px(14) + 'px/1 ' + FONT + ';font-variant-numeric:tabular-nums;color:' + c.text + ';">' + f.price.toFixed(3) + ' €</span>' +
-        '</div>';
-    }).join('');
-    var updated = fmtUpdated(data, t);
+  var TILE = 'box-sizing:border-box;max-width:100%;text-decoration:none;font-family:' + FONT + ';';
+
+  function renderSmall(el, c, fuels, t, href) {
+    var f = featured(fuels);
+    if (!f) return;
     el.innerHTML =
-      '<div style="box-sizing:border-box;width:100%;max-width:' + px(360) + 'px;padding:' + px(14) + 'px;border:1px solid ' + c.border + ';border-radius:16px;background:' + c.bg + ';font-family:' + FONT + ';">' +
-        '<a href="' + href + '" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:7px;text-decoration:none;margin-bottom:' + px(10) + 'px;">' +
-          '<span style="width:' + px(9) + 'px;height:' + px(9) + 'px;border-radius:50%;background:' + c.accent + ';box-shadow:0 0 8px ' + c.accent + ';"></span>' +
-          '<span style="font:800 ' + px(14) + 'px/1.2 ' + FONT + ';color:' + c.text + ';">' + esc(t.title) + '</span>' +
-        '</a>' +
-        '<div style="display:flex;flex-direction:column;gap:5px;">' + rows + '</div>' +
-        '<div style="display:flex;align-items:center;justify-content:space-between;margin-top:' + px(11) + 'px;">' +
-          (updated ? '<span style="font:500 ' + px(10) + 'px/1 ' + FONT + ';color:' + c.muted + ';">' + esc(updated) + '</span>' : '<span></span>') +
-          '<a href="' + href + '" target="_blank" rel="noopener" style="font:700 ' + px(11) + 'px/1 ' + FONT + ';color:' + c.accent + ';text-decoration:none;white-space:nowrap;">' + esc(t.cta) + ' →</a>' +
+      '<a href="' + href + '" target="_blank" rel="noopener" style="' + TILE +
+        'display:flex;flex-direction:column;width:172px;height:172px;padding:16px;border:1px solid ' + c.border + ';border-radius:22px;background:' + c.bg + ';">' +
+        '<span style="font:600 11px/1.3 ' + FONT + ';color:' + c.muted + ';">' + esc(t.title) + '</span>' +
+        '<div style="flex:1;display:flex;flex-direction:column;justify-content:center;">' +
+          '<span style="font:800 32px/1 ' + FONT + ';font-variant-numeric:tabular-nums;letter-spacing:-.02em;color:' + c.text + ';">' +
+            priceHtml(f, c, 17) + '</span>' +
+          '<span style="margin-top:7px;font:700 12px/1 ' + FONT + ';color:' + c.text + ';">' + esc(codeOf(f, t)) +
+            ' <span style="font-weight:500;color:' + c.muted + ';">· ' + esc(f.stationLabel) + '</span></span>' +
+          addrLines(f, c, 11, 0, addrCount('small', 1)) +
         '</div>' +
-      '</div>';
-  }
-
-  function renderStrip(el, data, lang, c, s, fuels, t, href) {
-    var px = function (n) { return Math.round(n * s); };
-    var chips = fuels.map(function (f) {
-      return '<span style="display:inline-flex;align-items:center;gap:6px;padding:' + px(6) + 'px ' + px(11) + 'px;border-radius:9999px;background:' + c.card + ';white-space:nowrap;">' +
-        '<span style="font:700 ' + px(11) + 'px/1 ' + FONT + ';color:' + c.muted + ';">' + esc(codeOf(f, t)) + '</span>' +
-        '<span style="font:800 ' + px(13) + 'px/1 ' + FONT + ';font-variant-numeric:tabular-nums;color:' + c.text + ';">' + f.price.toFixed(3) + ' €</span>' +
-        '</span>';
-    }).join('');
-    el.innerHTML =
-      '<div style="box-sizing:border-box;width:100%;max-width:' + px(720) + 'px;display:flex;flex-wrap:wrap;align-items:center;gap:' + px(8) + 'px ' + px(12) + 'px;padding:' + px(10) + 'px ' + px(14) + 'px;border:1px solid ' + c.border + ';border-radius:14px;background:' + c.bg + ';font-family:' + FONT + ';">' +
-        '<a href="' + href + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:7px;text-decoration:none;margin-right:auto;">' +
-          '<span style="width:' + px(8) + 'px;height:' + px(8) + 'px;border-radius:50%;background:' + c.accent + ';box-shadow:0 0 8px ' + c.accent + ';"></span>' +
-          '<span style="font:800 ' + px(13) + 'px/1.2 ' + FONT + ';color:' + c.text + ';">' + esc(t.title) + '</span>' +
-        '</a>' +
-        chips +
-        '<a href="' + href + '" target="_blank" rel="noopener" style="font:700 ' + px(11) + 'px/1 ' + FONT + ';color:' + c.accent + ';text-decoration:none;white-space:nowrap;">' + esc(t.cta) + ' →</a>' +
-      '</div>';
-  }
-
-  function renderCompact(el, data, lang, c, s, fuels, t, href) {
-    var px = function (n) { return Math.round(n * s); };
-    var cheapest = fuels.reduce(function (m, f) { return (!m || f.price < m.price) ? f : m; }, null);
-    if (!cheapest) { return; }
-    var label = fuels.length === 1
-      ? esc(codeOf(cheapest, t)) + ' ' + cheapest.price.toFixed(3) + ' €'
-      : esc(t.fuel) + ' ' + esc(t.from) + ' ' + cheapest.price.toFixed(3) + ' €';
-    el.innerHTML =
-      '<a href="' + href + '" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:' + px(7) + 'px;padding:' + px(7) + 'px ' + px(13) + 'px;border:1px solid ' + c.border + ';border-radius:9999px;background:' + c.bg + ';text-decoration:none;font-family:' + FONT + ';">' +
-        '<span style="width:' + px(8) + 'px;height:' + px(8) + 'px;border-radius:50%;background:' + c.accent + ';box-shadow:0 0 8px ' + c.accent + ';"></span>' +
-        '<span style="font:700 ' + px(13) + 'px/1 ' + FONT + ';color:' + c.text + ';font-variant-numeric:tabular-nums;">' + label + '</span>' +
-        '<span style="font:700 ' + px(13) + 'px/1 ' + FONT + ';color:' + c.accent + ';">→</span>' +
+        brand(c, true) +
       '</a>';
   }
 
-  var LAYOUTS = { card: renderCard, strip: renderStrip, compact: renderCompact };
+  function renderMedium(el, c, fuels, t, href) {
+    var k = addrCount('medium', fuels.length);
+    var cells = fuels.map(function (f) {
+      return '<div style="flex:1 1 132px;min-width:128px;display:flex;flex-direction:column;gap:2px;padding:9px 11px;border-radius:13px;background:' + c.card + ';">' +
+        '<span style="font:700 11px/1 ' + FONT + ';color:' + c.muted + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(codeOf(f, t)) + ' · ' + esc(f.stationLabel) + '</span>' +
+        '<span style="font:800 16px/1 ' + FONT + ';font-variant-numeric:tabular-nums;color:' + c.text + ';">' + priceHtml(f, c, 11) + '</span>' +
+        addrLines(f, c, 10, 0, k) +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<a href="' + href + '" target="_blank" rel="noopener" style="' + TILE +
+        'display:flex;flex-direction:column;gap:11px;width:360px;padding:16px 18px;border:1px solid ' + c.border + ';border-radius:22px;background:' + c.bg + ';">' +
+        '<span style="font:800 15px/1.2 ' + FONT + ';color:' + c.text + ';">' + esc(t.title) + '</span>' +
+        '<div style="display:flex;flex-wrap:wrap;gap:8px;">' + cells + '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:flex-end;">' + brand(c, true) + '</div>' +
+      '</a>';
+  }
+
+  function renderLarge(el, c, fuels, t, href) {
+    var k = addrCount('large', fuels.length);
+    var rows = fuels.map(function (f) {
+      return '<div style="display:flex;flex-direction:column;gap:2px;padding:8px 11px;border-radius:13px;background:' + c.card + ';">' +
+        '<div style="display:flex;align-items:center;gap:10px;">' +
+          '<span style="font:800 13px/1 ' + FONT + ';min-width:30px;color:' + c.text + ';">' + esc(codeOf(f, t)) + '</span>' +
+          '<span style="flex:1;font:500 12px/1.2 ' + FONT + ';color:' + c.muted + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">' + esc(f.stationLabel) + '</span>' +
+          '<span style="font:800 15px/1 ' + FONT + ';font-variant-numeric:tabular-nums;color:' + c.text + ';">' + priceHtml(f, c, 11) + '</span>' +
+        '</div>' +
+        addrLines(f, c, 11, 40, k) +
+      '</div>';
+    }).join('');
+    el.innerHTML =
+      '<a href="' + href + '" target="_blank" rel="noopener" style="' + TILE +
+        'display:flex;flex-direction:column;gap:12px;width:360px;padding:18px;border:1px solid ' + c.border + ';border-radius:22px;background:' + c.bg + ';">' +
+        '<span style="font:800 16px/1.2 ' + FONT + ';color:' + c.text + ';">' + esc(t.title) + '</span>' +
+        '<div style="display:flex;flex-direction:column;gap:6px;">' + rows + '</div>' +
+        '<div style="display:flex;align-items:center;justify-content:flex-end;">' + brand(c, true) + '</div>' +
+      '</a>';
+  }
+
+  var LAYOUTS = { small: renderSmall, medium: renderMedium, large: renderLarge };
+  var LEGACY = { compact: 'small', strip: 'medium', card: 'large' };
+
+  function sizeOf(el) {
+    var s = attr(el, 'size', '');
+    if (LAYOUTS[s]) return s;
+    var legacy = LEGACY[attr(el, 'layout', '')];
+    return legacy || 'medium';
+  }
+
+  // Deep-link into the app pre-filtered to the fuels the tile actually shows, so
+  // clicking lands on the same view. Mirrors the app's `fuels` CSV param, which
+  // is omitted when all five groups are selected.
+  function hrefFor(lang, ids) {
+    var base = ORIGIN + '/' + lang + '/';
+    return (ids.length && ids.length < 5) ? base + '?fuels=' + ids.join(',') : base;
+  }
 
   function render(el, data, lang) {
     var fuels = fuelsOf(el, data);
     if (!fuels.length) { return; }
-    var layout = LAYOUTS[attr(el, 'layout', 'card')] || renderCard;
-    var s = SCALE[attr(el, 'size', 'md')] || 1;
-    layout(el, data, lang, theme(el), s, fuels, I18N[lang], ORIGIN + '/' + lang + '/');
+    var size = sizeOf(el);
+    // Small shows one featured fuel; the others show the whole filtered set.
+    var ids = size === 'small'
+      ? (featured(fuels) ? [featured(fuels).id] : [])
+      : fuels.map(function (f) { return f.id; });
+    LAYOUTS[size](el, theme(el), fuels, I18N[lang], hrefFor(lang, ids));
   }
 
   function init() {

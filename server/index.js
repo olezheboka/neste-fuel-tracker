@@ -453,8 +453,24 @@ const NESTE_TYPE_TO_GROUP = {
 };
 const STATION_LABELS = { Neste: 'Neste', CircleK: 'Circle K', Virsi: 'Virši', Viada: 'Viada' };
 
+// Turn a raw `location` value into up to 6 human station addresses for the
+// widget (the client shows a dynamic subset — more when fewer fuels share the
+// tile). Strips the MSO/CDATA artifacts cleanLocation handles, splits the
+// pipe-joined list, and drops the discount-marker sentences (which are not
+// addresses) so a discounted Neste row simply yields no addresses.
+function widgetAddresses(location) {
+    const cleaned = cleanLocation(location);
+    if (!cleaned) return [];
+    return cleaned
+        .split('|')
+        .map((s) => s.trim())
+        .filter(Boolean)
+        .filter((s) => !DISCOUNT_MARKER_RE.test(s))
+        .slice(0, 6);
+}
+
 function buildWidgetPayload(prices) {
-    const cheapest = new Map(); // groupId -> { id, price, station, stationLabel }
+    const cheapest = new Map(); // groupId -> { id, price, station, stationLabel, location }
     for (const p of Array.isArray(prices) ? prices : []) {
         if (typeof p.price !== 'number' || !Number.isFinite(p.price)) continue;
         const id = NESTE_TYPE_TO_GROUP[p.type] || p.type;
@@ -462,10 +478,13 @@ function buildWidgetPayload(prices) {
         const station = p.source || 'Neste';
         const cur = cheapest.get(id);
         if (!cur || p.price < cur.price) {
-            cheapest.set(id, { id, price: p.price, station, stationLabel: STATION_LABELS[station] || station });
+            cheapest.set(id, { id, price: p.price, station, stationLabel: STATION_LABELS[station] || station, location: p.location });
         }
     }
-    const fuels = WIDGET_GROUP_ORDER.filter((id) => cheapest.has(id)).map((id) => cheapest.get(id));
+    const fuels = WIDGET_GROUP_ORDER.filter((id) => cheapest.has(id)).map((id) => {
+        const c = cheapest.get(id);
+        return { id: c.id, price: c.price, station: c.station, stationLabel: c.stationLabel, addresses: widgetAddresses(c.location) };
+    });
     const updated = prices && prices[0] && prices[0].timestamp ? new Date(prices[0].timestamp).toISOString() : null;
     return { updated, currency: 'EUR', fuels };
 }
@@ -479,7 +498,7 @@ app.get('/api/widget/prices', async (req, res) => {
         } else {
             const db = await openDb();
             prices = await db.all(`
-                SELECT type, price, source, timestamp
+                SELECT type, price, location, source, timestamp
                 FROM fuel_prices
                 WHERE timestamp = (SELECT MAX(timestamp) FROM fuel_prices)
             `);
