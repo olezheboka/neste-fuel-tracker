@@ -1,6 +1,7 @@
 import { serializeForScript } from './edge-serialize.js';
-import { PAGES, PAGE_META, pageFromPath } from './client/src/lib/seo-meta.js';
+import { PAGES, PAGE_META, pageFromPath, SITE_NAME } from './client/src/lib/seo-meta.js';
 import { fuelGroupId, stationKey, STATIONS, FUEL_GROUPS } from './client/src/lib/fuel.js';
+import { DISCOUNT_MARKER_RE } from './client/src/lib/discounts.js';
 
 // Run on the three canonical language homes, the bare `/` entry (redirected here
 // rather than via a static vercel.json rule, so a returning visitor's `lang`
@@ -28,9 +29,9 @@ export { serializeForScript };
 // mount, so this exists purely so non-JS crawlers see today's numbers + station and
 // fuel keywords, and to paint meaningful content immediately (LCP).
 const LABELS = {
-  lv: { h1: 'Degvielas cenas Latvijā šodien', gas: 'Gāze' },
-  ru: { h1: 'Цены на топливо в Латвии сегодня', gas: 'Газ' },
-  en: { h1: 'Fuel prices in Latvia today', gas: 'LPG' },
+  lv: { h1: 'Degvielas cenas Latvijā šodien', gas: 'Gāze', liter: 'l', code: 'LV', flag: '🇱🇻', sameEverywhere: 'Visās stacijās cenas vienādas' },
+  ru: { h1: 'Цены на топливо в Латвии сегодня', gas: 'Газ', liter: 'л', code: 'RU', flag: '🇷🇺', sameEverywhere: 'Одинаковая цена на всех АЗС' },
+  en: { h1: 'Fuel prices in Latvia today', gas: 'LPG', liter: 'L', code: 'EN', flag: '🇬🇧', sameEverywhere: 'Same price at all stations' },
 };
 
 // id -> short display code, matching the app's fuel-label pills (App.jsx).
@@ -63,6 +64,12 @@ function getCookie(request, name) {
 // Station + fuel + per-litre price = the keyword + freshness signal we want in
 // the raw HTML. `page` (from pageFromPath), when present, narrows the rows to
 // that one station/fuel and swaps in its own h1.
+// Shared font stack + the CircleDollarSign lucide icon that prefixes the app's
+// real H1 — mirrored here so the static H1 matches the hydrated one exactly.
+const FONT_STACK = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif";
+const DOLLAR_ICON =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#9ca3af" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 18V6"/></svg>';
+
 function buildSeoBlock(prices, lang, page) {
   const L = LABELS[lang] || LABELS.lv;
   const h1 = page ? PAGE_META[page.slug][lang].h1 : L.h1;
@@ -78,6 +85,9 @@ function buildSeoBlock(prices, lang, page) {
     byGroup.get(id).push(p);
   }
 
+  // One card per fuel group, mirroring App.jsx's FuelGroupBlock + StationRow:
+  // label pill, then cheapest-first station rows (station name + first address +
+  // €price), the cheapest row highlighted with the same green wash + inset ring.
   const groupsHtml = FUEL_GROUPS.map((g) => g.id)
     .filter((id) => byGroup.has(id))
     .map((id) => {
@@ -85,25 +95,75 @@ function buildSeoBlock(prices, lang, page) {
       const rowsHtml = rows.map((p, i) => {
         const st = STATIONS[stationKey(p)] || { label: p.source || '', color: '#334155' };
         const cheapest = i === 0;
-        const rowStyle = cheapest ? `background:${hexToRgba(CHEAPEST_COLOR, 0.09)};border-radius:10px;` : '';
+        // Neste discount days replace the address with a "same price everywhere"
+        // marker (see App.jsx's StationRow `isMarker` check) — match it here too
+        // so the snapshot shows the localized label instead of the raw marker text.
+        const rawLoc = p.location ? String(p.location).trim() : '';
+        const isMarker = rawLoc && (/vienād/i.test(rawLoc) || DISCOUNT_MARKER_RE.test(rawLoc));
+        const loc = isMarker ? L.sameEverywhere : (rawLoc ? rawLoc.split('|')[0].trim() : '');
+        const rowStyle = cheapest
+          ? `background:${hexToRgba(CHEAPEST_COLOR, 0.09)};box-shadow:inset 0 0 0 1.5px ${hexToRgba(CHEAPEST_COLOR, 0.45)};`
+          : '';
         const priceStyle = cheapest
-          ? `background:${CHEAPEST_COLOR};color:#fff;padding:2px 8px;border-radius:9999px;`
-          : 'color:#0f172a;';
-        return `<div style="display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 8px;${rowStyle}">` +
-          `<span style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:${st.color}">${escHtml(st.label)}</span>` +
-          `<span style="font-size:14px;font-weight:700;font-variant-numeric:tabular-nums;${priceStyle}">${p.price.toFixed(3)} €/l</span>` +
+          ? `color:#fff;background:${CHEAPEST_COLOR};border-radius:6px;padding:2px 6px;`
+          : 'color:#111827;';
+        return `<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;border-radius:12px;padding:${cheapest ? '10px' : '8px'} 10px;${rowStyle}">` +
+          `<span style="min-width:0;display:flex;flex-direction:column;gap:4px;">` +
+            `<span style="font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.03em;color:${st.color}">${escHtml(st.label)}</span>` +
+            (loc ? `<span style="font-size:12px;color:#6b7280;font-weight:500;line-height:1.3;">${escHtml(loc)}</span>` : '') +
+          `</span>` +
+          `<span style="flex-shrink:0;display:flex;align-items:baseline;gap:4px;line-height:1.1;">` +
+            `<span style="font-size:15px;font-weight:700;font-variant-numeric:tabular-nums;letter-spacing:-0.01em;${priceStyle}">&euro;${p.price.toFixed(3)}</span>` +
+            `<span style="font-size:10px;color:#9ca3af;font-weight:500;">/ ${escHtml(L.liter)}</span>` +
+          `</span>` +
           `</div>`;
       }).join('');
-      return `<div style="background:#fff;border-radius:16px;padding:12px 14px;box-shadow:${CARD_SHADOW}">` +
-        `<span style="display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:8px;background:#f1f5f9;color:#334155;margin-bottom:6px;">${escHtml(fuelDisplayLabel(id, lang))}</span>` +
-        rowsHtml +
+      return `<div style="background:#fff;border-radius:16px;padding:14px;box-shadow:${CARD_SHADOW}">` +
+        `<div style="margin-bottom:8px;padding:0 4px;"><span style="display:inline-block;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:0.04em;padding:4px 10px;border-radius:6px;background:#f3f4f6;color:#374151;">${escHtml(fuelDisplayLabel(id, lang))}</span></div>` +
+        `<div style="display:flex;flex-direction:column;gap:2px;">${rowsHtml}</div>` +
         `</div>`;
     }).join('');
 
-  return `<div id="seo-prices" style="max-width:840px;margin:0 auto;padding:16px;font-family:Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:#f8fafc;">` +
-    `<h1 style="font-size:20px;font-weight:800;color:#0f172a;text-align:center;margin:0 0 16px;">${escHtml(h1)}</h1>` +
-    `<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;">${groupsHtml}</div>` +
-    `</div>`;
+  // Reproduce the real app's above-the-fold chrome — full-bleed page bg, white
+  // header bar, a filter-bar placeholder (reserves the sticky filter bar's height
+  // so the card doesn't jump down on hydration), then the prices card with its
+  // left-aligned icon+H1 and the 1-/2-column fuel grid. React replaces #root on
+  // mount, so matching the structure here makes that swap visually seamless
+  // instead of a jarring centered-snapshot → full-app flash.
+  // SYNC: mirrors App.jsx's <header> + sticky filter bar + prices <Card>. Match
+  // the STRUCTURE, not exact pixels (fast hydration forgives detail drift); only
+  // revisit when that above-the-fold structure changes.
+  const style = '<style>#seo-prices,#seo-prices *{box-sizing:border-box;}' +
+    '#seo-prices .seo-grid{display:grid;grid-template-columns:1fr;gap:12px;}' +
+    '@media(min-width:1024px){#seo-prices .seo-grid{grid-template-columns:1fr 1fr;}}</style>';
+
+  const header = '<div style="background:rgba(255,255,255,0.95);border-bottom:1px solid #e5e7eb;">' +
+    '<div style="max-width:1024px;margin:0 auto;padding:20px 24px;display:flex;align-items:center;justify-content:space-between;">' +
+      `<span style="font-weight:700;font-size:22px;letter-spacing:-0.02em;color:#0f172a;">${escHtml(SITE_NAME)}</span>` +
+      // Mirrors the real, collapsed LanguageDropdown button exactly (App.jsx):
+      // gray-100/80 pill, flag + uppercase lang code, trailing ChevronDown.
+      `<span style="display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:#111827;background:rgba(243,244,246,0.8);border-radius:12px;padding:8px 12px;">` +
+        `<span>${L.flag}</span><span style="text-transform:uppercase;">${escHtml(L.code)}</span>` +
+        `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#6b7280" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>` +
+      `</span>` +
+    '</div></div>';
+
+  const filterBar = '<div style="background:rgba(255,255,255,0.95);border-radius:16px;padding:16px;box-shadow:' + CARD_SHADOW + ';margin-bottom:32px;">' +
+    '<div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">' +
+      '<div style="height:40px;border-radius:10px;background:#f1f5f9;"></div>' +
+      '<div style="height:40px;border-radius:10px;background:#f1f5f9;"></div>' +
+    '</div></div>';
+
+  const card = '<div style="background:#fff;border-radius:16px;padding:24px;box-shadow:' + CARD_SHADOW + ';">' +
+    `<h1 style="display:flex;align-items:center;gap:8px;font-size:18px;font-weight:600;color:#0f172a;margin:0 0 12px;">${DOLLAR_ICON}<span>${escHtml(h1)}</span></h1>` +
+    `<div class="seo-grid">${groupsHtml}</div>` +
+    '</div>';
+
+  return `<div id="seo-prices" style="min-height:100vh;background:#f5f5f7;color:#0f172a;font-family:${FONT_STACK};">` +
+    style + header +
+    '<div style="max-width:1024px;margin:0 auto;padding:24px 16px 40px;">' +
+      filterBar + card +
+    '</div></div>';
 }
 
 function hexToRgba(hex, alpha) {

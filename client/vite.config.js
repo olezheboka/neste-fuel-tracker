@@ -13,8 +13,12 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       output: {
+        // recharts is intentionally NOT a manual chunk: it's only imported by the
+        // lazily-loaded FuelTrendChart, so letting Vite split it automatically
+        // keeps it (and its deps) entirely out of the entry's static graph —
+        // forcing it into a named chunk made a shared submodule land there and
+        // the entry static-import it, eagerly preloading ~106KB on first paint.
         manualChunks: {
-          recharts: ['recharts'],
           i18n: ['i18next', 'react-i18next'],
         },
       },
