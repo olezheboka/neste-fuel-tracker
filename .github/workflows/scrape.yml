@@ -16,6 +16,10 @@ concurrency:
   group: fuel-scrape
   cancel-in-progress: false
 
+# This workflow only curls an external URL with a secret — it never touches the
+# repo, so the GITHUB_TOKEN needs no permissions at all.
+permissions: {}
+
 jobs:
   scrape:
     runs-on: ubuntu-latest

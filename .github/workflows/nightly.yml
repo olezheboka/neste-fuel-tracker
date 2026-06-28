@@ -7,13 +7,22 @@ on:
     - cron: '0 3 * * *' # 03:00 UTC daily
   workflow_dispatch: {}
 
+# Read-only by default; the parser-health job widens to issues:write below.
+permissions:
+  contents: read
+
 jobs:
   parser-health:
     name: Live parser health check
     runs-on: ubuntu-latest
+    # Needs issues:write so the github-script step can open a tracking issue
+    # when a provider's HTML changes and the live parse fails.
+    permissions:
+      contents: read
+      issues: write
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: server/package-lock.json }
       - run: npm ci
         working-directory: server
@@ -23,7 +32,7 @@ jobs:
         working-directory: server
       - name: Open an issue if a provider broke
         if: failure()
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9
         with:
           script: |
             const title = 'Nightly parser health check failed';
@@ -43,8 +52,8 @@ jobs:
     name: Dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20 }
       - name: Audit server (high+)
         working-directory: server
