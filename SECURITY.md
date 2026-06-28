@@ -88,6 +88,14 @@ that fail closed (a broken provider yields no rows rather than bad rows).
 - **All** queries are parameterized (`?` → `$n` translation in `server/db.js`).
   No string-concatenated SQL anywhere.
 
+### Database transport
+- The Postgres connection verifies the server's TLS certificate
+  (`ssl: { rejectUnauthorized: true }` in `server/db.js`). The managed host serves
+  a publicly-trusted certificate that chains to Node's built-in roots, so cert +
+  hostname are validated with no custom CA.
+- Outbound scraper requests are bounded (10 MB body cap, ≤5 redirects, 5–8 s
+  timeout) so a hostile or MITM'd provider response can't exhaust function memory.
+
 ### Authentication
 - `/api/scrape` is gated by a `CRON_SECRET` bearer token; without it configured
   in production the endpoint returns `503`.
@@ -107,6 +115,8 @@ that fail closed (a broken provider yields no rows rather than bad rows).
 ### CI/CD protections
 - Production deploy is gated behind a GitHub Environment (`production`) with
   required reviewer, and depends on lint + unit + e2e + security jobs all passing.
+- Workflows run with least-privilege `permissions:`; all actions are SHA-pinned.
+- A branch ruleset on `main` blocks force pushes and restricts deletions.
 - Post-deploy smoke test verifies `/api/health` and `/api/prices/latest`.
 - A nightly parser-health check opens a tracking issue when a provider site
   changes.
@@ -173,19 +183,28 @@ expectations accordingly. No bug bounty is offered.
 
 ## CI/CD Security
 
-- **Branch protection:** require PRs and passing status checks before merge to
-  `main` (configure in repo settings).
-- **Required checks:** lint, `test-server`, `test-client`, `e2e`, and the PR
-  security job (gitleaks) must pass.
-- **Deployment protection:** production deploys run only from the `main` workflow
-  behind the `production` GitHub Environment with a required reviewer.
+This is a single-maintainer project, so controls are sized for a solo workflow:
+the high-value gate is the deployment reviewer, not pull-request ceremony.
+
+- **Branch ruleset on `main`:** a GitHub ruleset **blocks force pushes** and
+  **restricts deletions**, protecting history from accidental or compromised-token
+  rewrites without imposing a PR workflow. PR-required protection and required
+  approvals are intentionally **not** used — a solo maintainer can't review their
+  own PRs, and the deploy gate below already prevents bad code reaching prod.
+- **CI on every push:** the `Main` workflow runs lint + server/client tests + e2e
+  on every push to `main`, and the deploy job `needs:` all of them, so a failing
+  test blocks the deploy even without branch protection.
+- **Deployment protection:** production deploys run only from the `Main` workflow
+  behind the `production` GitHub Environment with a **required reviewer** — the
+  real safety net. Nothing reaches production without explicit human approval.
 - **Manual production approval:** the `production` environment reviewer must
-  approve each deploy.
-- **Least privilege (recommended):** add an explicit top-level `permissions:`
-  block to each workflow (default to `contents: read`; grant `issues: write` only
-  to the nightly issue-opener job).
-- **Action pinning (recommended):** pin third-party actions to a commit SHA
-  rather than a mutable major tag for supply-chain integrity.
+  approve each deploy; a post-deploy smoke test (`/api/health`,
+  `/api/prices/latest`) then gates success.
+- **Least privilege:** every workflow declares an explicit `permissions:` block
+  (default `contents: read`; `issues: write` only on the nightly issue-opener;
+  `{}` on the scrape trigger).
+- **Action pinning:** all third-party actions are pinned to commit SHAs (with the
+  tag in a trailing comment) so a moved tag can't inject code into CI.
 
 ## Release Security Checklist
 
