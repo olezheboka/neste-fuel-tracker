@@ -10,13 +10,17 @@ concurrency:
   group: pr-${{ github.ref }}
   cancel-in-progress: true
 
+# Least privilege: PR jobs only read the checkout and run tests/scans.
+permissions:
+  contents: read
+
 jobs:
   lint:
     name: Lint (client)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
       - run: npm ci
         working-directory: client
@@ -27,15 +31,15 @@ jobs:
     name: Server tests (unit + parsing + integration + security)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: server/package-lock.json }
       - run: npm ci
         working-directory: server
       - run: npm test
         working-directory: server
         env: { CI: 'true' }
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: server-junit
@@ -46,15 +50,15 @@ jobs:
     name: Client unit tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
       - run: npm ci
         working-directory: client
       - run: npm test
         working-directory: client
         env: { CI: 'true' }
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: client-junit
@@ -65,8 +69,8 @@ jobs:
     name: Build (client)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
       - run: npm ci
         working-directory: client
@@ -77,9 +81,9 @@ jobs:
     name: Security (audit + secret scan)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
         with: { fetch-depth: 0 }
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20 }
       # Block PRs on high+ production-dependency vulnerabilities. The earlier
       # undici findings were cleared by the @vercel/blob v2 and sqlite3 6 upgrades,
@@ -92,6 +96,6 @@ jobs:
         run: npm audit --omit=dev --audit-level=high
       # Secret scanning — keeps .env and friends out of git history.
       - name: gitleaks
-        uses: gitleaks/gitleaks-action@v3
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -10,12 +10,17 @@ concurrency:
   group: main
   cancel-in-progress: false
 
+# Least privilege: no job here needs to write to the repo via GITHUB_TOKEN.
+# Production deploy authenticates to Vercel with VERCEL_TOKEN, not GITHUB_TOKEN.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
       - run: npm ci
         working-directory: client
@@ -25,8 +30,8 @@ jobs:
   test-server:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: server/package-lock.json }
       - run: npm ci
         working-directory: server
@@ -37,8 +42,8 @@ jobs:
   test-client:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20, cache: npm, cache-dependency-path: client/package-lock.json }
       - run: npm ci
         working-directory: client
@@ -50,8 +55,8 @@ jobs:
     name: E2E (desktop + mobile)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
+      - uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with: { node-version: 20 }
       - run: npm ci
         working-directory: client
@@ -61,7 +66,7 @@ jobs:
       - run: npx playwright install --with-deps chromium webkit
       - run: npx playwright test
         env: { CI: 'true' }
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         if: always()
         with:
           name: playwright-report
@@ -79,7 +84,7 @@ jobs:
     # git integration can be disabled for main so this is the single deploy path.
     environment: production
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - name: Deploy to Vercel (production)
         # Pinned (not @latest): npx resolving "latest" right after a fresh vercel
         # CLI publish can hit registry/CDN propagation lag on the runner and 404
