@@ -222,6 +222,12 @@ export const PAGES = [
   { slug: 'diesel', kind: 'fuel', filterId: 'diesel' },
   { slug: 'pro', kind: 'fuel', filterId: 'pro' },
   { slug: 'gas', kind: 'fuel', filterId: 'gas' },
+  // City landing pages. `filterId` is the canonical city name seeded into the
+  // global city filter (see lib/cities.js); the slug is its ASCII form, matching
+  // citySlug() so /<lang>/riga/ and ?cities=riga use the same token. Only cities
+  // with real data are published — empty city pages would be thin SEO content.
+  { slug: 'riga', kind: 'city', filterId: 'Rīga' },
+  { slug: 'liepaja', kind: 'city', filterId: 'Liepāja' },
 ];
 
 // title/description go in <head>; h1/intro render as visible, crawlable body
@@ -405,6 +411,46 @@ export const PAGE_META = {
       description: 'Current LPG / autogas prices at Circle K, Virši and Viada stations in Latvia. Updated hourly.',
       h1: 'LPG (Autogas) Price in Latvia Today',
       intro: 'Compare LPG / autogas prices at Circle K, Virši and Viada stations across Latvia — with historical trends.',
+    },
+  },
+  riga: {
+    lv: {
+      title: 'Degvielas cenas Rīgā šodien | cenometrs.lv',
+      description: 'Šodienas degvielas cenas Rīgā: 95, 98, dīzelis, D+ un gāze Neste, Circle K, Virši un Viada stacijās. Atjaunots katru stundu.',
+      h1: 'Degvielas cenas Rīgā šodien',
+      intro: 'Salīdzini degvielas cenas Rīgā — 95, 98, dīzelis, D+ un autogāze — Neste, Circle K, Virši un Viada stacijās, ar cenu vēsturi un dinamiku.',
+    },
+    ru: {
+      title: 'Цены на топливо в Риге сегодня | cenometrs.lv',
+      description: 'Актуальные цены на топливо в Риге: 95, 98, дизель, D+ и газ на АЗС Neste, Circle K, Virši и Viada. Обновление каждый час.',
+      h1: 'Цены на топливо в Риге сегодня',
+      intro: 'Сравните цены на топливо в Риге — 95, 98, дизель, D+ и автогаз — на АЗС Neste, Circle K, Virši и Viada, с историей и динамикой цен.',
+    },
+    en: {
+      title: 'Fuel Prices in Rīga Today | cenometrs.lv',
+      description: 'Current fuel prices in Rīga: petrol 95, 98, diesel, D+ and LPG at Neste, Circle K, Virši and Viada stations. Updated hourly.',
+      h1: 'Fuel Prices in Rīga Today',
+      intro: 'Compare fuel prices in Rīga — petrol 95, 98, diesel, D+ and LPG — at Neste, Circle K, Virši and Viada stations, with price history and trends.',
+    },
+  },
+  liepaja: {
+    lv: {
+      title: 'Degvielas cenas Liepājā šodien | cenometrs.lv',
+      description: 'Šodienas degvielas cenas Liepājā: 95, 98, dīzelis un D+ no Latvijas degvielas tīkliem. Atjaunots katru stundu.',
+      h1: 'Degvielas cenas Liepājā šodien',
+      intro: 'Salīdzini degvielas cenas Liepājā — 95, 98, dīzelis un D+ — no Latvijas degvielas tīkliem, ar cenu vēsturi un dinamiku.',
+    },
+    ru: {
+      title: 'Цены на топливо в Лиепае сегодня | cenometrs.lv',
+      description: 'Актуальные цены на топливо в Лиепае: 95, 98, дизель и D+ по сетям АЗС Латвии. Обновление каждый час.',
+      h1: 'Цены на топливо в Лиепае сегодня',
+      intro: 'Сравните цены на топливо в Лиепае — 95, 98, дизель и D+ — по сетям АЗС Латвии, с историей и динамикой цен.',
+    },
+    en: {
+      title: 'Fuel Prices in Liepāja Today | cenometrs.lv',
+      description: 'Current fuel prices in Liepāja: petrol 95, 98, diesel and D+ from Latvia\'s fuel networks. Updated hourly.',
+      h1: 'Fuel Prices in Liepāja Today',
+      intro: 'Compare fuel prices in Liepāja — petrol 95, 98, diesel and D+ — from Latvia\'s fuel networks, with price history and trends.',
     },
   },
 };

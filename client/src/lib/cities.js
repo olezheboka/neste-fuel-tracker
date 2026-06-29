@@ -34,6 +34,15 @@ export const CITY_DICTIONARY = CITY_LIST.reduce((m, name) => {
 // The known-city universe (used as the default "all" set for the filter).
 export const ALL_CITY_IDS = CITY_LIST;
 
+// URL slug for a city: ASCII, diacritics-stripped, lowercase ("Rīga" -> "riga",
+// "Liepāja" -> "liepaja"). Used in the ?cities= param and the /<lang>/<slug>/
+// city landing pages so URLs stay clean instead of percent-encoded ("Liep%C4%81ja").
+export const citySlug = (name) => normalize(name);
+
+// Reverse of citySlug: an ASCII slug back to its canonical Latvian name, or null
+// for an unknown slug (so a hand-edited URL can't inject a bogus city).
+export const cityFromSlug = (slug) => CITY_DICTIONARY[normalize(slug)] || null;
+
 // Canonical city for a single address chip: the token after the last comma,
 // matched against the dictionary; DEFAULT_CITY when unrecognized/street-only.
 export const cityOfAddress = (addr) => {

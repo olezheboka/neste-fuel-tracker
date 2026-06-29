@@ -21,8 +21,8 @@ import { hexToRgba } from './lib/format.js';
 import { setLangCookie } from './i18n';
 import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
-import { initFilterSet, serializeFilterSet } from './lib/filters.js';
-import { ALL_CITY_IDS, citiesOf, cityOfAddress, setsIntersect, DEFAULT_CITY } from './lib/cities.js';
+import { initFilterSet } from './lib/filters.js';
+import { ALL_CITY_IDS, citiesOf, cityOfAddress, citySlug, cityFromSlug, setsIntersect, DEFAULT_CITY } from './lib/cities.js';
 import { loadPrefs, savePrefs } from './lib/prefs.js';
 import { pageFromPath, pagePath, PAGES, PAGE_META, FAQ } from './lib/seo-meta.js';
 import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
@@ -216,6 +216,7 @@ const HomeFaq = ({ lang, t }) => {
 const SiteFooter = ({ lang, t }) => {
   const stationPages = PAGES.filter((p) => p.kind === 'station');
   const fuelPages = PAGES.filter((p) => p.kind === 'fuel');
+  const cityPages = PAGES.filter((p) => p.kind === 'city');
   return (
     <footer className="max-w-5xl mx-auto px-6 py-10 mt-4 border-t border-gray-200 text-sm text-gray-500">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-8">
@@ -238,6 +239,18 @@ const SiteFooter = ({ lang, t }) => {
               <li key={p.slug}>
                 <a href={pagePath(lang, p.slug)} className="hover:text-gray-900 transition-colors">
                   {t(FUEL_GROUPS.find((g) => g.id === p.filterId).labelKey)} {t('footer_prices_label')}
+                </a>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div className="font-semibold text-gray-700 mb-2">{t('footer_by_city')}</div>
+          <ul className="space-y-1.5">
+            {cityPages.map((p) => (
+              <li key={p.slug}>
+                <a href={pagePath(lang, p.slug)} className="hover:text-gray-900 transition-colors">
+                  {p.filterId} {t('footer_prices_label')}
                 </a>
               </li>
             ))}
@@ -1382,22 +1395,37 @@ export default function App() {
   const [selectedStations, setSelectedStations] = useState(() => {
     const page = pageFromPath();
     if (page?.kind === 'station') return new Set([page.filterId]);
-    if (page?.kind === 'fuel') return new Set(STATION_ORDER);
+    if (page?.kind === 'fuel' || page?.kind === 'city') return new Set(STATION_ORDER);
     return initFilterSet('stations', STATION_ORDER, loadPrefs().stations?.join(','));
   });
   const [selectedFuels, setSelectedFuels] = useState(() => {
     const page = pageFromPath();
     if (page?.kind === 'fuel') return new Set([page.filterId]);
-    if (page?.kind === 'station') return new Set(FUEL_GROUP_IDS);
+    if (page?.kind === 'station' || page?.kind === 'city') return new Set(FUEL_GROUP_IDS);
     return initFilterSet('fuels', FUEL_GROUP_IDS, loadPrefs().fuels?.join(','));
   });
   // City filter for the prices view (default: all). Cities are derived
-  // client-side from each row's address text (see lib/cities.js) — there's no
-  // city universe known at init, so we seed against the known-city dictionary;
-  // the dropdown later offers only the cities actually present in the data.
-  const [selectedCities, setSelectedCities] = useState(
-    () => initFilterSet('cities', ALL_CITY_IDS, loadPrefs().cities?.join(','))
-  );
+  // client-side from each row's address text (see lib/cities.js). The URL uses
+  // ASCII slugs (?cities=riga,liepaja) while prefs store canonical names, so the
+  // init can't reuse the generic initFilterSet: URL slug → prefs → all.
+  const [selectedCities, setSelectedCities] = useState(() => {
+    const page = pageFromPath();
+    if (page?.kind === 'city') return new Set([page.filterId]);
+    if (page?.kind === 'station' || page?.kind === 'fuel') return new Set(ALL_CITY_IDS);
+    try {
+      const raw = new URLSearchParams(window.location.search).get('cities');
+      if (raw) {
+        const picked = raw.split(',').map((s) => cityFromSlug(s)).filter(Boolean);
+        if (picked.length) return new Set(picked);
+      }
+    } catch { /* SSR / parse guard */ }
+    const stored = loadPrefs().cities;
+    if (Array.isArray(stored)) {
+      const picked = stored.filter((c) => ALL_CITY_IDS.includes(c));
+      if (picked.length) return new Set(picked);
+    }
+    return new Set(ALL_CITY_IDS);
+  });
 
   // The landing page (if any) this path resolves to — stable for the life of
   // the mount since the path doesn't change without a navigation.
@@ -1969,15 +1997,12 @@ export default function App() {
     if (!FUEL_GROUP_IDS.every((f) => selectedFuels.has(f))) {
       params.set('fuels', FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)).join(','));
     }
-    // Sync the city filter — omit when all present cities are selected. Serialize
-    // the intersection with presentCities (the in-data universe): selectedCities
-    // is seeded from the full known-city dictionary, so it must be narrowed to the
-    // present cities before the "all selected → omit" check can match.
-    const cityCsv = serializeFilterSet(
-      new Set(presentCities.filter((c) => selectedCities.has(c))),
-      presentCities
-    );
-    if (cityCsv) params.set('cities', cityCsv);
+    // Sync the city filter as ASCII slugs (?cities=riga,liepaja) — omit when all
+    // present cities are selected (or none), so a default visit's URL stays bare.
+    const citySel = presentCities.filter((c) => selectedCities.has(c));
+    if (citySel.length && citySel.length < presentCities.length) {
+      params.set('cities', citySel.map(citySlug).join(','));
+    }
 
     // Sync the active Analytics fuel selection — only meaningful when there is more
     // than one fuel to switch between (otherwise the control is hidden).

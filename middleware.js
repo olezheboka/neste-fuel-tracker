@@ -1,6 +1,7 @@
 import { serializeForScript } from './edge-serialize.js';
 import { PAGES, PAGE_META, pageFromPath, SITE_NAME } from './client/src/lib/seo-meta.js';
 import { fuelGroupId, stationKey, STATIONS, FUEL_GROUPS } from './client/src/lib/fuel.js';
+import { citiesOf } from './client/src/lib/cities.js';
 import { DISCOUNT_MARKER_RE } from './client/src/lib/discounts.js';
 
 // Run on the three canonical language homes, the bare `/` entry (redirected here
@@ -17,9 +18,9 @@ import { DISCOUNT_MARKER_RE } from './client/src/lib/discounts.js';
 export const config = {
   matcher: [
     '/', '/lv/', '/ru/', '/en/',
-    '/lv/neste/', '/lv/circle-k/', '/lv/virsi/', '/lv/viada/', '/lv/95/', '/lv/98/', '/lv/diesel/', '/lv/pro/', '/lv/gas/',
-    '/ru/neste/', '/ru/circle-k/', '/ru/virsi/', '/ru/viada/', '/ru/95/', '/ru/98/', '/ru/diesel/', '/ru/pro/', '/ru/gas/',
-    '/en/neste/', '/en/circle-k/', '/en/virsi/', '/en/viada/', '/en/95/', '/en/98/', '/en/diesel/', '/en/pro/', '/en/gas/',
+    '/lv/neste/', '/lv/circle-k/', '/lv/virsi/', '/lv/viada/', '/lv/95/', '/lv/98/', '/lv/diesel/', '/lv/pro/', '/lv/gas/', '/lv/riga/', '/lv/liepaja/',
+    '/ru/neste/', '/ru/circle-k/', '/ru/virsi/', '/ru/viada/', '/ru/95/', '/ru/98/', '/ru/diesel/', '/ru/pro/', '/ru/gas/', '/ru/riga/', '/ru/liepaja/',
+    '/en/neste/', '/en/circle-k/', '/en/virsi/', '/en/viada/', '/en/95/', '/en/98/', '/en/diesel/', '/en/pro/', '/en/gas/', '/en/riga/', '/en/liepaja/',
   ],
 };
 
@@ -76,6 +77,7 @@ function buildSeoBlock(prices, lang, page) {
   let filtered = Array.isArray(prices) ? prices : [];
   if (page?.kind === 'station') filtered = filtered.filter((p) => stationKey(p) === page.filterId);
   if (page?.kind === 'fuel') filtered = filtered.filter((p) => fuelGroupId(p) === page.filterId);
+  if (page?.kind === 'city') filtered = filtered.filter((p) => citiesOf(p).has(page.filterId));
   filtered = filtered.filter((p) => p && typeof p.price === 'number');
 
   const byGroup = new Map();
