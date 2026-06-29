@@ -4,7 +4,7 @@ import { ChevronDown, Check } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import clsx from 'clsx';
 
-export default function MultiSelect({ label, options, selected, onToggle, onToggleAll, onSelectOnly, allLabel, align = 'start', compact = false }) {
+export default function MultiSelect({ label, options, selected, onToggle, onToggleAll, onSelectOnly, allLabel, align = 'start', compact = false, icon = null }) {
   const { t } = useTranslation();
   const allSelected = options.every((o) => selected.has(o.value));
   const noneSelected = options.every((o) => !selected.has(o.value));
@@ -24,9 +24,12 @@ export default function MultiSelect({ label, options, selected, onToggle, onTogg
             compact ? "h-9" : "h-[46px]"
           )}
         >
-          <span className="min-w-0 flex flex-col justify-center">
-            <span className={clsx("font-semibold uppercase tracking-wide text-gray-400 shrink-0 leading-tight", compact ? "text-[8px]" : "text-[10px]")}>{label}</span>
-            <span className={clsx("font-semibold text-gray-900 truncate leading-tight", compact ? "text-xs" : "text-sm")}>{summary}</span>
+          <span className="min-w-0 flex items-center gap-1">
+            {icon && <span className="shrink-0 text-gray-400">{icon}</span>}
+            <span className="min-w-0 flex flex-col justify-center">
+              <span className={clsx("font-semibold uppercase tracking-wide text-gray-400 shrink-0 leading-tight", compact ? "text-[8px]" : "text-[10px]")}>{label}</span>
+              <span className={clsx("font-semibold text-gray-900 truncate leading-tight", compact ? "text-xs" : "text-sm")}>{summary}</span>
+            </span>
           </span>
           <ChevronDown size={16} className="shrink-0 text-gray-400" />
         </button>

@@ -13,7 +13,7 @@
 // on read and UPGRADES the old data in place, so deploys never wipe preferences.
 
 const KEY = 'fpt:prefs';
-const VERSION = 1;
+const VERSION = 2;
 
 // Module-level cache so the several useState initializers that call loadPrefs()
 // during the first render share one parse, and savePrefs() keeps it in sync.
@@ -45,7 +45,10 @@ const importLegacy = () => {
 // branches here when the shape changes — never rename the key.
 const migrate = (obj) => {
   if (!obj || typeof obj !== 'object') return { v: VERSION };
-  // (no migrations yet — v1 is the first versioned schema)
+  // v2: added the `cities` filter. No backfill needed — an absent `cities`
+  // correctly reads as "all cities" (the unfiltered default), so just stamp
+  // the version forward without touching the rest of the object.
+  if (obj.v < 2) obj.v = 2;
   return obj;
 };
 

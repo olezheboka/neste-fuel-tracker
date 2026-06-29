@@ -21,7 +21,8 @@ import { hexToRgba } from './lib/format.js';
 import { setLangCookie } from './i18n';
 import { FUEL_COLORS, STATIONS, STATION_ORDER, STATION_FUEL_SUPPORT, FUEL_GROUPS, FUEL_GROUP_IDS, NESTE_TYPE_TO_GROUP, fuelGroupId, stationKey } from './lib/fuel.js';
 import { DISCOUNT_COLOR, DISCOUNT_MARKER_RE, EXTERNAL_DISCOUNT_RE, droppedEnough, isDiscountDay } from './lib/discounts.js';
-import { initFilterSet } from './lib/filters.js';
+import { initFilterSet, serializeFilterSet } from './lib/filters.js';
+import { ALL_CITY_IDS, citiesOf, cityOfAddress, setsIntersect, DEFAULT_CITY } from './lib/cities.js';
 import { loadPrefs, savePrefs } from './lib/prefs.js';
 import { pageFromPath, pagePath, PAGES, PAGE_META, FAQ } from './lib/seo-meta.js';
 import { buildChartData, defaultBrushWindow, resolveBrushFromDates } from './lib/chart.js';
@@ -569,7 +570,7 @@ const AddressChip = ({ addr, url, isMarker = false }) => {
 // One station's price within a fuel group: colored brand name + inline
 // address list (reusing AddressChip) + price. The cheapest row(s) are
 // highlighted — all stations tied at the group minimum, not just the first.
-const StationRow = ({ rec, isCheapest }) => {
+const StationRow = ({ rec, isCheapest, cityFilter }) => {
   const { t } = useTranslation();
   const st = STATIONS[stationKey(rec)] || { label: stationKey(rec), color: '#6b7280' };
 
@@ -580,6 +581,8 @@ const StationRow = ({ rec, isCheapest }) => {
     addressList = [t('all_stations_same_price')];
   } else if (rec.location && rec.location.trim().length > 0) {
     addressList = rec.location.split(/\|/).map((s) => s.trim()).filter((s) => s.length > 0);
+    // When a city filter is active, show only the chips in the selected cities.
+    if (cityFilter) addressList = addressList.filter((addr) => cityFilter.has(cityOfAddress(addr)));
   }
 
   return (
@@ -630,7 +633,7 @@ const StationRow = ({ rec, isCheapest }) => {
 
 // A fuel-type group: colored accent + label + cheapest price headline, then one
 // StationRow per station sorted cheapest-first.
-const FuelGroupBlock = ({ group, rows }) => {
+const FuelGroupBlock = ({ group, rows, cityFilter }) => {
   const { t } = useTranslation();
   // Round to 3 decimals (the display precision) before comparing, so float
   // noise never splits a true tie. All stations matching the minimum are
@@ -646,7 +649,7 @@ const FuelGroupBlock = ({ group, rows }) => {
       </div>
       <div className="space-y-0.5">
         {rows.map((rec) => (
-          <StationRow key={`${stationKey(rec)}-${rec.type}`} rec={rec} isCheapest={Math.round(rec.price * 1000) === minPriceKey} />
+          <StationRow key={`${stationKey(rec)}-${rec.type}`} rec={rec} isCheapest={Math.round(rec.price * 1000) === minPriceKey} cityFilter={cityFilter} />
         ))}
       </div>
     </div>
@@ -1388,6 +1391,13 @@ export default function App() {
     if (page?.kind === 'station') return new Set(FUEL_GROUP_IDS);
     return initFilterSet('fuels', FUEL_GROUP_IDS, loadPrefs().fuels?.join(','));
   });
+  // City filter for the prices view (default: all). Cities are derived
+  // client-side from each row's address text (see lib/cities.js) — there's no
+  // city universe known at init, so we seed against the known-city dictionary;
+  // the dropdown later offers only the cities actually present in the data.
+  const [selectedCities, setSelectedCities] = useState(
+    () => initFilterSet('cities', ALL_CITY_IDS, loadPrefs().cities?.join(','))
+  );
 
   // The landing page (if any) this path resolves to — stable for the life of
   // the mount since the path doesn't change without a navigation.
@@ -1460,6 +1470,53 @@ export default function App() {
     if (next.has(value)) next.delete(value); else next.add(value);
     return next.size === 0 ? prev : next;
   }), []);
+  const toggleCity = useCallback((value) => setSelectedCities((prev) => {
+    const next = new Set(prev);
+    if (next.has(value)) next.delete(value); else next.add(value);
+    return next.size === 0 ? prev : next;
+  }), []);
+
+  // Cities actually present in the current data — the dynamic universe for the
+  // city dropdown and the URL omit-when-default check. Rīga first, then A→Z.
+  const presentCities = useMemo(() => {
+    const seen = new Set();
+    latestPrices.forEach((r) => citiesOf(r).forEach((c) => seen.add(c)));
+    return [...seen].sort((a, b) =>
+      a === DEFAULT_CITY ? -1 : b === DEFAULT_CITY ? 1 : a.localeCompare(b, 'lv')
+    );
+  }, [latestPrices]);
+  // What's actually applied: the selection ∩ present cities, falling back to all
+  // present when empty so the view is never blanked by the filter alone.
+  const effectiveSelectedCities = useMemo(() => {
+    const inter = presentCities.filter((c) => selectedCities.has(c));
+    return new Set(inter.length ? inter : presentCities);
+  }, [presentCities, selectedCities]);
+  // True when every present city is selected → filter is inert (no row hiding,
+  // no chip trimming): the prices view behaves exactly as before any selection.
+  const isAllCities = useMemo(
+    () => presentCities.length > 0 && presentCities.every((c) => selectedCities.has(c)),
+    [presentCities, selectedCities]
+  );
+  // The city filter is a third box dropdown matching Stations/Fuel (with a pin
+  // icon). Shown only when there's a real choice (>1 city in the data); when
+  // hidden the controls fall back to a 2-column grid.
+  const showCityFilter = presentCities.length > 1;
+  const cityControl = showCityFilter ? (
+    <MultiSelect
+      label={t('city_filter')}
+      allLabel={t('all_cities')}
+      align="end"
+      compact={filtersCompact}
+      options={presentCities.map((c) => ({ value: c, label: c }))}
+      selected={selectedCities}
+      onToggle={toggleCity}
+      onToggleAll={() => {
+        const allOn = presentCities.every((c) => selectedCities.has(c));
+        setSelectedCities(new Set(allOn ? [] : presentCities));
+      }}
+      onSelectOnly={(v) => setSelectedCities(new Set([v]))}
+    />
+  ) : null;
 
   // Group latest prices by fuel type, filtered by the two selectors, each group's
   // stations sorted cheapest-first. Pure client-side — no refetch.
@@ -1469,12 +1526,13 @@ export default function App() {
       .map((g) => ({
         group: g,
         rows: latestPrices
-          .filter((r) => fuelGroupId(r) === g.id && selectedStations.has(stationKey(r)))
+          .filter((r) => fuelGroupId(r) === g.id && selectedStations.has(stationKey(r))
+            && (isAllCities || setsIntersect(citiesOf(r), effectiveSelectedCities)))
           .slice()
           .sort((a, b) => a.price - b.price),
       }))
       .filter((x) => x.rows.length > 0);
-  }, [latestPrices, effectiveSelectedFuels, selectedStations]);
+  }, [latestPrices, effectiveSelectedFuels, selectedStations, isAllCities, effectiveSelectedCities]);
 
   // Which stations / fuels actually appear in the current data (for the header
   // count and to hide selector options that returned nothing this scrape).
@@ -1911,6 +1969,15 @@ export default function App() {
     if (!FUEL_GROUP_IDS.every((f) => selectedFuels.has(f))) {
       params.set('fuels', FUEL_GROUP_IDS.filter((f) => selectedFuels.has(f)).join(','));
     }
+    // Sync the city filter — omit when all present cities are selected. Serialize
+    // the intersection with presentCities (the in-data universe): selectedCities
+    // is seeded from the full known-city dictionary, so it must be narrowed to the
+    // present cities before the "all selected → omit" check can match.
+    const cityCsv = serializeFilterSet(
+      new Set(presentCities.filter((c) => selectedCities.has(c))),
+      presentCities
+    );
+    if (cityCsv) params.set('cities', cityCsv);
 
     // Sync the active Analytics fuel selection — only meaningful when there is more
     // than one fuel to switch between (otherwise the control is hidden).
@@ -1934,6 +2001,14 @@ export default function App() {
       historyEnd: historyEndDate,
       analyticsFuels: [...analyticsFuelSelection],
     };
+
+    // Persist the city selection only once the data (and thus presentCities) is
+    // loaded — otherwise the early empty-data passes would write `cities: []` and
+    // wipe a returning visitor's restored selection before it's applied. Mirrors
+    // the brush-window guard below.
+    if (presentCities.length > 0) {
+      patch.cities = presentCities.filter((c) => selectedCities.has(c));
+    }
 
     // Sync the chart timeline window as dates — omit from the URL when it's the
     // default (last 30 days / full range) so the URL stays clean. Only persist the
@@ -1965,7 +2040,7 @@ export default function App() {
     const qs = params.toString().replace(/%2C/g, ',');
     const newRelativePathQuery = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
     window.history.replaceState(null, '', newRelativePathQuery);
-  }, [i18n.language, showDiscounts, historyStartDate, historyEndDate, historyPreset, selectedStations, selectedFuels, analyticsFuelSelection, analyticsFuelList, brushIndices, chartDataFinal]);
+  }, [i18n.language, showDiscounts, historyStartDate, historyEndDate, historyPreset, selectedStations, selectedFuels, selectedCities, presentCities, analyticsFuelSelection, analyticsFuelList, brushIndices, chartDataFinal]);
 
   // Per-page SEO copy (provider/fuel landing pages only — null on the plain
   // language home). Drives the H1 below and the intro paragraph right under
@@ -2047,34 +2122,43 @@ export default function App() {
                 {t('interested_in')}
               </h2>
             </div>
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <MultiSelect
-                label={t('station_filter')}
-                allLabel={t('all')}
-                compact={filtersCompact}
-                options={presentStations.map((s) => ({ value: s, label: STATIONS[s].label, color: STATIONS[s].color }))}
-                selected={selectedStations}
-                onToggle={toggleStation}
-                onToggleAll={() => {
-                  const allOn = presentStations.every((s) => selectedStations.has(s));
-                  setSelectedStations(new Set(allOn ? [] : presentStations));
-                }}
-                onSelectOnly={(v) => setSelectedStations(new Set([v]))}
-              />
-              <MultiSelect
-                label={t('fuel_filter')}
-                allLabel={t('all')}
-                align="end"
-                compact={filtersCompact}
-                options={presentFuels.map((g) => ({ value: g.id, label: t(g.labelKey), color: g.color }))}
-                selected={selectedFuels}
-                onToggle={toggleFuel}
-                onToggleAll={() => {
-                  const allOn = presentFuels.every((g) => selectedFuels.has(g.id));
-                  setSelectedFuels(new Set(allOn ? [] : presentFuels.map((g) => g.id)));
-                }}
-                onSelectOnly={(v) => setSelectedFuels(new Set([v]))}
-              />
+            {/* Stations + Fuel are the primary pair (equal width); the City
+                filter is secondary, so it rides the same row in a narrower box. */}
+            <div className="flex items-stretch gap-2 sm:gap-3">
+              <div className="flex-1 min-w-0">
+                <MultiSelect
+                  label={t('station_filter')}
+                  allLabel={t('all')}
+                  compact={filtersCompact}
+                  options={presentStations.map((s) => ({ value: s, label: STATIONS[s].label, color: STATIONS[s].color }))}
+                  selected={selectedStations}
+                  onToggle={toggleStation}
+                  onToggleAll={() => {
+                    const allOn = presentStations.every((s) => selectedStations.has(s));
+                    setSelectedStations(new Set(allOn ? [] : presentStations));
+                  }}
+                  onSelectOnly={(v) => setSelectedStations(new Set([v]))}
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <MultiSelect
+                  label={t('fuel_filter')}
+                  allLabel={t('all')}
+                  align={showCityFilter ? 'start' : 'end'}
+                  compact={filtersCompact}
+                  options={presentFuels.map((g) => ({ value: g.id, label: t(g.labelKey), color: g.color }))}
+                  selected={selectedFuels}
+                  onToggle={toggleFuel}
+                  onToggleAll={() => {
+                    const allOn = presentFuels.every((g) => selectedFuels.has(g.id));
+                    setSelectedFuels(new Set(allOn ? [] : presentFuels.map((g) => g.id)));
+                  }}
+                  onSelectOnly={(v) => setSelectedFuels(new Set([v]))}
+                />
+              </div>
+              {cityControl && (
+                <div className="w-24 sm:w-40 shrink-0">{cityControl}</div>
+              )}
             </div>
           </div>
         )}
@@ -2136,7 +2220,7 @@ export default function App() {
             ) : fuelGroups.length > 0 ? (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
                 {fuelGroups.map(({ group, rows }) => (
-                  <FuelGroupBlock key={group.id} group={group} rows={rows} />
+                  <FuelGroupBlock key={group.id} group={group} rows={rows} cityFilter={isAllCities ? null : effectiveSelectedCities} />
                 ))}
               </div>
             ) : (
