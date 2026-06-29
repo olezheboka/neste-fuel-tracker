@@ -16,13 +16,20 @@ afterEach(() => {
 
 describe('loadPrefs', () => {
   it('should_return_just_the_version_when_nothing_is_stored', () => {
-    expect(loadPrefs()).toEqual({ v: 1 });
+    expect(loadPrefs()).toEqual({ v: 2 });
   });
 
   it('should_read_and_parse_an_existing_fpt_prefs_object', () => {
-    const stored = { v: 1, discounts: false, stations: ['Neste'], analyticsFuels: ['diesel'] };
+    const stored = { v: 2, discounts: false, stations: ['Neste'], analyticsFuels: ['diesel'] };
     localStorage.setItem('fpt:prefs', JSON.stringify(stored));
     expect(loadPrefs()).toEqual(stored);
+  });
+
+  it('should_migrate_a_v1_object_to_the_current_version_on_read', () => {
+    // v1 had no `cities`; migrate() must stamp v2 forward without touching the
+    // rest (absent `cities` correctly reads as "all cities").
+    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 1, discounts: true, stations: ['Neste'] }));
+    expect(loadPrefs()).toEqual({ v: 2, discounts: true, stations: ['Neste'] });
   });
 
   it('should_import_legacy_per_key_values_when_no_fpt_prefs_exists', () => {
@@ -33,7 +40,7 @@ describe('loadPrefs', () => {
     localStorage.setItem('historyStartDate_v2', '2026-05-01');
     localStorage.setItem('historyEndDate_v2', '2026-05-20');
     expect(loadPrefs()).toEqual({
-      v: 1,
+      v: 2,
       discounts: false,
       stations: ['CircleK', 'Virsi'],
       fuels: ['95', 'diesel'],
@@ -49,26 +56,26 @@ describe('loadPrefs', () => {
   });
 
   it('should_prefer_fpt_prefs_over_legacy_keys', () => {
-    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 1, discounts: true }));
+    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 2, discounts: true }));
     localStorage.setItem('showDiscounts', 'false'); // should be ignored
-    expect(loadPrefs()).toEqual({ v: 1, discounts: true });
+    expect(loadPrefs()).toEqual({ v: 2, discounts: true });
   });
 
   it('should_fall_back_to_legacy_import_on_malformed_json', () => {
     localStorage.setItem('fpt:prefs', 'not-json{');
     localStorage.setItem('showDiscounts', 'false');
-    expect(loadPrefs()).toEqual({ v: 1, discounts: false });
+    expect(loadPrefs()).toEqual({ v: 2, discounts: false });
   });
 
   it('should_return_version_only_on_malformed_json_with_no_legacy', () => {
     localStorage.setItem('fpt:prefs', '}{');
-    expect(loadPrefs()).toEqual({ v: 1 });
+    expect(loadPrefs()).toEqual({ v: 2 });
   });
 
   it('should_cache_the_first_read', () => {
-    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 1, discounts: true }));
+    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 2, discounts: true }));
     const first = loadPrefs();
-    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 1, discounts: false }));
+    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 2, discounts: false }));
     expect(loadPrefs()).toBe(first); // same cached reference, storage change ignored
   });
 });
@@ -76,14 +83,14 @@ describe('loadPrefs', () => {
 describe('savePrefs', () => {
   it('should_persist_a_patch_and_stamp_the_version', () => {
     savePrefs({ discounts: false });
-    expect(JSON.parse(localStorage.getItem('fpt:prefs'))).toEqual({ v: 1, discounts: false });
+    expect(JSON.parse(localStorage.getItem('fpt:prefs'))).toEqual({ v: 2, discounts: false });
   });
 
   it('should_merge_a_partial_update_into_the_existing_object', () => {
-    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 1, discounts: false, stations: ['Neste'] }));
+    localStorage.setItem('fpt:prefs', JSON.stringify({ v: 2, discounts: false, stations: ['Neste'] }));
     savePrefs({ discounts: true });
     expect(JSON.parse(localStorage.getItem('fpt:prefs'))).toEqual({
-      v: 1,
+      v: 2,
       discounts: true,
       stations: ['Neste'],
     });
@@ -93,7 +100,7 @@ describe('savePrefs', () => {
     localStorage.setItem('selectedStations', 'CircleK');
     savePrefs({ discounts: true });
     expect(JSON.parse(localStorage.getItem('fpt:prefs'))).toEqual({
-      v: 1,
+      v: 2,
       stations: ['CircleK'],
       discounts: true,
     });
